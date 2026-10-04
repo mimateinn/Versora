@@ -1,23 +1,32 @@
 #!/usr/bin/env python3
 """
-Smart File Translation — local Streamlit UI.
+Versora — local Streamlit file translator.
 Run: streamlit run app.py
 """
 
 from __future__ import annotations
 
 import base64
+import html
+import io
+import os
+import re
 import subprocess
 import sys
 import tempfile
+import threading
+import time
+import zipfile
 from pathlib import Path
 
 import streamlit as st
 
 from src.batch import (
-    DEFAULT_CONCURRENCY,
+    CANCELLED,
     MAX_CONCURRENCY,
     MIN_CONCURRENCY,
+    DEFAULT_CONCURRENCY,
+    BatchReport,
     clamp_concurrency,
     translate_single_file,
     translate_tree,
@@ -28,31 +37,41 @@ from src.extractors import SUPPORTED_SUFFIXES, is_supported
 from src.game_text import SCRIPT_SUFFIXES
 from src.glossary import ensure_project, list_projects, load_glossary, save_glossary
 from src.i18n import FALLBACK_LANG, available_languages, detect_ui_language, language_display_name, t
-from src.models import default_model, models_for, resolve_model
-from src.providers.base import TranslationError
-from src.providers.codex_cli import INSTALL_HINT as CODEX_HINT
-from src.providers.codex_cli import codex_cli_path_setting, probe_codex_cli
-from src.providers.grok_cli import INSTALL_HINT as GROK_HINT
-from src.providers.grok_cli import grok_cli_path_setting, probe_grok_cli
-from src.security.secrets import load_secret, redact_secrets, save_secret_to_env
-from src.icons import CHECK, DASH, FILE, GLOBE, MOON, SUN, wrap
-from src.theme import css_for
+from src.models import default_model, models_for
+from src.prompts import PRESETS as PURPOSE_PRESETS, PURPOSES, custom_path, load as load_purpose, save_custom, system_prompt
+from src.providers import cli as cli_engine
+from src.providers.demo import demo_enabled
+from src.security.secrets import load_secret, redact_secrets, remove_secret_from_env, save_secret_to_env
+from src import runtime
+from src.icons import ALERT, CHECK, DASH, FILE, GLOBE, SPINNER, ZIP, wrap
+from src.theme import FX_JS, css_for
+from src import __version__
 from src.ui_prefs import load_prefs, save_prefs
 
 ROOT = Path(__file__).resolve().parent
 ICON_PATH = ROOT / "icon.png"
 UPLOAD_TYPES = sorted({s.lstrip(".") for s in SUPPORTED_SUFFIXES} | {"zip", "markdown", "htm"})
+# no-break space before each dot: a wrapped line can end with "·" but never start with one
+FORMATS_LINE = "\u00a0· ".join("txt md docx pdf json csv yaml po xliff xlsx html srt vtt".split())
 TARGET_CODES = [
     "zh-Hant", "zh-Hans", "en", "ja", "ko", "es", "fr", "de", "pt", "vi", "th", "id", "other",
 ]
-PROVIDER_OPTIONS = ["auto", "openai", "anthropic", "gemini", "xai", "grok_cli", "codex_cli"]
-SETTINGS_PANES = ("appearance", "translation", "keys", "glossary")
-KEY_ROWS = (
-    ("OpenAI", "OPENAI_API_KEY", "keys.openai"),
-    ("Anthropic", "ANTHROPIC_API_KEY", "keys.anthropic"),
-    ("Gemini API", "GEMINI_API_KEY", "keys.gemini"),
-    ("Grok / xAI API key", "XAI_API_KEY", "keys.xai"),
+PROVIDER_OPTIONS = ["auto", "claude_cli", "codex_cli", "grok_cli", "openai", "anthropic", "gemini", "xai"] + (
+    ["demo"] if demo_enabled() else []
 )
+SETTINGS_PANES = ("purposes", "keys", "order", "glossary", "appearance")
+# Translate choices live in plain keys. Their widgets use other keys and copy back on
+# change: Streamlit deletes a widget's key on any run that does not draw it, which is
+# what reset these every time Settings was opened.
+CHOICE_DEFAULTS = {
+    "target_lang": "en",
+    "source_choice": "auto",
+    "source_type": "file",
+    "purpose": "general",
+    "target_other": "",
+}
+TOAST_ICON = {"ok": ":material/check_circle:", "warn": ":material/info:", "error": ":material/error:"}
+WM_WORDS = ["VERSORA", "TRANSLATE", "翻譯", "TRADUIRE", "ÜBERSETZEN", "翻訳", "TRADUCIR", "번역"]
 
 
 def _browser_accept_language() -> str:
@@ -85,24 +104,28 @@ def _init_state() -> None:
         "picked_name": None,
         "picked_size": 0,
         "picked_bytes": None,
-        "translate_note": None,
-        "source_type": "file",
-        "content_mode": "document",
         "page": "translate",
-        "settings_pane": "appearance",
+        "settings_pane": "purposes",
         "provider": saved_provider,
         "model_by_provider": dict(saved_models),
         "model": saved_models.get(saved_provider) or default_model(saved_provider),
         "concurrency": clamp_concurrency(prefs.get("concurrency", DEFAULT_CONCURRENCY)),
-        "target_lang": "en",
-        "source_choice": "auto",
         "project": "default",
         "glossary_pairs": None,
-        "result_path": None,
-        "result_text": None,
-        "source_preview": None,
+        "glossary_nonce": 0,
+        "result": None,  # single file: {"src", "out", "path"}
         "batch_report": None,
+        "batch_job": None,  # how to rerun the job for "retry failed"
+        "batch_zip": None,
+        "single_error": None,  # single file failed: {"name", "size", "msg"}
+        "batch_error": None,  # a whole batch could not run: {"name", "msg", "missing"?}
+        "open_error": None,
+        "toasts": [],
+        "folder_path": "",
+        **{k: prefs.get(k, v) for k, v in CHOICE_DEFAULTS.items()},
     }
+    if "purpose" not in prefs and prefs.get("content_mode") == "game":  # v0.2.0 "Game text" switch
+        defaults["purpose"] = "game"
     for key, val in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = val
@@ -118,7 +141,7 @@ def L(key: str, **kwargs) -> str:
 
 
 st.set_page_config(
-    page_title="Smart File Translation",
+    page_title="Versora",
     page_icon=str(ICON_PATH),
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -131,9 +154,56 @@ if _qp.get("theme") in {"light", "dark"}:
 if _qp.get("pane") in SETTINGS_PANES:
     st.session_state.settings_pane = str(_qp.get("pane"))
 st.markdown(
-    css_for(st.session_state.theme, st.session_state.page, st.session_state.settings_pane),
+    css_for(
+        st.session_state.theme,
+        st.session_state.page,
+        st.session_state.settings_pane,
+        {
+            "drop-title": L("drop.zip_title") if st.session_state.source_type == "zip" else L("drop.title"),
+            "drop-browse": L("drop.browse"),
+            "drop-formats": "zip" if st.session_state.source_type == "zip" else FORMATS_LINE,
+            "drop-hint": L("drop.zip_hint") if st.session_state.source_type == "zip" else L("drop.hint"),
+        },
+    ),
     unsafe_allow_html=True,
 )
+
+
+def _watermark() -> str:
+    """Even rows in one layer, odd rows in the other; each row starts on a different word.
+    Each row holds its sequence twice so a -50% roll loops without a seam."""
+    sep = "  ·  "
+
+    def row(k: int) -> str:
+        words = WM_WORDS[k % len(WM_WORDS):] + WM_WORDS[: k % len(WM_WORDS)]
+        unit = sep.join(words) + sep
+        return f"<div>{unit * 12}</div>"
+
+    rows_a = "".join(row(k * 2) for k in range(48))
+    rows_b = "".join(row(k * 2 + 3) for k in range(48))
+    return (
+        '<div class="sfts-wm" aria-hidden="true"><div class="sfts-wm-field">'
+        f'<div class="sfts-wm-layer sfts-wm-a">{rows_a}</div>'
+        f'<div class="sfts-wm-layer sfts-wm-b">{rows_b}</div></div></div>'
+    )
+
+
+st.markdown(_watermark(), unsafe_allow_html=True)
+st.html(FX_JS, unsafe_allow_javascript=True)  # click motion for icons; binds once per browser tab
+
+
+# ── state helpers ────────────────────────────────────────────────────────────
+
+
+def _toast(msg: str, tone: str = "ok") -> None:
+    """Queue a toast. Shown at the top of the next run, so it survives st.rerun()."""
+    st.session_state.toasts.append((msg, tone))
+
+
+def _drain_toasts() -> None:
+    queued, st.session_state.toasts = list(st.session_state.toasts), []
+    for msg, tone in queued:  # 4 s, matched by the exit animation in theme.py (TOAST_MS)
+        st.toast(msg, icon=TOAST_ICON.get(tone, TOAST_ICON["ok"]), duration=4)
 
 
 def _sync_query() -> None:
@@ -141,6 +211,8 @@ def _sync_query() -> None:
     st.query_params["theme"] = st.session_state.theme
     if st.session_state.page == "settings":
         st.query_params["pane"] = st.session_state.settings_pane
+    elif "pane" in st.query_params:
+        del st.query_params["pane"]
 
 
 def _go(page: str, pane: str | None = None) -> None:
@@ -159,7 +231,26 @@ def _persist_prefs() -> None:
         provider=st.session_state.provider,
         model_by_provider=dict(st.session_state.model_by_provider or {}),
         concurrency=st.session_state.concurrency,
+        **{k: st.session_state.get(k) for k in CHOICE_DEFAULTS},
     )
+
+
+def _bound(widget_key: str, canon: str) -> dict:
+    """Widget kwargs that mirror plain key ``canon``. Seeds the widget each time it reappears."""
+    if widget_key not in st.session_state:
+        st.session_state[widget_key] = st.session_state[canon]
+    return {"key": widget_key, "on_change": _copy_back, "args": (widget_key, canon)}
+
+
+def _copy_back(widget_key: str, canon: str) -> None:
+    val = st.session_state.get(widget_key)
+    if val is None:  # a segmented control clicked off
+        st.session_state[widget_key] = st.session_state[canon]
+        return
+    st.session_state[canon] = val
+    if canon == "source_type":
+        _forget_pick()
+    _persist_prefs()
 
 
 def _set_theme(theme: str) -> None:
@@ -178,9 +269,20 @@ def _set_lang(lang: str, *, follow: bool = False) -> None:
     st.rerun()
 
 
+@st.cache_data(show_spinner=False)
 def _icon_data_uri() -> str:
-    raw = ICON_PATH.read_bytes() if ICON_PATH.is_file() else b""
-    return "data:image/png;base64," + base64.b64encode(raw).decode("ascii") if raw else ""
+    """The vector mark: a 24px PNG downscale of the 512 icon reads soft."""
+    path = ROOT / "assets" / "icon.svg"
+    raw = path.read_bytes() if path.is_file() else b""
+    return "data:image/svg+xml;base64," + base64.b64encode(raw).decode("ascii") if raw else ""
+
+
+@st.cache_data(show_spinner=False)
+def _busy_icon_uri() -> str:
+    """The animated app mark (badge lifts and stamps) shown while a job runs."""
+    path = ROOT / "assets" / "icon-animated.svg"
+    raw = path.read_bytes() if path.is_file() else b""
+    return "data:image/svg+xml;base64," + base64.b64encode(raw).decode("ascii")
 
 
 def _fmt_size(n: int) -> str:
@@ -191,19 +293,18 @@ def _fmt_size(n: int) -> str:
     return f"{n / (1024 * 1024):.1f} MB"
 
 
-def _quiet_update(key: str = "update_quiet") -> None:
-    if st.button(L("update.button"), key=key):
-        _show_overlay_result(_run_overlay())
-
-
 def _target_lang() -> str:
     choice = st.session_state.target_lang
-    return choice if choice != "other" else st.session_state.get("target_other", "en")
+    return choice if choice != "other" else (st.session_state.get("target_other") or "en").strip()
 
 
 def _source_lang() -> str | None:
     choice = st.session_state.source_choice
     return None if choice == "auto" else choice
+
+
+def _lang_label(code: str) -> str:
+    return L("sidebar.source_auto") if code == "auto" else L(f"target.{code}")
 
 
 def _run_overlay() -> str:
@@ -215,48 +316,138 @@ def _run_overlay() -> str:
             text=True,
             cwd=str(ROOT),
             check=False,
+            timeout=180,
         )
         return (proc.stdout or "") + (proc.stderr or "")
     except Exception:
         return ""
 
 
-def _show_overlay_result(out: str) -> None:
-    if "STATUS=UPDATED" in out:
-        st.warning(L("update.reopen"))
-    elif "STATUS=UP_TO_DATE" in out:
-        st.info(L("update.up_to_date"))
-    else:
-        st.info(L("update.failed"))
+def _open_folder(path: str) -> str | None:
+    """Open ``path`` in the file manager; returns an error sentence (shown inline) or None."""
+    try:
+        if sys.platform.startswith("win"):
+            os.startfile(path)  # type: ignore[attr-defined]
+        else:
+            subprocess.Popen(["open" if sys.platform == "darwin" else "xdg-open", path])
+    except Exception as e:
+        return L("main.status_error", msg=redact_secrets(str(e)))
+    return None
+
+
+# Error text from providers and parsers → one plain sentence.
+_ERROR_HINTS = (
+    (CANCELLED, "err.cancelled"),
+    ("[timeout]", "err.timeout"), ("[limit]", "err.rate"), ("[refused]", "err.refused"),
+    ("[empty]", "err.blank"), ("[truncated]", "err.truncated"),
+    ("logged in", "err.signin"), ("login", "err.signin"), ("[auth]", "err.key"), ("[spawn]", "err.spawn"),
+    ("401", "err.key"), ("403", "err.key"), ("api key", "err.key"), ("unauthorized", "err.key"),
+    ("authentication", "err.key"),
+    ("429", "err.rate"), ("rate limit", "err.rate"), ("quota", "err.rate"), ("overloaded", "err.rate"),
+    ("timed out", "err.timeout"), ("timeout", "err.timeout"),
+    ("connect", "err.network"), ("network", "err.network"), ("name resolution", "err.network"),
+    ("empty text", "err.empty"), ("nothing to translate", "err.empty"),
+)
+_SKIP_HINTS = (
+    ("unsupported", "skip.type"), ("binary", "skip.binary"), ("nested zip", "skip.zip"),
+    ("overwrite", "skip.overwrite"), ("unsafe", "skip.unsafe"), ("zip-slip", "skip.unsafe"),
+    ("absolute path", "skip.unsafe"), ("outside", "skip.unsafe"),
+)
+
+
+def _hint(msg: str, hints=_ERROR_HINTS) -> str | None:
+    low = (msg or "").lower()
+    for needle, key in hints:
+        if needle in low:
+            return L(key)
+    return None
+
+
+def _human(msg: str, hints=_ERROR_HINTS) -> str:
+    text = redact_secrets(msg or "").strip()
+    return _hint(msg, hints) or (text if len(text) <= 160 else text[:157] + "...") or L("err.generic")
+
+
+# ── chrome ──────────────────────────────────────────────────────────────────
 
 
 def render_chrome() -> None:
-    _pad, tab_t, tab_s, _gap, sun, tog, moon = st.columns([1.8, 0.7, 0.7, 1.5, 0.28, 0.72, 0.28])
-    with tab_t:
-        if st.button(L("nav.translate"), key="nav_translate"):
-            _go("translate")
-    with tab_s:
-        if st.button(L("nav.settings"), key="nav_settings"):
-            _go("settings")
+    brand, nav = st.columns([1, 1], vertical_alignment="center", gap="small")
+    with brand:
+        uri = _icon_data_uri()
+        img = f'<img src="{uri}" alt="">' if uri else ""
+        st.markdown(f'<div class="sfts-brand"><span class="sfts-tile">{img}</span><b>{L("app.title")}</b></div>', unsafe_allow_html=True)
     dark = st.session_state.theme == "dark"
-    with sun:
-        st.markdown(f'<div class="sfts-sunmoon">{wrap(SUN)}</div>', unsafe_allow_html=True)
-    with tog:
-        if st.button(" ", key="theme_toggle"):
+    with nav, st.container(key="topnav", horizontal=True, horizontal_alignment="right", vertical_alignment="center"):
+        busy = _busy()
+        if st.button(L("nav.translate"), key="nav_translate", disabled=busy):
+            _go("translate")
+        if st.button(L("nav.settings"), key="nav_settings", disabled=busy):
+            _go("settings")
+        if st.button(
+            L("theme.light") if dark else L("theme.dark"),
+            key="theme_toggle",
+            help=L("theme.light") if dark else L("theme.dark"),
+            disabled=busy,
+        ):
             _set_theme("light" if dark else "dark")
-    with moon:
-        st.markdown(f'<div class="sfts-sunmoon">{wrap(MOON)}</div>', unsafe_allow_html=True)
 
-    if st.session_state.page != "translate":
+
+# ── settings ────────────────────────────────────────────────────────────────
+
+
+def _check_update() -> None:
+    """Runs as a pending action (the button shows "Checking…" first); the outcome stays on the row."""
+    out = _run_overlay()
+    if "STATUS=UPDATED" in out:
+        st.session_state.update_status = ("warn", L("update.reopen"))
+    elif "STATUS=UP_TO_DATE" in out:
+        st.session_state.update_status = ("ok", L("update.up_to_date"))
+    else:
+        st.session_state.update_status = ("err", L("update.failed"))
+
+
+def _pend(action: str, pid: str = "") -> None:
+    """Mark a slow action; the pane draws its button as pending, then runs it at the end of the run."""
+    st.session_state.svc_pending = (action, pid)
+
+
+def _pending(action: str, pid: str = "") -> bool:
+    return st.session_state.get("svc_pending") == (action, pid)
+
+
+def _pending_button(label: str, busy_label: str, key: str, action: str, pid: str = "", **kw) -> None:
+    if _pending(action, pid):
+        with st.container(key=f"svc_pending_{key}"):
+            st.button(busy_label, key=key, disabled=True)
+    else:
+        st.button(label, key=key, on_click=_pend, args=(action, pid), disabled=bool(st.session_state.get("svc_pending")), **kw)
+
+
+def _run_pending() -> None:
+    """After the pane is drawn (pending buttons visible): run the one slow action, then redraw."""
+    pend = st.session_state.get("svc_pending")
+    if not pend:
         return
-    uri = _icon_data_uri()
-    img = f'<img src="{uri}" width="88" height="88" alt="">' if uri else ""
-    st.markdown(
-        f'<div class="sfts-hero">{img}<div class="sfts-product">{L("app.title")}</div>'
-        f'<div class="sfts-tagline">{L("app.tagline")}</div></div>',
-        unsafe_allow_html=True,
-    )
-    _quiet_update("update_hero")
+    action, pid = pend
+    try:
+        if action == "recheck":
+            _recheck(pid)
+        elif action == "test":
+            _test_service(pid)
+        elif action == "save_test":
+            value = (st.session_state.get(f"paste_{pid}") or "").strip()
+            if value:
+                save_secret_to_env(API_KEY_NAMES[pid], value)
+                list_available_providers(fresh=True)
+                st.session_state.pop(f"svc_edit_{pid}", None)
+                st.session_state.pop("svc_add", None)
+                _test_service(pid)
+        elif action == "update":
+            _check_update()
+    finally:
+        st.session_state.svc_pending = None
+    st.rerun()
 
 
 def render_appearance_pane() -> None:
@@ -266,559 +457,1145 @@ def render_appearance_pane() -> None:
         detected = FALLBACK_LANG if FALLBACK_LANG in langs else langs[0]
     now_name = language_display_name(detected, st.session_state.ui_lang)
     st.markdown(f'<div class="sfts-pane-title">{L("card.appearance")}</div>', unsafe_allow_html=True)
-    with st.container(border=True):
-        lab, ctl = st.columns([1.1, 2.2], vertical_alignment="center")
-        with lab:
-            st.markdown(f'<div class="sfts-row-label">{L("card.theme")}</div>', unsafe_allow_html=True)
-        with ctl:
-            theme = st.segmented_control(
-                L("card.theme"),
-                options=["light", "dark"],
-                default=st.session_state.theme,
-                format_func=lambda x: L("theme.light") if x == "light" else L("theme.dark"),
-                key="theme_seg",
-                label_visibility="collapsed",
-            )
-        if theme in {"light", "dark"} and theme != st.session_state.theme:
-            _set_theme(theme)
-        st.markdown('<hr class="sfts-divider">', unsafe_allow_html=True)
+    with st.container(border=True, key="card_appearance"):
         lang_labels = {code: language_display_name(code, st.session_state.ui_lang) for code in langs}
         options = ["__system__"] + langs
         current = "__system__" if st.session_state.get("ui_lang_follow") else (
             st.session_state.ui_lang if st.session_state.ui_lang in langs else "__system__"
         )
-        chosen = st.selectbox(
-            L("sidebar.language"),
-            options=options,
-            index=options.index(current) if current in options else 0,
-            format_func=lambda c: L("lang.follow_system", name=now_name) if c == "__system__" else lang_labels.get(c, c),
-            key="ui_lang_select",
-        )
+        lab, ctl = st.columns([1.1, 2.2], vertical_alignment="center")
+        with lab:
+            st.markdown(f'<div class="sfts-row-label">{L("sidebar.language")}</div>', unsafe_allow_html=True)
+        with ctl:
+            chosen = st.selectbox(
+                L("sidebar.language"),
+                options=options,
+                index=options.index(current) if current in options else 0,
+                format_func={**lang_labels, "__system__": L("lang.follow_system", name=now_name)}.get,
+                key="ui_lang_select",
+                label_visibility="collapsed",
+            )
         if chosen == "__system__":
             if not st.session_state.get("ui_lang_follow") or st.session_state.ui_lang != detected:
                 _set_lang(detected, follow=True)
         elif chosen != st.session_state.ui_lang or st.session_state.get("ui_lang_follow"):
             _set_lang(chosen, follow=False)
-        st.markdown(f'<div class="sfts-muted">{L("card.lang_fallback")}</div>', unsafe_allow_html=True)
-        st.markdown(
-            f'<div class="sfts-lang-count">{wrap(GLOBE)}{L("card.lang_count")}</div>',
-            unsafe_allow_html=True,
-        )
+        st.markdown(f'<div class="sfts-muted">{L("card.lang_fallback")} {L("card.lang_count")}</div>', unsafe_allow_html=True)
+        st.markdown('<hr class="sfts-divider">', unsafe_allow_html=True)
+        with st.container(key="about_row", horizontal=True, vertical_alignment="center", gap="small", wrap=False):
+            st.markdown(f'<div class="sfts-row-label">{L("about.version", v=__version__)}</div>', unsafe_allow_html=True)
+            _pending_button(L("update.button"), L("svc.checking"), "update_settings", "update")
+        status = st.session_state.get("update_status")
+        if status:
+            st.markdown(f'<div class="sfts-test" data-tone="{status[0]}">{html.escape(status[1])}</div>', unsafe_allow_html=True)
+    _run_pending()
 
 
-def render_translation_pane() -> None:
-    st.markdown(f'<div class="sfts-pane-title">{L("card.translation")}</div>', unsafe_allow_html=True)
-    with st.container(border=True):
-        target_labels = {c: L(f"target.{c}") for c in TARGET_CODES if c != "other"}
-        target_labels["other"] = L("target.other")
-        st.selectbox(
-            L("sidebar.target_lang"),
-            options=TARGET_CODES,
-            index=TARGET_CODES.index(st.session_state.target_lang) if st.session_state.target_lang in TARGET_CODES else 2,
-            format_func=lambda c: target_labels.get(c, c),
-            key="target_lang",
-        )
-        if st.session_state.target_lang == "other":
-            st.text_input(L("sidebar.target_other"), value="en", key="target_other")
-        source_options = ["auto"] + [c for c in TARGET_CODES if c != "other"]
-        source_labels = {"auto": L("sidebar.source_auto"), **{c: L(f"target.{c}") for c in TARGET_CODES if c != "other"}}
-        st.selectbox(
-            L("sidebar.source_lang"),
-            options=source_options,
-            index=source_options.index(st.session_state.source_choice) if st.session_state.source_choice in source_options else 0,
-            format_func=lambda c: source_labels.get(c, c),
-            key="source_choice",
-        )
-        provider_labels = {
-            "auto": L("sidebar.provider_auto"),
-            "openai": L("sidebar.provider_openai"),
-            "anthropic": L("sidebar.provider_anthropic"),
-            "gemini": L("sidebar.provider_gemini"),
-            "xai": L("sidebar.provider_xai"),
-            "grok_cli": L("sidebar.provider_grok_cli"),
-            "codex_cli": L("sidebar.provider_codex_cli"),
-        }
-        chosen_provider = st.selectbox(
-            L("sidebar.provider"),
-            options=PROVIDER_OPTIONS,
-            index=PROVIDER_OPTIONS.index(st.session_state.provider) if st.session_state.provider in PROVIDER_OPTIONS else 0,
-            format_func=lambda x: provider_labels.get(x, x),
-            key="provider_select",
-        )
-        if chosen_provider != st.session_state.provider:
-            st.session_state.provider = chosen_provider
-            stored = (st.session_state.model_by_provider or {}).get(chosen_provider)
-            st.session_state.model = resolve_model(chosen_provider, stored) or default_model(chosen_provider)
-            _persist_prefs()
-            st.rerun()
-        model_options = models_for(st.session_state.provider)
-        if not model_options:
-            st.caption(L("sidebar.model_auto"))
-        else:
-            current_model = resolve_model(st.session_state.provider, st.session_state.get("model"))
-            if current_model not in model_options:
-                current_model = model_options[0]
-            picked = st.selectbox(
-                L("sidebar.model"),
-                options=model_options,
-                index=model_options.index(current_model),
-                key="model_select",
+def _copy_purpose() -> None:
+    st.session_state["purpose_body"] = load_purpose(st.session_state.get("purpose_from") or "general")[1]
+
+
+def _save_purpose() -> None:
+    st.session_state.purpose_saved = save_custom(st.session_state.get("purpose_body") or "")
+
+
+def render_purposes_pane() -> None:
+    """Custom purpose: start from any preset, edit, save (each save is a new version)."""
+    st.markdown(f'<div class="sfts-pane-title">{L("card.purposes")}</div>', unsafe_allow_html=True)
+    with st.container(border=True, key="card_purpose"):
+        version, body = load_purpose("custom") if custom_path().is_file() else (0, load_purpose("general")[1])
+        if "purpose_body" not in st.session_state:
+            st.session_state["purpose_body"] = body
+        st.markdown(f'<div class="sfts-note">{L("purpose.hint")}</div>', unsafe_allow_html=True)
+        with st.container(key="purpose_from_row", horizontal=True, vertical_alignment="bottom", gap="small", wrap=False):
+            st.selectbox(
+                L("purpose.start_from"), options=list(PURPOSE_PRESETS),
+                format_func={p: L(f"purpose.{p}") for p in PURPOSE_PRESETS}.get, key="purpose_from",
             )
-            if picked != st.session_state.model:
-                st.session_state.model = picked
-                models = dict(st.session_state.model_by_provider or {})
-                models[st.session_state.provider] = picked
-                st.session_state.model_by_provider = models
-                _persist_prefs()
-                st.rerun()
-        conc = st.slider(
-            L("sidebar.concurrency"),
-            min_value=MIN_CONCURRENCY,
-            max_value=MAX_CONCURRENCY,
-            value=clamp_concurrency(st.session_state.concurrency),
-            key="concurrency_slider",
+            st.button(L("purpose.copy"), key="purpose_copy", on_click=_copy_purpose)
+        st.text_area(L("purpose.instructions"), key="purpose_body", height=220)
+        with st.container(key="purpose_save_row", horizontal=True, horizontal_alignment="right", vertical_alignment="center"):
+            saved = st.session_state.pop("purpose_saved", None)
+            if saved:
+                st.markdown(f'<div class="sfts-test" data-tone="ok">{wrap(CHECK)}{L("purpose.saved", v=saved)}</div>', unsafe_allow_html=True)
+            elif version:
+                st.markdown(f'<div class="sfts-muted">{L("purpose.version", v=version)}</div>', unsafe_allow_html=True)
+            st.button(L("purpose.save"), key="purpose_save", type="primary", on_click=_save_purpose,
+                      disabled=not (st.session_state.get("purpose_body") or "").strip())
+
+
+API_KEY_NAMES = {"openai": "OPENAI_API_KEY", "anthropic": "ANTHROPIC_API_KEY", "gemini": "GEMINI_API_KEY", "xai": "XAI_API_KEY"}
+API_HOSTS = {"openai": "api.openai.com", "anthropic": "api.anthropic.com", "gemini": "generativelanguage.googleapis.com", "xai": "api.x.ai"}
+# Where each vendor hands out developer keys (the user opens these; Versora never calls them).
+API_KEY_PAGES = {"openai": "https://platform.openai.com/api-keys", "anthropic": "https://console.anthropic.com/settings/keys",
+                 "gemini": "https://aistudio.google.com/apikey", "xai": "https://console.x.ai"}
+SERVICE_NAMES = {"claude_cli": "Claude Code", "codex_cli": "Codex", "grok_cli": "Grok", "openai": "OpenAI",
+                 "anthropic": "Anthropic", "gemini": "Gemini", "xai": "xAI", "demo": "Demo"}
+EFFORTS = ("", "low", "medium", "high")
+
+
+def _services() -> list[str]:
+    return [*cli_engine.PRESETS, *API_KEY_NAMES] + (["demo"] if demo_enabled() else [])
+
+
+def _saved_key(env_name: str, value: str) -> None:
+    save_secret_to_env(env_name, value)
+    cli_engine.forget_status()
+    list_available_providers(fresh=True)
+    _toast(L("sidebar.save_key_ok"))
+    st.rerun()
+
+
+def _removed_key(pid: str) -> None:
+    remove_secret_from_env(API_KEY_NAMES[pid])
+    st.session_state.pop(f"svc_remove_{pid}", None)
+    st.session_state.get("svc_test", {}).pop(pid, None)
+    list_available_providers(fresh=True)
+    _toast(L("svc.removed"))
+
+
+def _recheck(pid: str) -> None:
+    cli_engine.probe(pid, fresh=True)
+    list_available_providers(fresh=True)
+
+
+def _chain_rows() -> list[dict]:
+    """The saved order, plus every known translator not yet in it (appended, on)."""
+    rows = [r for r in load_prefs().get("chain", []) if r["id"] in _services()]
+    have = {r["id"] for r in rows}
+    return rows + [{"id": pid, "model": "", "effort": "", "enabled": True} for pid in _services() if pid not in have]
+
+
+def _save_chain(rows: list[dict]) -> None:
+    save_prefs(chain=rows)
+
+
+def _chain_set(pid: str, field: str, widget_key: str) -> None:
+    rows = _chain_rows()
+    for row in rows:
+        if row["id"] == pid:
+            value = st.session_state.get(widget_key)
+            row[field] = bool(value) if field == "enabled" else (value or "")
+    _save_chain(rows)
+
+
+def _chain_move(pid: str, step: int) -> None:
+    rows = _chain_rows()
+    i = next(n for n, r in enumerate(rows) if r["id"] == pid)
+    j = max(0, min(len(rows) - 1, i + step))
+    rows[i], rows[j] = rows[j], rows[i]
+    _save_chain(rows)
+
+
+def _service_state(pid: str) -> tuple[str, str]:
+    """(state key, tone) for the chip: ready / signed_out / limit / setup / retrying / unchecked."""
+    h = runtime.health(pid)
+    now = time.time()
+    if h.get("retry_until", 0) > now:
+        return "retrying", "warn"
+    if h.get("kind") == "limit" and now - h.get("at", 0) < 900:
+        return "limit", "warn"
+    test = st.session_state.get("svc_test", {}).get(pid)
+    if pid == "demo":
+        return "ready", "ok"
+    if test and test[0] == "err":
+        return ("signed_out", "err") if test[2] in (L("err.signin"), L("err.key")) else ("setup", "err")
+    if pid in cli_engine.PRESETS:
+        status = cli_engine.probe(pid)
+        if not status.present:
+            return "setup", "off"
+        if status.usable and h.get("kind") != "auth":
+            return "ready", "ok"
+        if status.logged_in is False or h.get("kind") == "auth":
+            return "signed_out", "err"
+        return "unchecked", "off"
+    if not load_secret(API_KEY_NAMES[pid]) or pid not in list_available_providers() or h.get("kind") == "auth":
+        return "setup", "off" if not h.get("kind") else "err"
+    if (test and test[0] == "ok") or (h and h.get("kind") is None):
+        return "ready", "ok"
+    return "unchecked", "off"
+
+
+def _test_service(pid: str) -> None:
+    """Translate one short sentence with this translator alone; keep how long it took and when."""
+    row = next((r for r in _chain_rows() if r["id"] == pid), {})
+    started = time.perf_counter()
+    try:
+        engine = runtime.make_engine(runtime.Link(pid, row.get("model", ""), row.get("effort", "")))
+        target = _target_lang()
+        reply = engine.complete(
+            system_prompt("general", target, "en"),
+            f"Target language: {target}\nTranslate each numbered line.\n\n1. Hello! The file is ready.",
         )
-        if conc != st.session_state.concurrency:
-            st.session_state.concurrency = conc
-            _persist_prefs()
-            st.rerun()
-        st.markdown(f'<div class="sfts-muted">{L("sidebar.concurrency_hint")}</div>', unsafe_allow_html=True)
+        text = runtime.parse_numbered(reply, 1)[0] if reply.strip().startswith("1") else reply.strip()
+        runtime.note(pid, None)
+        if pid in cli_engine.PRESETS:
+            cli_engine.confirm_call(pid)
+            list_available_providers(fresh=True)  # Order and Translate see the same verified transport
+        result = ("ok", time.perf_counter() - started, text[:80])
+    except Exception as e:  # shown as a line; nothing here may break the page
+        runtime.note(pid, getattr(e, "kind", None) or "spawn")
+        result = ("err", time.perf_counter() - started, _human(str(e)))
+    st.session_state.setdefault("svc_test", {})[pid] = (*result, time.strftime("%H:%M"))
 
 
-def _key_label(fallback: str, locale_key: str) -> str:
-    text = L(locale_key)
-    return fallback if text == locale_key else text
+def _test_line(pid: str) -> None:
+    test = st.session_state.get("svc_test", {}).get(pid)
+    if not test:
+        return
+    ok, secs, text, at = test
+    msg = L("svc.test_ok", secs=f"{secs:.1f}", time=at) if ok == "ok" else L("svc.test_fail", msg=text)
+    st.markdown(f'<div class="sfts-test" data-tone="{ok}">{html.escape(msg)}</div>', unsafe_allow_html=True)
+
+
+def _service_head(pid: str, kind: str, line: str) -> None:
+    state, tone = _service_state(pid)
+    st.markdown(
+        f'<div class="sfts-svc"><i class="sfts-dot" data-tone="{tone}"></i><b>{html.escape(SERVICE_NAMES[pid])}</b>'
+        f'<span class="sfts-chip">{html.escape(kind)}</span>'
+        f'<span class="sfts-state" data-tone="{tone}">{html.escape(L(f"st.{state}"))}</span></div>'
+        f'<code class="sfts-svc-line">{html.escape(line)}</code>',
+        unsafe_allow_html=True,
+    )
+
+
+def _key_editor(pid: str) -> None:
+    """One field for one vendor: paste, Save and test; the vendor's key page beside it."""
+    st.markdown(
+        f'<div class="sfts-muted">{html.escape(L("keys.local_plain"))} '
+        f'<a href="{API_KEY_PAGES[pid]}" target="_blank" rel="noopener">{L("svc.get_key")}</a></div>',
+        unsafe_allow_html=True,
+    )
+    with st.container(key=f"row_{pid}", horizontal=True, vertical_alignment="bottom", gap="small", wrap=False):
+        st.text_input(L("svc.paste", name=SERVICE_NAMES[pid]), key=f"paste_{pid}", type="password",
+                      label_visibility="collapsed", placeholder=L("svc.paste", name=SERVICE_NAMES[pid]))
+        if load_secret(API_KEY_NAMES[pid]) or st.session_state.get("svc_add") == pid:
+            st.button(L("run.cancel"), key=f"svc_cancel_{pid}",
+                      on_click=lambda: (st.session_state.pop(f"svc_edit_{pid}", None), st.session_state.pop("svc_add", None)))
+        _pending_button(L("svc.save_test"), L("svc.testing"), f"svc_save_{pid}", "save_test", pid, type="primary")
+
+
+def _service_card(pid: str) -> None:
+    is_cli = pid in cli_engine.PRESETS
+    kind = L("svc.local") if is_cli else (L("svc.builtin") if pid == "demo" else L("svc.online"))
+    if is_cli:
+        status, preset = cli_engine.probe(pid), cli_engine.PRESETS[pid]
+        line = f"{preset.bin} · v{status.version}" if status.present and status.version else (
+            preset.bin if status.present else f"{preset.bin} · {L('svc.not_found')}")
+    elif pid == "demo":
+        line = "demo · offline"
+    else:
+        key = load_secret(API_KEY_NAMES[pid])
+        line = f"{API_HOSTS[pid]} · ••••{key[-4:]}" if key and len(key) >= 4 else API_HOSTS[pid]
+    with st.container(key=f"svc_{pid}"):
+        with st.container(key=f"svc_head_{pid}", horizontal=True, vertical_alignment="center", gap="small", wrap=False):
+            _service_head(pid, kind, line)
+            if is_cli:
+                _pending_button(L("svc.recheck"), L("svc.checking"), f"svc_recheck_{pid}", "recheck", pid)
+                if status.present:
+                    _pending_button(L("svc.test"), L("svc.testing"), f"svc_test_{pid}", "test", pid)
+            elif pid != "demo":
+                _pending_button(L("svc.test"), L("svc.testing"), f"svc_test_{pid}", "test", pid)
+                st.button(L("svc.replace"), key=f"svc_replace_{pid}",
+                          on_click=lambda: st.session_state.update({f"svc_edit_{pid}": True}))
+                st.button(L("svc.remove"), key=f"svc_remove_btn_{pid}",
+                          on_click=lambda: st.session_state.update({f"svc_remove_{pid}": True}))
+        _test_line(pid)
+        if is_cli and not status.present:
+            st.markdown(f'<div class="sfts-muted">{L("svc.install", url=preset.install_url)}</div>', unsafe_allow_html=True)
+        elif is_cli and status.logged_in is False:
+            st.markdown(f'<div class="sfts-muted">{L("svc.signin", cmd=f"<code>{preset.login_cmd}</code>")}</div>', unsafe_allow_html=True)
+        elif is_cli and status.logged_in is None and _service_state(pid)[0] == "unchecked":
+            st.markdown(f'<div class="sfts-muted">{L("svc.unknown")}</div>', unsafe_allow_html=True)
+        if not is_cli and pid != "demo":
+            if pid not in list_available_providers():
+                st.markdown(f'<div class="sfts-warn">{L("svc.blocked")}</div>', unsafe_allow_html=True)
+            if st.session_state.get(f"svc_remove_{pid}"):
+                with st.container(key=f"svc_confirm_{pid}", horizontal=True, vertical_alignment="center", gap="small", wrap=False):
+                    st.markdown(f'<div class="sfts-warn">{L("svc.remove_ask")}</div>', unsafe_allow_html=True)
+                    st.button(L("svc.keep"), key=f"svc_keep_{pid}", on_click=lambda: st.session_state.pop(f"svc_remove_{pid}", None))
+                    st.button(L("svc.confirm_remove"), key=f"svc_rm_{pid}", type="primary", on_click=_removed_key, args=(pid,))
+            if st.session_state.get(f"svc_edit_{pid}"):
+                _key_editor(pid)
+
+
+def _add_online(pid: str) -> None:
+    st.session_state.svc_add = pid
 
 
 def render_keys_pane() -> None:
-    st.markdown(f'<div class="sfts-pane-title">{L("card.keys")}</div>', unsafe_allow_html=True)
-    with st.container(border=True):
-        grok = probe_grok_cli()
-        grok_label = _key_label("Official Grok CLI", "keys.grok_cli")
-        if grok.usable:
-            st.markdown(
-                f"**{grok_label}** &nbsp; <span class='sfts-pill-on'>{wrap(CHECK)}{L('keys.connected_cli')}</span>",
-                unsafe_allow_html=True,
+    """Translators: local programs and configured APIs as rows; the rest as an "add" list."""
+    st.markdown(f'<div class="sfts-pane-title">{L("card.translators")}</div>', unsafe_allow_html=True)
+    configured = [p for p in API_KEY_NAMES if load_secret(API_KEY_NAMES[p])]
+    unset = [p for p in API_KEY_NAMES if p not in configured]
+    with st.container(border=True, key="card_services"):
+        shown = [*cli_engine.PRESETS, *configured] + (["demo"] if demo_enabled() else [])
+        for i, pid in enumerate(shown):
+            if i:
+                st.markdown('<hr class="sfts-divider">', unsafe_allow_html=True)
+            _service_card(pid)
+        if unset:
+            st.markdown('<hr class="sfts-divider">', unsafe_allow_html=True)
+            adding = st.session_state.get("svc_add")
+            with st.container(key="svc_addrow", horizontal=True, vertical_alignment="center", gap="small", wrap=False):
+                st.markdown(f'<div class="sfts-row-label">{L("svc.add_online")}</div>', unsafe_allow_html=True)
+                for pid in unset:
+                    st.button(SERVICE_NAMES[pid], key=f"svc_add_{pid}", on_click=_add_online, args=(pid,),
+                              type="primary" if adding == pid else "secondary")
+            if adding in unset:
+                _test_line(adding)
+                _key_editor(adding)
+    _run_pending()
+
+
+def _order_row(n: int, row: dict, last: bool) -> None:
+    """One chain row. A translator that is not set up keeps its saved row (model, effort, on/off
+    stay in prefs) but its controls are drawn disabled, with "Not set up" and a Set up link."""
+    pid = row["id"]
+    is_cli = pid in cli_engine.PRESETS
+    state, tone = _service_state(pid)
+    off = pid not in list_available_providers()
+    with st.container(key=f"ord_{pid}", horizontal=True, vertical_alignment="center", gap="small", wrap=False):
+        st.markdown(
+            f'<div class="sfts-ord"{" data-off" if off else ""}><span class="sfts-rank">{n}</span>'
+            f'<i class="sfts-dot" data-tone="{"off" if off else tone}"></i>'
+            f'<b>{html.escape(SERVICE_NAMES[pid])}</b></div>',
+            unsafe_allow_html=True,
+        )
+        extra = cli_engine.probe(pid).models if is_cli else ()
+        options = models_for(pid, tuple(extra))
+        if row.get("model") and row["model"] not in options:
+            options = [row["model"], *options]
+        st.selectbox(
+            L("order.model"), options=options,
+            index=None if off else (options.index(row["model"]) if row.get("model") in options else None),
+            placeholder=L("order.not_set_up") if off else L("order.model_default"), accept_new_options=True,
+            label_visibility="collapsed", disabled=off,
+            key=f"ord_model_off_{pid}" if off else f"ord_model_{pid}", on_change=_chain_set, args=(pid, "model", f"ord_model_{pid}"),
+        )
+        if off:
+            st.markdown(f'<div class="sfts-ord-none"><a href="?page=settings&pane=keys">{L("order.set_up")}</a></div>',
+                        unsafe_allow_html=True)
+        elif is_cli:
+            labels = {"": L("order.effort_default"), "low": L("order.low"), "medium": L("order.medium"), "high": L("order.high")}
+            st.selectbox(
+                L("order.effort"), options=list(EFFORTS), index=EFFORTS.index(row.get("effort") or ""),
+                format_func=labels.get, label_visibility="collapsed",
+                key=f"ord_eff_{pid}", on_change=_chain_set, args=(pid, "effort", f"ord_eff_{pid}"),
             )
         else:
-            st.markdown(
-                f"**{grok_label}** &nbsp; <span class='sfts-pill-off'>{wrap(DASH)}{L('keys.unset')}</span>",
-                unsafe_allow_html=True,
-            )
-            if grok.hint == "login":
-                st.caption(L("keys.grok_cli_login"))
-            else:
-                st.caption(L("keys.grok_cli_missing", url=GROK_HINT))
-        path_val = st.text_input(
-            L("keys.grok_cli_path"),
-            value=grok_cli_path_setting(),
-            key="grok_cli_path_input",
-        )
-        if st.button(L("keys.save_local"), key="save_grok_cli_path") and path_val.strip():
-            save_secret_to_env("GROK_CLI_PATH", path_val.strip())
-            st.success(L("sidebar.save_key_ok"))
-            st.rerun()
-        st.markdown(f'<div class="sfts-muted">{L("keys.grok_cli_hint")}</div>', unsafe_allow_html=True)
+            st.markdown('<div class="sfts-ord-none">—</div>', unsafe_allow_html=True)
+        st.toggle(L("order.col_on"), value=row.get("enabled", True), key=f"ord_on_{pid}", label_visibility="collapsed",
+                  disabled=off, on_change=_chain_set, args=(pid, "enabled", f"ord_on_{pid}"))
+        st.button(L("order.up"), key=f"ord_up_{pid}", on_click=_chain_move, args=(pid, -1), disabled=n == 1, help=L("order.up"))
+        st.button(L("order.down"), key=f"ord_dn_{pid}", on_click=_chain_move, args=(pid, 1), disabled=last, help=L("order.down"))
 
-        codex = probe_codex_cli()
-        codex_label = _key_label("Official Codex CLI", "keys.codex_cli")
-        if codex.usable:
-            st.markdown(
-                f"**{codex_label}** &nbsp; <span class='sfts-pill-on'>{wrap(CHECK)}{L('keys.connected_cli')}</span>",
-                unsafe_allow_html=True,
-            )
-        else:
-            st.markdown(
-                f"**{codex_label}** &nbsp; <span class='sfts-pill-off'>{wrap(DASH)}{L('keys.unset')}</span>",
-                unsafe_allow_html=True,
-            )
-            if codex.hint == "login":
-                st.caption(L("keys.codex_cli_login"))
-            else:
-                st.caption(L("keys.codex_cli_missing", url=CODEX_HINT))
-        codex_path = st.text_input(
-            L("keys.codex_cli_path"),
-            value=codex_cli_path_setting(),
-            key="codex_cli_path_input",
-        )
-        if st.button(L("keys.save_local"), key="save_codex_cli_path") and codex_path.strip():
-            save_secret_to_env("CODEX_CLI_PATH", codex_path.strip())
-            st.success(L("sidebar.save_key_ok"))
-            st.rerun()
-        st.markdown(f'<div class="sfts-muted">{L("keys.codex_cli_hint")}</div>', unsafe_allow_html=True)
 
-        for fallback, env_name, locale_key in KEY_ROWS:
-            label = _key_label(fallback, locale_key)
-            val = load_secret(env_name)
-            if val:
-                tail = val[-4:] if len(val) >= 4 else ""
-                status = L("keys.connected", tail=tail) if tail else L("keys.set")
-                st.markdown(
-                    f"**{label}** &nbsp; <span class='sfts-pill-on'>{wrap(CHECK)}{status}</span>",
-                    unsafe_allow_html=True,
-                )
-            else:
-                st.markdown(
-                    f"**{label}** &nbsp; <span class='sfts-pill-off'>{wrap(DASH)}{L('keys.unset')}</span>",
-                    unsafe_allow_html=True,
-                )
-                pasted = st.text_input(
-                    L("keys.paste_api"),
-                    type="password",
-                    key=f"paste_{env_name}",
-                    placeholder=env_name,
-                )
-                if st.button(L("keys.save_local"), key=f"save_{env_name}") and pasted.strip():
-                    save_secret_to_env(env_name, pasted.strip())
-                    st.success(L("sidebar.save_key_ok"))
-                    st.rerun()
-        st.markdown(f'<div class="sfts-muted">{L("keys.xai_hint")}</div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="sfts-muted">{L("keys.local_only")}</div>', unsafe_allow_html=True)
-        st.caption(L("sidebar.connect_official_only"))
-        st.caption(L("sidebar.connect_no_websites"))
+def _set_limits() -> None:
+    save_prefs(concurrency=st.session_state.get("ord_global"), per_provider=st.session_state.get("ord_per"))
+    st.session_state.concurrency = clamp_concurrency(st.session_state.get("ord_global"))
+
+
+def _limit_select(label: str, key: str, bounds: tuple[int, int, int], value) -> None:
+    lo, hi, _default = bounds
+    opts = list(range(lo, hi + 1))
+    with st.container(key=f"{key}_row", horizontal=True, vertical_alignment="center", gap="small", wrap=False):
+        st.markdown(f'<div class="sfts-row-label">{label}</div>', unsafe_allow_html=True)
+        st.selectbox(label, options=opts, index=opts.index(runtime.clamp(value, bounds)),
+                     label_visibility="collapsed", key=key, on_change=_set_limits)
+
+
+def render_order_pane() -> None:
+    """Order: the chain Automatic follows (the Translate page's Translator field picks Automatic or one)."""
+    st.markdown(f'<div class="sfts-pane-title">{L("card.order")}</div>', unsafe_allow_html=True)
+    with st.container(border=True, key="card_order"):
+        st.markdown(f'<div class="sfts-muted">{L("order.hint")}</div>', unsafe_allow_html=True)
+        st.markdown(
+            f'<div class="sfts-ord-head"><span>{L("order.col_name")}</span><span>{L("order.model")}</span>'
+            f'<span>{L("order.effort")}</span><span>{L("order.col_on")}</span><span></span></div>',
+            unsafe_allow_html=True,
+        )
+        rows = _chain_rows()
+        for n, row in enumerate(rows, 1):
+            _order_row(n, row, n == len(rows))
+        st.markdown('<hr class="sfts-divider">', unsafe_allow_html=True)
+        prefs = load_prefs()
+        _limit_select(L("order.files"), "ord_global", runtime.GLOBAL_LIMIT, prefs.get("concurrency", runtime.GLOBAL_LIMIT[2]))
+        with st.expander(L("order.advanced")):
+            _limit_select(L("order.per"), "ord_per", runtime.PER_LIMIT, prefs.get("per_provider", runtime.PER_LIMIT[2]))
+            st.markdown(f'<div class="sfts-muted">{L("order.limits_hint")}</div>', unsafe_allow_html=True)
+            for pid, preset in cli_engine.PRESETS.items():
+                st.markdown(f'<div class="sfts-flabel">{html.escape(L("order.path", name=preset.name))}</div>', unsafe_allow_html=True)
+                saved = _field_and_save(L("order.path", name=preset.name), f"path_{pid}", f"save_path_{pid}",
+                                        value=cli_engine.path_setting(pid), placeholder=preset.bin)
+                if saved:
+                    _saved_key(preset.path_env, saved)
+
+
+def _field_and_save(label: str, key: str, save_key: str, **field) -> str | None:
+    """A field and its Save button on one row; returns the stripped value when Save is clicked."""
+    with st.container(key=f"row_{key}", horizontal=True, vertical_alignment="bottom", gap="small", wrap=False):
+        val = st.text_input(label, key=key, label_visibility="collapsed", **field)
+        clicked = st.button(L("keys.save"), key=save_key)
+    return val.strip() if clicked and val.strip() else None
 
 
 def render_glossary_pane() -> None:
     st.markdown(f'<div class="sfts-pane-title">{L("card.glossary")}</div>', unsafe_allow_html=True)
-    with st.container(border=True):
+    with st.container(border=True, key="card_glossary"):
         projects = list_projects()
         if "default" not in projects:
             ensure_project("default")
             projects = list_projects()
         p_idx = projects.index(st.session_state.project) if st.session_state.project in projects else 0
-        selected = st.selectbox(L("sidebar.project"), options=projects, index=p_idx, key="project_select")
+        saved_pairs = load_glossary(st.session_state.project)  # the file is the durable source, not the widgets
+        c1, c2, c3 = st.columns([2, 2, 1], vertical_alignment="bottom")
+        with c1:
+            selected = st.selectbox(L("sidebar.project"), options=projects, index=p_idx, key="project_select")
+        with c2:
+            new_name = st.text_input(L("sidebar.new_project"), placeholder="name", key="new_project_name")
+        with c3:
+            create = st.button(L("sidebar.create_project"), key="create_project", use_container_width=True)
         if selected != st.session_state.project:
             st.session_state.project = selected
             st.session_state.glossary_pairs = load_glossary(selected)
+            st.session_state.glossary_nonce += 1
             st.rerun()
-        new_name = st.text_input(L("sidebar.new_project"), placeholder="name")
-        if st.button(L("sidebar.create_project")) and new_name.strip():
-            ensure_project(new_name.strip())
-            st.session_state.project = new_name.strip()
-            st.session_state.glossary_pairs = []
+        if create and new_name.strip():
+            canonical = ensure_project(new_name.strip()).name
+            st.session_state.project = canonical
+            st.session_state.glossary_pairs = load_glossary(canonical)  # creating an existing name keeps its terms
+            st.session_state.glossary_nonce += 1
+            st.session_state.pop("project_select", None)  # next render seeds the widget from the canonical project
             st.rerun()
+        st.markdown('<hr class="sfts-divider">', unsafe_allow_html=True)
 
         pairs = list(st.session_state.glossary_pairs or [])
         if not pairs:
-            st.caption(L("glossary.empty"))
-        edited = []
-        st.markdown(f"**{L('glossary.col_src')}** · **{L('glossary.col_dst')}**")
+            st.markdown(f'<div class="sfts-note">{L("glossary.empty")}</div>', unsafe_allow_html=True)
+        else:
+            h1, h2, _h3 = st.columns([2, 2, 0.5])
+            h1.markdown(f'<div class="sfts-panel-title">{L("glossary.col_src")}</div>', unsafe_allow_html=True)
+            h2.markdown(f'<div class="sfts-panel-title">{L("glossary.col_dst")}</div>', unsafe_allow_html=True)
+        # Row keys carry a nonce: after a delete every row is rebuilt from `current`,
+        # so a value never slides into the row below.
+        nonce = st.session_state.glossary_nonce
+        current: list[tuple[str, str]] = []
+        drop = None
         for i, (term, trans) in enumerate(pairs):
-            c1, c2, c3 = st.columns([2, 2, 0.5])
+            c1, c2, c3 = st.columns([2, 2, 0.5], vertical_alignment="center")
             with c1:
-                nt = st.text_input(L("glossary.term"), value=term, key=f"term_{i}", label_visibility="collapsed")
+                nt = st.text_input(L("glossary.term"), value=term, key=f"gterm_{nonce}_{i}", label_visibility="collapsed")
             with c2:
-                ntr = st.text_input(L("glossary.translation"), value=trans, key=f"tr_{i}", label_visibility="collapsed")
+                ntr = st.text_input(L("glossary.translation"), value=trans, key=f"gtr_{nonce}_{i}", label_visibility="collapsed")
             with c3:
-                if st.button("x", key=f"del_{i}"):
-                    pairs.pop(i)
-                    st.session_state.glossary_pairs = pairs
-                    st.rerun()
-            if nt.strip():
-                edited.append((nt.strip(), ntr.strip()))
-        b1, b2 = st.columns(2)
-        with b1:
-            if st.button(L("sidebar.add_term")):
-                pairs.append(("", ""))
-                st.session_state.glossary_pairs = pairs
+                if st.button(L("glossary.delete"), key=f"gdel_{nonce}_{i}", help=L("glossary.delete")):  # CLOSE glyph: theme.py mask
+                    drop = i
+            current.append((nt, ntr))
+        if drop is not None:
+            st.session_state.glossary_pairs = [p for j, p in enumerate(current) if j != drop]
+            st.session_state.glossary_nonce += 1
+            st.rerun()
+        # Save only when the normalized rows differ from the saved file (a removed saved term counts).
+        edited = [(a.strip(), b.strip()) for a, b in current if a.strip()]
+        with st.container(key="glossary_actions", horizontal=True, horizontal_alignment="distribute",
+                          vertical_alignment="center", wrap=False):
+            if st.button(L("sidebar.add_term"), key="glossary_add"):
+                st.session_state.glossary_pairs = current + [("", "")]
+                st.session_state.glossary_nonce += 1
                 st.rerun()
-        with b2:
-            if st.button(L("sidebar.save_glossary"), type="primary"):
+            if st.button(L("sidebar.save_glossary"), type="primary", key="glossary_save", disabled=edited == saved_pairs):
                 save_glossary(st.session_state.project, edited)
                 st.session_state.glossary_pairs = edited
-                st.success(L("glossary.saved", name=st.session_state.project))
+                st.session_state.glossary_nonce += 1
+                _toast(L("glossary.saved", name=st.session_state.project))
+                st.rerun()
 
 
 def render_settings() -> None:
-    rail, pane = st.columns([1, 3.2])
-    labels = {
-        "appearance": L("card.appearance"),
-        "translation": L("card.translation"),
-        "keys": L("card.keys"),
-        "glossary": L("card.glossary"),
+    rail, pane = st.columns([1, 3.2], gap="large")
+    panes = {  # nav label == pane heading
+        "purposes": (L("card.purposes"), render_purposes_pane),
+        "keys": (L("card.translators"), render_keys_pane),
+        "order": (L("card.order"), render_order_pane),
+        "glossary": (L("card.glossary"), render_glossary_pane),
+        "appearance": (L("card.appearance"), render_appearance_pane),
     }
     with rail:
         for pane_id in SETTINGS_PANES:
-            active = st.session_state.settings_pane == pane_id
-            if st.button(labels[pane_id], use_container_width=True, key=f"pane_{pane_id}"):
+            if st.button(panes[pane_id][0], use_container_width=True, key=f"pane_{pane_id}"):
                 _go("settings", pane_id)
-        _quiet_update("update_settings")
     with pane:
-        current = st.session_state.settings_pane
-        if current == "appearance":
-            render_appearance_pane()
-        elif current == "translation":
-            render_translation_pane()
-        elif current == "keys":
-            render_keys_pane()
-        else:
-            render_glossary_pane()
+        panes.get(st.session_state.settings_pane, panes["purposes"])[1]()
 
 
-def _need_key(status) -> bool:
-    if list_available_providers():
-        return False
-    status.error(L("main.status_no_key"))
-    return True
+# ── translate ───────────────────────────────────────────────────────────────
 
 
-def _has_source(source_type: str) -> bool:
-    if source_type == "file":
-        return st.session_state.get("uploaded_file") is not None
-    if source_type == "folder":
-        return bool(str(st.session_state.get("folder_path") or "").strip())
-    return st.session_state.get("zip_file") is not None
-
-
-def _clear_picked() -> None:
+def _forget_pick() -> None:
     st.session_state.picked_name = None
     st.session_state.picked_size = 0
     st.session_state.picked_bytes = None
-    st.session_state.source_preview = None
-    st.session_state.result_text = None
-    st.session_state.result_path = None
-    st.session_state.translate_note = None
     st.session_state.uploader_nonce = int(st.session_state.get("uploader_nonce") or 0) + 1
+
+
+def _clear_results() -> None:
+    st.session_state.result = None
+    st.session_state.batch_report = None
+    st.session_state.batch_job = None
+    st.session_state.batch_zip = None
+    st.session_state.single_error = None
+    st.session_state.batch_error = None
+    st.session_state.open_error = None
+
+
+def _busy() -> bool:
+    """A job starts after this run's widgets are drawn: everything that would rerun (and so kill
+    it) is drawn disabled; only Cancel stays live."""
+    return bool(st.session_state.get("job_pending") or st.session_state.get("retry_pending"))
+
+
+def _swap_langs() -> None:
+    src, dst = st.session_state.source_choice, st.session_state.target_lang
+    if src == "auto" or dst == "other":
+        return
+    st.session_state.source_choice, st.session_state.target_lang = dst, src
+    st.session_state["qb_source"], st.session_state["qb_target"] = dst, src
+    _persist_prefs()
+
+
+def _translator_label(pid: str) -> str:
+    if pid == "auto":
+        return L("quick.auto_try")
+    if pid == "demo":
+        return L("quick.demo_chip")
+    return SERVICE_NAMES.get(pid, pid)
+
+
+def render_quick_bar() -> None:
+    """From / swap / To / Purpose / Translator on one row of equal fields; the Translator field is
+    the one place to pick Automatic (the Order chain) or a single translator."""
+    available = list_available_providers()
+    busy = _busy()
+    custom = st.session_state.purpose == "custom"
+    with st.container(key="quickbar", horizontal=True, vertical_alignment="bottom", gap="small", wrap=False):
+        src_opts = ["auto"] + [c for c in TARGET_CODES if c != "other"]
+        st.selectbox(L("quick.from"), options=src_opts, format_func={c: _lang_label(c) for c in src_opts}.get,
+                     disabled=busy, **_bound("qb_source", "source_choice"))
+        can_swap = st.session_state.source_choice != "auto" and st.session_state.target_lang != "other"
+        st.button(L("quick.swap"), key="swap_langs", on_click=_swap_langs, disabled=busy or not can_swap,
+                  help=L("quick.swap") if can_swap else L("quick.swap_auto"))
+        st.selectbox(L("quick.to"), options=TARGET_CODES, format_func={c: L(f"target.{c}") for c in TARGET_CODES}.get,
+                     disabled=busy, **_bound("qb_target", "target_lang"))
+        # Settings links in labels are dropped while a job runs: following one would rerun and kill it.
+        label = L("quick.purpose") + (f' · [{L("purpose.edit")}](?page=settings&pane=purposes)' if custom and not busy else "")
+        st.selectbox(label, options=list(PURPOSES), format_func={p: L(f"purpose.{p}") for p in PURPOSES}.get,
+                     disabled=busy, **_bound("qb_purpose", "purpose"))
+        if available:
+            options = ["auto", *available]
+            if st.session_state.provider not in options:
+                options.append(st.session_state.provider)  # a transient failed probe must not overwrite the saved choice
+            label = L("quick.translator") + ("" if busy else f' · [{L("quick.manage")}](?page=settings&pane=keys)')
+            st.selectbox(label, options=options,
+                         format_func={p: _translator_label(p) + (" · " + L("order.not_set_up") if p != "auto" and p not in available else "") for p in options}.get,
+                         disabled=busy, **_bound("qb_provider", "provider"))
+        else:
+            with st.container(key="qb_setup"):
+                st.markdown(f'<div class="sfts-flabel">{L("quick.translator")}</div>', unsafe_allow_html=True)
+                if st.button(L("quick.no_translator"), key="provider_chip_warn", disabled=busy):
+                    _go("settings", "keys")
+    if st.session_state.target_lang == "other":
+        st.text_input(L("sidebar.target_other"), placeholder="e.g. it, nl, pl", disabled=busy, **_bound("qb_other", "target_other"))
+    if not available:
+        st.markdown(f'<div class="sfts-note">{wrap(ALERT)}{L("main.no_translator")}</div>', unsafe_allow_html=True)
+
+
+def _job_kwargs() -> dict:
+    return dict(
+        target_lang=_target_lang(),
+        source_lang=_source_lang(),
+        project=st.session_state.project,
+        provider_choice=st.session_state.provider,
+        game_mode=st.session_state.purpose == "game",  # game text: only player-facing strings are sent
+        purpose=st.session_state.purpose if st.session_state.purpose in PURPOSES else "general",
+        model=None,  # each translator's model lives in its Order row
+        concurrency=clamp_concurrency(st.session_state.concurrency),
+    )
+
+
+def _ready() -> bool:
+    available = list_available_providers()
+    chosen = st.session_state.provider
+    if chosen in available or (chosen == "auto" and available):
+        return True
+    message = L("main.no_translator") if chosen == "auto" else f"{_translator_label(chosen)} · {L('order.not_set_up')}"
+    _toast(message, "error")
+    return False
+
+
+def _cancel_clicked() -> None:
+    # runner.fastReruns=false keeps this callback after the interrupted run's worker cleanup.
+    # FX_JS shows "Cancelling…" until then; only claim files were kept when there are saved files.
+    report = st.session_state.batch_report
+    kept = bool(st.session_state.result or (report is not None and report.written))
+    _toast(L("run.cancelled" if kept else "run.stopped"), "warn")
+
+
+def _start_job() -> None:
+    st.session_state.job_pending = True
+
+
+def _remove_pick() -> None:
+    _forget_pick()
+    _clear_results()
+
+
+def _clear_folder() -> None:
+    st.session_state.folder_path = ""
+    st.session_state["folder_path_in"] = ""
+    _clear_results()
+
+
+def _out_name(name: str) -> str:
+    # The full free-text language goes to the translator, never into a filesystem path.
+    tag = re.sub(r"[^\w-]+", "_", _target_lang(), flags=re.UNICODE).strip("_") or "target"
+    return Path(name).stem + f".{tag}" + Path(name).suffix.lower()
+
+
+def _unique_out(name: str, suffix: str) -> Path:
+    out = outputs_dir() / _out_name(name)
+    if out.exists():
+        out = out.with_name(out.stem + time.strftime(".%Y%m%d-%H%M%S") + out.suffix)
+    return out
+
+
+def _preview_text(raw: bytes) -> str:
+    if b"\x00" in raw[:2048]:
+        return L("main.binary_preview")
+    return raw[:16000].decode("utf-8", errors="replace")[:4000]
+
+
+def _run_header(indeterminate: bool = False):
+    """Status line with Cancel on the right, then a thin bar. Returns (head, bar); bar is None
+    when indeterminate (one file has no meaningful fraction)."""
+    line, stop = st.columns([6, 1], vertical_alignment="center")
+    with line:
+        head = st.empty()
+    with stop:
+        st.button(L("run.cancel"), key="cancel_run", on_click=_cancel_clicked)
+    if indeterminate:
+        st.markdown('<div class="sfts-bar" role="progressbar" aria-busy="true"></div>', unsafe_allow_html=True)
+        return head, None
+    return head, st.progress(0.0)
+
+
+def _run_line(head, text: str, right: str = "") -> None:
+    head.markdown(
+        f'<div class="sfts-run" data-cancelling="{html.escape(L("run.cancelling"))}">{wrap(SPINNER)}'
+        f'{html.escape(text)}<span>{html.escape(right)}</span></div>',
+        unsafe_allow_html=True,
+    )
+
+
+# Parsers' words for a file that is not what its name says (docx/xlsx are zips, pdf has a trailer).
+_DAMAGED = ("package not found", "not a zip file", "badzipfile", "eof marker", "pdfreaderror", "invalid pdf", "no /root")
+_TEMP_SRC = re.compile(r"(?:[A-Za-z]:)?[\\/][^'\"\n]*?versora_[^'\"\n\\/]*[\\/]source\.\w+")
+_ABS_PATH = re.compile(r"(?:[A-Za-z]:[\\/]|\\\\|/(?:tmp|var|home|Users|private)/)[^'\"\s]*")
+_QUOTED_PATH = re.compile(r"(['\"])(?:[A-Za-z]:[\\/]|\\\\|/(?:tmp|var|home|Users|private)/)[^'\"\n]*\1")
+
+
+def _file_reason(msg: str, name: str, size: int | None = None) -> str:
+    low = (msg or "").lower()
+    if any(n in low for n in _DAMAGED):
+        ext = Path(name).suffix.lstrip(".").upper() or "?"
+        return L("err.damaged_short", ext=ext) if size is None else L("err.damaged", ext=ext, size=_fmt_size(size))
+    return _hint(msg) or L("err.generic")
+
+
+def _detail_text(msg: str, name: str) -> str:
+    """Raw error for Details: secrets redacted, our temp copy shown as the user's file name, other paths cut."""
+    text = _TEMP_SRC.sub(lambda _m: name, redact_secrets(msg or ""))
+    text = _QUOTED_PATH.sub(lambda m: f"{m[1]}…{m[1]}", text)  # quoted paths may contain spaces
+    return _ABS_PATH.sub("…", text).strip()
+
+
+def _run_single() -> None:
+    """The file is translated on a worker thread while this thread keeps drawing the status line.
+    A Cancel click interrupts that drawing; the finally then sets ``cancel`` (a CLI child is killed
+    by run_cli) and waits for the worker, so nothing keeps running behind the next page."""
+    name = st.session_state.picked_name
+    raw = st.session_state.picked_bytes or b""
+    suffix = Path(name).suffix.lower()
+    out_path = _unique_out(name, suffix)
+    cancel = threading.Event()
+    state: dict = {"done": 0, "total": 0, "error": None}
+    with st.container(border=True, key="card_run"):
+        head, _bar = _run_header(indeterminate=True)
+        _run_line(head, L("run.file", name=name), L("run.preparing"))
+        with tempfile.TemporaryDirectory(prefix="versora_", ignore_cleanup_errors=True) as tmp:
+            src = Path(tmp) / f"source{suffix}"
+            src.write_bytes(raw)
+
+            kw = _job_kwargs()  # read session state here: the worker thread has no script context
+
+            def work() -> None:
+                try:
+                    translate_single_file(src, out_path, cancel=cancel,
+                                          on_progress=lambda d, t, _i: state.update(done=d, total=t), **kw)
+                except Exception as e:  # handed to the drawing thread
+                    state["error"] = e
+
+            worker = threading.Thread(target=work, daemon=True)
+            worker.start()
+            try:
+                while worker.is_alive():
+                    total = state["total"]
+                    _run_line(head, L("run.file", name=name), L("run.chunks", done=state["done"], total=total) if total > 1 else "")
+                    worker.join(0.3)
+            finally:
+                cancel.set()
+                worker.join()
+    if state["error"] is not None:
+        st.session_state.single_error = {"name": name, "size": len(raw), "msg": str(state["error"])}
+        st.rerun()
+    binary = out_path.suffix.lower() in {".docx", ".pdf", ".xlsx"}
+    st.session_state.result = {
+        "src": _preview_text(raw),
+        "out": L("main.saved_binary") if binary else out_path.read_text(encoding="utf-8", errors="replace")[:4000],
+        "path": str(out_path),
+    }
+    _toast(L("main.status_done"))
     st.rerun()
 
 
-def _show_file_chip() -> None:
+def _file_row(rel: str, state: str, note: str) -> str:
+    return f'<div class="sfts-file" data-s="{state}"><b>{html.escape(rel)}</b><span>{html.escape(note)}</span></div>'
+
+
+def _run_cap() -> int:
+    """How many files can really be translating at once: files in flight, the global call limit and
+    the per-translator limit times the translators in play, whichever is smallest."""
+    prefs = load_prefs()
+    g = runtime.clamp(prefs.get("concurrency"), runtime.GLOBAL_LIMIT)
+    per = runtime.clamp(prefs.get("per_provider"), runtime.PER_LIMIT)
+    try:
+        links = max(1, len(runtime.resolve_chain(st.session_state.provider)))
+    except Exception:
+        links = 1
+    return max(1, min(clamp_concurrency(st.session_state.concurrency), g, per * links))
+
+
+def _files_html(report: BatchReport, cap: int) -> str:
+    done = {i.rel for i in report.written}
+    failed = {i.rel: i for i in report.failed}
+    running = [r for r in report.started if r not in done and r not in failed][:cap]  # real starts only
+    rows = []
+    for rel in report.planned:
+        if rel in done:
+            rows.append(_file_row(rel, "done", L("state.done")))
+        elif rel in failed:
+            item = failed[rel]
+            rows.append(_file_row(rel, "wait" if item.error == CANCELLED else "fail", _file_reason(item.error, rel)))
+        elif rel in running:
+            rows.append(_file_row(rel, "run", L("state.running")))
+        else:
+            rows.append(_file_row(rel, "wait", L("state.waiting")))
+    return '<div class="sfts-files">' + "".join(rows) + "</div>"
+
+
+def _run_batch(job: dict, only: set[str] | None = None) -> None:
+    """Run a folder or zip job with live per-file rows. ``only`` = retry those files.
+
+    The core calls back on this thread per finished file and on a short heartbeat while files run;
+    both redraw from the shared report, and each draw is where Streamlit raises its stop/rerun
+    exception on a Cancel click. runner.fastReruns=false serializes the next render behind this
+    run's cleanup: the core joins its workers and harvests every outcome before the cancelled
+    report is shown. Do not publish a stopped snapshot while the old runner is still unwinding."""
+    report = BatchReport()
+    cancel = threading.Event()
+    previous = st.session_state.batch_report if only else None
+    if not only:
+        st.session_state.batch_report = report
+        st.session_state.batch_job = job
+    st.session_state.batch_zip = None
+    cap = _run_cap()
+
+    def merge_retry() -> BatchReport:
+        # Files the retry did not get to keep their earlier failure; the rest take the new outcome.
+        actual_failures = [f for f in report.failed if f.error != CANCELLED]
+        seen = {i.rel for i in report.written + actual_failures + report.skipped}
+        previous.written += report.written
+        previous.failed = [f for f in previous.failed if f.rel not in seen] + actual_failures
+        previous.skipped += [s for s in report.skipped if s.rel in only]  # not the zip's own skips again
+        previous.cancelled = report.cancelled
+        # Already held by session state. Cleanup must not yield again while merging the final outcomes.
+        return previous
+
+    error = None
+    try:
+        with st.container(border=True, key="card_run"):
+            head, bar = _run_header()
+            _run_line(head, L("run.preparing"))
+            rows = st.empty()
+            shown = {"rows": ""}
+
+            def draw(done: int, total: int) -> None:
+                _run_line(head, L("run.batch", total=total), L("run.files", done=done, total=total))
+                bar.progress(min(1.0, done / total) if total else 0.0)
+                now = _files_html(report, cap)
+                if now != shown["rows"]:  # same states: leave the rows' DOM (and its scroll) alone
+                    shown["rows"] = now
+                    rows.markdown(now, unsafe_allow_html=True)
+
+            try:
+                kw = dict(_job_kwargs(), report=report, cancel=cancel, only=only,
+                          on_progress=lambda done, total, _item: draw(done, total), on_tick=draw)
+                if job["kind"] == "folder":
+                    root = Path(job["path"])
+                    translate_tree(root, job_name=root.name, **kw)
+                else:
+                    with tempfile.TemporaryDirectory(prefix="versora_zip_", ignore_cleanup_errors=True) as tmp:
+                        zpath = Path(tmp) / "upload.zip"
+                        zpath.write_bytes(job["bytes"])
+                        translate_zip(zpath, Path(tmp) / "tree", job_name=job["name"], **kw)
+            except Exception as e:  # the whole job could not run: a card that stays, not a toast
+                error = e
+    except BaseException:  # Streamlit's stop/rerun on a Cancel click (any phase), or a crash
+        cancel.set()
+        report.cancelled = True  # even an early stop or a stop on the last progress frame is a stopped run
+        if previous is not None:
+            merge_retry()
+        raise
+    if error is not None:
+        if not only:
+            st.session_state.batch_report = None
+        name = job.get("name") or Path(job.get("path", "")).name
+        if job["kind"] == "zip":
+            name = st.session_state.picked_name or name + ".zip"  # output job names are stems, error copy needs the source extension
+        st.session_state.batch_error = {"name": name, "msg": str(error)}
+        st.rerun()
+    if previous is not None:  # merge a retry into the shown report
+        report = merge_retry()
+    if not report.cancelled:
+        _toast(L("toast.batch_failed") if report.failed else L("toast.batch_done"), "warn" if report.failed else "ok")
+    st.rerun()
+
+
+def _zip_outputs(report: BatchReport) -> bytes:
+    buf = io.BytesIO()
+    root = Path(report.output_root)
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for item in report.written:
+            p = Path(item.out)
+            if p.is_file():
+                zf.write(p, p.relative_to(root).as_posix() if p.is_relative_to(root) else p.name)
+    return buf.getvalue()
+
+
+def _done_header(title: str, sub: str, warn: bool = False, tone: str | None = None) -> None:
+    st.markdown(
+        f'<div class="sfts-done {"vi-anim-alert" if warn else "vi-anim-check"}" data-tone="{tone or ("warn" if warn else "ok")}">'
+        f'{wrap(ALERT if warn else CHECK)}'
+        f'<div><div class="sfts-done-title">{html.escape(title)}</div>'
+        + (f'<div class="sfts-done-sub">{sub}</div>' if sub else "") + "</div></div>",
+        unsafe_allow_html=True,
+    )
+
+
+def _result_head(title: str, sub: str, actions, warn: bool = False, tone: str | None = None) -> None:
+    """Card header (fixed height): what happened on the left, one action bar on the right."""
+    with st.container(key="result_head", horizontal=True, vertical_alignment="center", gap="small", wrap=False):
+        _done_header(title, sub, warn, tone)
+        actions()
+    if st.session_state.get("open_error"):
+        st.markdown(f'<div class="sfts-warn">{html.escape(st.session_state.open_error)}</div>', unsafe_allow_html=True)
+
+
+def _path_sub(path: str, extra: str = "") -> str:
+    """The output's name, with the full path as its tooltip and a small Copy path (FX_JS copies)."""
+    if not path or not path.strip():
+        return extra  # early cancellation has no output folder to copy
+    name = Path(path).name or path
+    return (f'{extra}<span class="sfts-path" title="{html.escape(path)}">{html.escape(name)}</span>'
+            f'<button type="button" class="sfts-copy" data-copy="{html.escape(path)}" data-done="{html.escape(L("result.copied"))}">'
+            f'{html.escape(L("result.copy_path"))}</button>')
+
+
+def _open(path: str) -> None:
+    st.session_state.open_error = None
+    err = _open_folder(path)
+    if err:
+        st.session_state.open_error = err
+
+
+def render_single_result() -> None:
+    res = st.session_state.result
+    path = Path(res["path"])
+
+    def actions() -> None:
+        if path.parent.is_dir():
+            st.button(L("batch.open_folder"), key="open_out_single", on_click=_open, args=(str(path.parent),))
+        if path.is_file():
+            st.download_button(
+                L("main.download"), data=path.read_bytes(), file_name=path.name,
+                mime="application/octet-stream", key="dl_single", type="primary", on_click="ignore",
+            )
+
+    with st.container(border=True, key="card_result"):
+        _result_head(L("done.file"), _path_sub(str(path)), actions)
+        with st.expander(L("result.show_preview")):
+            c1, c2 = st.columns(2, gap="medium")
+            with c1:
+                st.markdown(f'<div class="sfts-panel-title">{L("main.preview_src")}</div>'
+                            f'<pre class="sfts-pre">{html.escape(res["src"])}</pre>', unsafe_allow_html=True)
+            with c2:
+                st.markdown(f'<div class="sfts-pre-col"><div class="sfts-panel-title">{L("main.preview_out")}</div>'
+                            f'<pre class="sfts-pre">{html.escape(res["out"])}</pre></div>', unsafe_allow_html=True)
+
+
+def _error_card(reason: str, name: str, detail: str, choose) -> None:
+    """One error component for a file or a whole batch: the reason, then exactly one retry
+    (primary) and one other way out (choose another). ``name`` may be "" (the file row above
+    already names a single file); Details stays collapsed."""
+
+    def actions() -> None:
+        st.button(L("main.choose_another"), key="choose_another", on_click=choose, disabled=_busy())
+        st.button(L("main.try_again"), key="retry_single", type="primary", on_click=_start_job, disabled=_busy())
+
+    with st.container(border=True, key="card_error"):
+        _result_head(reason, html.escape(name), actions, warn=True, tone="err")
+        if detail and detail != reason:
+            with st.expander(L("main.details")):
+                st.markdown(f'<code class="sfts-detail">{html.escape(detail)}</code>', unsafe_allow_html=True)
+
+
+def render_single_error() -> None:
+    err = st.session_state.single_error
+    _error_card(_file_reason(err["msg"], err["name"], int(err.get("size") or 0)), "",
+                _detail_text(err["msg"], err["name"]), _remove_pick)
+
+
+def render_batch_error() -> None:
+    err = st.session_state.batch_error
+    missing = err.get("missing")
+    reason = L("main.folder_missing") if missing else _file_reason(err["msg"], err["name"])
+    _error_card(reason, err["name"], "" if missing else _detail_text(err["msg"], err["name"]),
+                _clear_folder if st.session_state.source_type == "folder" else _remove_pick)
+
+
+def render_batch_result() -> None:
+    report: BatchReport = st.session_state.batch_report
+    job = st.session_state.batch_job
+    failures = [i for i in report.failed if i.error != CANCELLED]
+    unfinished = [i for i in report.failed if i.error == CANCELLED]
+    n_ok, n_fail, n_left, n_skip = len(report.written), len(failures), len(unfinished), len(report.skipped)
+    n_retry = len(report.failed)
+    parts = [L("done.n_saved", n=n_ok)]
+    if n_fail:
+        parts.append(L("done.n_failed", n=n_fail))
+    if n_left:
+        parts.append(L("done.n_unfinished", n=n_left))
+    if n_skip:
+        parts.append(L("done.n_skipped", n=n_skip))
+    title = L("done.stopped") if report.cancelled else (L("done.batch") if not n_fail else L("done.batch_some"))
+
+    def actions() -> None:
+        if n_retry and job:  # one retry for errors and unfinished files, never for already saved files
+            label = L("batch.retry_remaining" if n_left else "batch.retry", n=n_retry)
+            st.button(label, key="retry_failed", on_click=lambda: st.session_state.update(retry_pending=True))
+        if report.output_root and Path(report.output_root).is_dir():
+            st.button(L("batch.open_folder"), key="open_out", on_click=_open, args=(report.output_root,))
+        if n_ok:
+            if st.session_state.batch_zip is None:
+                st.session_state.batch_zip = _zip_outputs(report)
+            st.download_button(
+                L("batch.download_all"), data=st.session_state.batch_zip,
+                file_name=Path(report.output_root).name + ".zip", mime="application/zip", key="dl_all", type="primary", on_click="ignore",
+            )
+
+    def group(label: str, items, state: str, note) -> None:
+        st.markdown(f'<div class="sfts-panel-title">{label} · {len(items)}</div>', unsafe_allow_html=True)
+        st.markdown('<div class="sfts-files">' + "".join(_file_row(i.rel, state, note(i)) for i in items) + "</div>", unsafe_allow_html=True)
+
+    with st.container(border=True, key="card_result"):
+        tone = "warn" if report.cancelled else ("err" if n_fail else "ok")
+        _result_head(title, html.escape(" · ".join(parts)), actions, warn=report.cancelled or bool(n_fail), tone=tone)
+        if report.output_root:
+            st.markdown(f'<div class="sfts-result-path">{_path_sub(report.output_root)}</div>', unsafe_allow_html=True)
+        if n_fail:  # plain reasons first; raw, redacted diagnostics stay in the existing disclosure pattern
+            group(L("batch.failed"), failures, "fail", lambda i: _file_reason(i.error, i.rel))
+            with st.expander(L("main.details")):
+                for item in failures:
+                    st.markdown(f'<b>{html.escape(item.rel)}</b><code class="sfts-detail">'
+                                f'{html.escape(_detail_text(item.error, item.rel))}</code>', unsafe_allow_html=True)
+        if n_left:
+            group(L("batch.unfinished"), unfinished, "wait", lambda i: L("err.cancelled"))
+        if n_skip:
+            group(L("batch.skipped"), report.skipped, "skip", lambda i: _human(i.skipped or i.error, _SKIP_HINTS))
+        if n_ok:
+            saved = sorted(report.written, key=lambda i: i.rel)
+            with st.expander(f'{L("batch.saved")} · {n_ok}'):
+                st.markdown('<div class="sfts-files">' + "".join(_file_row(i.rel, "done", L("state.done")) for i in saved) + "</div>", unsafe_allow_html=True)
+
+
+def _has_result() -> bool:
+    """A result card is on screen for the current source type (then Download leads, not Translate)."""
+    if st.session_state.source_type == "file":
+        return bool(st.session_state.result or st.session_state.single_error)
+    return st.session_state.batch_report is not None or bool(st.session_state.get("batch_error"))
+
+
+def _has_error() -> bool:
+    if st.session_state.source_type == "file":
+        return bool(st.session_state.single_error)
+    return bool(st.session_state.get("batch_error"))
+
+
+def _translate_button(disabled: bool = False) -> None:
+    """The page's one start button: filled until a result exists, then outlined "Translate again";
+    hidden while an error card offers Try again; disabled with a pulse while its job runs."""
+    busy = _busy()
+    report = st.session_state.batch_report
+    partial_batch = st.session_state.source_type != "file" and report is not None and bool(report.failed)
+    if not busy and (_has_error() or partial_batch):
+        return  # L4: the focused result card owns the only retry for a partial batch
+    again = _has_result() and not busy
+    label = L("state.running") if busy else (L("main.translate_again") if again else L("main.translate_btn"))
+    with st.container(key="start_busy" if busy else "start_idle"):
+        st.button(
+            label, key="start_translate", type="secondary" if again else "primary",
+            disabled=disabled or busy, on_click=_start_job,
+        )
+
+
+_TYPE_NAMES = {".md": "Markdown", ".markdown": "Markdown", ".docx": "Word", ".xlsx": "Excel", ".htm": "HTML", ".yml": "YAML"}
+
+
+def _show_file_row() -> None:
+    """The picked file, compact, in the drop zone's place: icon, name, size · type, the output name,
+    then Translate and a round remove button at the right edge."""
     name = st.session_state.picked_name
-    size = _fmt_size(int(st.session_state.picked_size or 0))
-    left, right = st.columns([8, 1])
-    with left:
+    size = int(st.session_state.picked_size or 0)
+    suffix = Path(name).suffix.lower()
+    kind = st.session_state.source_type
+    problem = None
+    if kind == "file" and suffix == ".zip":
+        problem = L("main.zip_use_zip_mode")
+    elif kind == "file" and not is_supported(name) and suffix not in SCRIPT_SUFFIXES:
+        problem = L("error.unsupported_format")
+    type_name = _TYPE_NAMES.get(suffix, suffix.lstrip(".").upper())
+    out = f"archive_{Path(name).stem}/" if kind == "zip" else _out_name(name)
+    if kind == "file" and st.session_state.result:  # the name really written, collision suffix included
+        out = Path(st.session_state.result["path"]).name
+    before, _, after = (html.escape(s) for s in L("main.saves_as", name="\x00").partition("\x00"))
+    with st.container(key="filerow", horizontal=True, vertical_alignment="center", gap="small", wrap=False):
         st.markdown(
-            f'<div class="sfts-filechip">{wrap(FILE)}'
-            f'<span class="sfts-filechip-name">{name}</span>'
-            f'<span class="sfts-filechip-size">{size}</span></div>',
+            f'<div class="sfts-frow">{wrap(ZIP if suffix == ".zip" else FILE)}'
+            f'<b title="{html.escape(name)}">{html.escape(name)}</b>'
+            f'<span class="sfts-frow-meta">{_fmt_size(size)} · {html.escape(type_name)}</span>'
+            f'<span class="sfts-frow-out">{before}<code>{html.escape(out)}</code>{after}</span></div>',
             unsafe_allow_html=True,
         )
-    with right:
-        if st.button("x", key="clear_picked"):
-            _clear_picked()
+        _translate_button(bool(problem))
+        st.button(L("main.clear"), key="clear_picked", help=L("main.clear"), on_click=_remove_pick, disabled=_busy())
+    if problem:
+        st.markdown(f'<div class="sfts-warn">{problem}</div>', unsafe_allow_html=True)
 
 
-def _seg_row(label: str, control):
-    lab, ctl = st.columns([0.95, 2.85], vertical_alignment="center")
-    with lab:
-        st.markdown(f'<div class="sfts-row-label">{label}</div>', unsafe_allow_html=True)
-    with ctl:
-        return control()
+def _pick_upload(kind: str) -> None:
+    nonce = int(st.session_state.get("uploader_nonce") or 0)
+    up = st.file_uploader(
+        L("main.zip_upload") if kind == "zip" else L("main.upload"),
+        type=["zip"] if kind == "zip" else UPLOAD_TYPES,
+        key=f"{kind}_up_{nonce}",
+        label_visibility="collapsed",
+    )
+    if up is not None:
+        st.session_state.picked_name = up.name
+        st.session_state.picked_bytes = up.getvalue()
+        st.session_state.picked_size = len(st.session_state.picked_bytes)
+        _clear_results()
+        st.rerun()
 
 
 def render_translate() -> None:
-    with st.container(border=True):
-        source_type = _seg_row(
-            L("main.source_type"),
-            lambda: st.segmented_control(
+    """One card: language row, then source tabs, then the drop zone (or the picked file's row)."""
+    busy = _busy()
+    with st.container(border=True, key="card_main"):
+        render_quick_bar()
+        st.markdown('<hr class="sfts-rule">', unsafe_allow_html=True)
+        with st.container(key="source_row", horizontal=True, vertical_alignment="center", gap="small", wrap=False):
+            st.segmented_control(
                 L("main.source_type"),
                 options=["file", "folder", "zip"],
-                format_func=lambda x: {
-                    "file": L("main.seg_file"),
-                    "folder": L("main.seg_folder"),
-                    "zip": L("main.seg_zip"),
-                }[x],
-                key="source_type",
+                format_func={"file": L("main.seg_file"), "folder": L("main.seg_folder"), "zip": L("main.seg_zip")}.get,
                 required=True,
-            ),
-        ) or "file"
-        content_mode = _seg_row(
-            L("main.content_mode"),
-            lambda: st.segmented_control(
-                L("main.content_mode"),
-                options=["document", "game"],
-                format_func=lambda x: {
-                    "document": L("main.seg_doc"),
-                    "game": L("main.seg_game"),
-                }[x],
-                key="content_mode",
-                required=True,
-            ),
-        ) or "document"
-        game_mode = content_mode == "game"
-        status = st.empty()
-        translate_kw = dict(
-            target_lang=_target_lang(),
-            source_lang=_source_lang(),
-            project=st.session_state.project,
-            provider_choice=st.session_state.provider,
-            game_mode=game_mode,
-            model=resolve_model(st.session_state.provider, st.session_state.get("model")),
-            concurrency=clamp_concurrency(st.session_state.concurrency),
-        )
-        nonce = int(st.session_state.get("uploader_nonce") or 0)
-        has_source = False
-
-        if source_type == "file":
-            if not st.session_state.picked_name:
-                uploaded = st.file_uploader(
-                    L("main.upload"),
-                    type=UPLOAD_TYPES,
-                    key=f"file_up_{nonce}",
-                    label_visibility="collapsed",
-                )
-                if uploaded is not None:
-                    st.session_state.picked_name = uploaded.name
-                    st.session_state.picked_size = int(getattr(uploaded, "size", 0) or len(uploaded.getvalue()))
-                    st.session_state.picked_bytes = uploaded.getvalue()
-                    st.rerun()
-            else:
-                _show_file_chip()
-                has_source = True
+                label_visibility="collapsed",
+                disabled=busy,
+                **_bound("source_type_seg", "source_type"),
+            )
+            if st.session_state.picked_name and not busy and not _has_result():  # a selected, idle file only
+                st.markdown(f'<div class="sfts-muted">{L("main.switch_clears")}</div>', unsafe_allow_html=True)
+        kind = st.session_state.source_type
+        with st.container(key="sourcebody"):
+            if kind in {"file", "zip"}:
                 name = st.session_state.picked_name
-                suffix = Path(name).suffix.lower()
-                raw = st.session_state.picked_bytes or b""
-                if suffix == ".zip":
-                    status.error(L("main.zip_use_zip_mode"))
-                    has_source = False
-                elif not is_supported(name) and suffix not in SCRIPT_SUFFIXES:
-                    status.error(L("error.unsupported_format"))
-                    has_source = False
+                if name and kind == "zip" and not name.lower().endswith(".zip"):
+                    _forget_pick()
+                    name = None
+                if not name:
+                    _pick_upload(kind)
                 else:
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-                        tmp.write(raw)
-                        tmp_path = Path(tmp.name)
-                    try:
-                        preview = tmp_path.read_text(encoding="utf-8", errors="replace")[:4000]
-                    except Exception:
-                        preview = L("main.binary_preview")
-                    st.session_state.source_preview = preview
-                    if has_source:
-                        go = st.button(
-                            L("main.translate_btn"),
-                            type="primary",
-                            use_container_width=True,
-                            key="start_translate",
-                        )
-                        if go and not _need_key(status):
-                            try:
-                                out_name = Path(name).stem + f".{_target_lang()}" + suffix
-                                out_path = outputs_dir() / out_name
-                                translate_single_file(tmp_path, out_path, **translate_kw)
-                                st.session_state.result_path = str(out_path)
-                                if out_path.suffix.lower() not in {".docx", ".pdf", ".xlsx"}:
-                                    st.session_state.result_text = out_path.read_text(encoding="utf-8", errors="replace")
-                                else:
-                                    st.session_state.result_text = L("main.saved_binary")
-                                st.session_state.translate_note = L("main.status_done")
-                            except TranslationError as e:
-                                status.error(L("main.status_error", msg=redact_secrets(str(e))))
-                            except Exception as e:
-                                status.error(L("main.status_error", msg=redact_secrets(str(e))))
-
-        elif source_type == "folder":
-            st.caption(L("main.folder_hint"))
-            folder_path = st.text_input(L("main.folder_path"), value="", label_visibility="collapsed")
-            has_source = bool(folder_path.strip())
-            if has_source:
-                go = st.button(
-                    L("main.translate_btn"),
-                    type="primary",
-                    use_container_width=True,
-                    key="start_translate",
-                )
-                if go:
-                    root = Path(folder_path).expanduser()
-                    if not root.is_dir():
-                        status.error(L("main.folder_missing"))
-                    elif not _need_key(status):
-                        try:
-                            report = translate_tree(root, job_name=root.name, **translate_kw)
-                            st.session_state.batch_report = report
-                            st.session_state.translate_note = L(
-                                "main.batch_done", n=len(report.written), k=len(report.skipped)
-                            )
-                        except TranslationError as e:
-                            status.error(L("main.status_error", msg=redact_secrets(str(e))))
-                        except Exception as e:
-                            status.error(L("main.status_error", msg=redact_secrets(str(e))))
-
-        else:
-            if not st.session_state.picked_name:
-                zipped = st.file_uploader(
-                    L("main.zip_upload"),
-                    type=["zip"],
-                    key=f"zip_up_{nonce}",
-                    label_visibility="collapsed",
-                )
-                if zipped is not None:
-                    st.session_state.picked_name = zipped.name
-                    st.session_state.picked_size = int(getattr(zipped, "size", 0) or len(zipped.getvalue()))
-                    st.session_state.picked_bytes = zipped.getvalue()
-                    st.rerun()
+                    _show_file_row()
             else:
-                _show_file_chip()
-                has_source = True
-                go = st.button(
-                    L("main.translate_btn"),
-                    type="primary",
-                    use_container_width=True,
-                    key="start_translate",
-                )
-                if go and not _need_key(status):
-                    try:
-                        with tempfile.TemporaryDirectory(prefix="sfts_zip_") as tmp:
-                            zpath = Path(tmp) / "upload.zip"
-                            zpath.write_bytes(st.session_state.picked_bytes or b"")
-                            report = translate_zip(
-                                zpath,
-                                Path(tmp) / "tree",
-                                job_name=Path(st.session_state.picked_name).stem,
-                                **translate_kw,
-                            )
-                            st.session_state.batch_report = report
-                            st.session_state.translate_note = L(
-                                "main.batch_done", n=len(report.written), k=len(report.skipped)
-                            )
-                    except TranslationError as e:
-                        status.error(L("main.status_error", msg=redact_secrets(str(e))))
-                    except Exception as e:
-                        status.error(L("main.status_error", msg=redact_secrets(str(e))))
+                st.markdown(f'<div class="sfts-note">{L("main.folder_hint")}</div>', unsafe_allow_html=True)
+                with st.container(key="folder_row", horizontal=True, vertical_alignment="center", gap="small", wrap=False):
+                    folder = st.text_input(
+                        L("main.folder_path"),
+                        label_visibility="collapsed",
+                        placeholder=L("main.folder_placeholder"),
+                        disabled=busy,
+                        **_bound("folder_path_in", "folder_path"),
+                    )
+                    _translate_button(not folder.strip())
 
-    if st.session_state.translate_note:
-        st.markdown(f'<div class="sfts-ok">{st.session_state.translate_note}</div>', unsafe_allow_html=True)
+    go = st.session_state.pop("job_pending", False)
+    if go and kind in {"file", "zip"} and not st.session_state.picked_name:
+        go = False
+    if go and _ready():
+        _clear_results()
+        if kind == "file":
+            _run_single()
+        elif kind == "zip":
+            _run_batch({"kind": "zip", "bytes": st.session_state.picked_bytes, "name": Path(st.session_state.picked_name).stem})
+        else:
+            root = Path(st.session_state.folder_path.strip()).expanduser()
+            if not root.is_dir():
+                st.session_state.batch_error = {"name": str(root), "msg": "", "missing": True}
+                st.rerun()
+            _run_batch({"kind": "folder", "path": str(root), "name": root.name})
+    elif go:
+        st.rerun()
 
-    show_src = bool(st.session_state.source_preview) and source_type == "file" and st.session_state.picked_name
-    show_out = bool(st.session_state.result_text) and source_type == "file"
-    if show_src or show_out:
-        c1, c2 = st.columns(2)
-        if show_src:
-            with c1:
-                with st.container(border=True):
-                    st.markdown(f"**{L('main.preview_src')}**")
-                    st.text_area("src", value=st.session_state.source_preview, height=220, label_visibility="collapsed")
-        if show_out:
-            with c2:
-                with st.container(border=True):
-                    st.markdown(f"**{L('main.preview_out')}**")
-                    out = (st.session_state.result_text or "")[:4000]
-                    st.text_area("out", value=out, height=220, label_visibility="collapsed")
-                    if st.session_state.result_path and Path(st.session_state.result_path).is_file():
-                        data = Path(st.session_state.result_path).read_bytes()
-                        st.download_button(
-                            L("main.download") + "  " + Path(st.session_state.result_path).name,
-                            data=data,
-                            file_name=Path(st.session_state.result_path).name,
-                            mime="application/octet-stream",
-                        )
+    if st.session_state.pop("retry_pending", False) and st.session_state.batch_report and st.session_state.batch_job:
+        _run_batch(st.session_state.batch_job, only={f.rel for f in st.session_state.batch_report.failed})
 
-    report = st.session_state.batch_report
-    if report is not None:
-        if report.written:
-            st.markdown(f"**{L('main.done_list')}**")
-            for item in report.written:
-                st.write(f"{item.rel} → {item.out}")
-        if report.skipped:
-            st.markdown(f"**{L('main.skip_list')}**")
-            for item in report.skipped:
-                st.write(f"{item.rel} — {redact_secrets(item.skipped or item.error)}")
+    if kind == "file" and st.session_state.result:
+        render_single_result()
+    if kind == "file" and st.session_state.single_error:
+        render_single_error()
+    if kind in {"folder", "zip"} and st.session_state.get("batch_error"):
+        render_batch_error()
+    if kind in {"folder", "zip"} and st.session_state.batch_report is not None:
+        render_batch_result()
 
 
 render_chrome()
 _sync_query()
+_drain_toasts()
 if st.session_state.page == "settings":
     render_settings()
 else:
     render_translate()
 
-st.markdown(f'<div class="sfts-footer">{L("about.footer")}</div>', unsafe_allow_html=True)
+st.markdown(f'<div class="sfts-footer"><span>{L("about.footer")} · v{__version__}</span></div>', unsafe_allow_html=True)

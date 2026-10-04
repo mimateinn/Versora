@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import time
 from pathlib import Path
 from dataclasses import dataclass
 from typing import Optional
@@ -56,7 +57,7 @@ def get_openai_config() -> ProviderConfig:
         name="openai",
         api_key=key or None,
         base_url=base,
-        model=_get("OPENAI_MODEL", "gpt-4o-mini") or "gpt-4o-mini",
+        model=_get("OPENAI_MODEL", "gpt-4.1-mini") or "gpt-4.1-mini",
         available=bool(key) and bool(base),
     )
 
@@ -67,7 +68,7 @@ def get_anthropic_config() -> ProviderConfig:
         name="anthropic",
         api_key=key or None,
         base_url="https://api.anthropic.com",
-        model=_get("ANTHROPIC_MODEL", "claude-3-5-haiku-20241022") or "claude-3-5-haiku-20241022",
+        model=_get("ANTHROPIC_MODEL", "claude-haiku-4-5") or "claude-haiku-4-5",
         available=bool(key),
     )
 
@@ -78,7 +79,7 @@ def get_gemini_config() -> ProviderConfig:
         name="gemini",
         api_key=key or None,
         base_url="https://generativelanguage.googleapis.com",
-        model=_get("GEMINI_MODEL", "gemini-1.5-flash") or "gemini-1.5-flash",
+        model=_get("GEMINI_MODEL", "gemini-2.5-flash") or "gemini-2.5-flash",
         available=bool(key),
     )
 
@@ -95,7 +96,23 @@ def get_xai_config() -> ProviderConfig:
     )
 
 
-def list_available_providers() -> list[str]:
+_AVAILABLE_TTL = 60.0
+_available_cache: tuple[float, list[str]] | None = None
+
+
+def list_available_providers(*, fresh: bool = False) -> list[str]:
+    """Cached for 60 s: the CLI probes spawn processes (8 s timeout each) and the
+    router asks once per chunk. ``fresh=True`` after a key or CLI path is saved."""
+    global _available_cache
+    now = time.monotonic()
+    if not fresh and _available_cache and now - _available_cache[0] < _AVAILABLE_TTL:
+        return list(_available_cache[1])
+    names = _probe_available()
+    _available_cache = (now, names)
+    return list(names)
+
+
+def _probe_available() -> list[str]:
     names = []
     if get_openai_config().available:
         names.append("openai")
@@ -105,19 +122,19 @@ def list_available_providers() -> list[str]:
         names.append("gemini")
     if get_xai_config().available:
         names.append("xai")
-    from .providers.grok_cli import probe_grok_cli
-    from .providers.codex_cli import probe_codex_cli
+    from .providers.cli import PRESETS, probe
 
-    if probe_grok_cli().usable:
-        names.append("grok_cli")
-    if probe_codex_cli().usable:
-        names.append("codex_cli")
+    names += [pid for pid in PRESETS if probe(pid).usable]  # cached per STATUS_TTL, never per chunk
+    from .providers.demo import demo_enabled
+
+    if demo_enabled():
+        names.append("demo")
     return names
 
 
 def get_default_provider() -> str:
     val = _get("DEFAULT_PROVIDER", "auto").lower()
-    if val in ("auto", "openai", "anthropic", "gemini", "xai", "grok_cli", "codex_cli"):
+    if val in ("auto", "openai", "anthropic", "gemini", "xai", "claude_cli", "grok_cli", "codex_cli"):
         return val
     return "auto"
 

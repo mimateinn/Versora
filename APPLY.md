@@ -2,7 +2,8 @@
 
 - `README.md` — Bilingual public listing (English on top, Traditional Chinese below), child-friendly steps, changelog.
 - `README.zh-Hant.md` — Short pointer to README.md.
-- `icon.png` — App icon shown at the top of README.md.
+- `icon.png` — App icon (README header, page icon, hero); generated from `assets/icon.svg` by `scripts/make_icon.py`.
+- `assets/icon.svg` — Versora master icon (flat, sibling of Litora); `assets/icon-512.png` and `assets/favicon.ico` are generated beside it.
 - `start.bat` — Windows one-click starter (makes a local folder, installs, copies .env if missing, daily overlay check, opens the app).
 - `start.sh` — Mac/Linux starter with the same steps as start.bat.
 - `scripts/sfts_overlay.py` — Local official-release overlay entry used by start scripts and the in-app button.

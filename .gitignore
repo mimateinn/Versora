@@ -226,3 +226,8 @@ projects/.sfts-ui.json
 # Live UI captures. Never commit.
 .playwright-mcp/
 sfts-live-*.png
+
+# Translation output (local, per user)
+data/outputs/*
+!data/outputs/.gitkeep
+data/prompts/

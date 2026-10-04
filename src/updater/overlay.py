@@ -38,6 +38,7 @@ _PROTECTED_PREFIXES = (
     "projects/",
     "data/outputs/",
     "data/outputs",
+    "data/prompts/",  # the user's Custom purpose
     ".venv/",
     "venv/",
     ".git/",

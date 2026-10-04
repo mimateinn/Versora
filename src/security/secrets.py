@@ -9,7 +9,7 @@ from typing import Iterable
 
 _ROOT = Path(__file__).resolve().parent.parent.parent
 
-_SECRET_NAMES = (
+SECRET_NAMES = _SECRET_NAMES = (
     "OPENAI_API_KEY",
     "ANTHROPIC_API_KEY",
     "GEMINI_API_KEY",
@@ -92,24 +92,42 @@ def save_secret_to_env(name: str, value: str) -> None:
         "XAI_MODEL",
         "GROK_CLI_PATH",
         "CODEX_CLI_PATH",
+        "CLAUDE_CLI_PATH",
         "DEFAULT_PROVIDER",
     }:
         raise ValueError("Unknown setting name.")
     value = (value or "").strip()
+    if any(ch in value for ch in "\r\n"):
+        raise ValueError("A key is one line.")
+    _rewrite_env(name, value)
+    os.environ[name] = value
+
+
+def remove_secret_from_env(name: str) -> None:
+    """Delete one key from local .env and from this process."""
+    if name not in _SECRET_NAMES:
+        raise ValueError("Unknown key name.")
+    _rewrite_env(name, None)
+    os.environ.pop(name, None)
+
+
+def _rewrite_env(name: str, value: str | None) -> None:
+    """Replace (or drop, when value is None) ``name`` in .env, atomically: a temp file in the same
+    folder, then os.replace, so a crash never leaves a half-written .env.
+    Storage stays plaintext on this machine (same as before); the OS keychain is read when present."""
     path = _ROOT / ".env"
-    lines: list[str] = []
-    if path.is_file():
-        lines = path.read_text(encoding="utf-8").splitlines()
+    lines = path.read_text(encoding="utf-8").splitlines() if path.is_file() else []
     key = f"{name}="
-    replaced = False
-    new_lines = []
+    out, done = [], False
     for line in lines:
         if line.startswith(key) or line.startswith(f"export {key}"):
-            new_lines.append(f"{name}={value}")
-            replaced = True
+            if value is not None and not done:
+                out.append(f"{name}={value}")
+            done = True
         else:
-            new_lines.append(line)
-    if not replaced:
-        new_lines.append(f"{name}={value}")
-    path.write_text("\n".join(new_lines).rstrip() + "\n", encoding="utf-8")
-    os.environ[name] = value
+            out.append(line)
+    if value is not None and not done:
+        out.append(f"{name}={value}")
+    tmp = path.with_name(".env.tmp")
+    tmp.write_text("\n".join(out).rstrip() + "\n", encoding="utf-8")
+    os.replace(tmp, path)

@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import os
 import re
+import threading
 import zipfile
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Callable
 
 from .config import outputs_dir
 from .extractors import DOCUMENT_SUFFIXES, STRUCTURED_SUFFIXES, SUPPORTED_SUFFIXES, is_supported
@@ -25,7 +27,7 @@ from .extractors.textish import (
     translate_yaml,
 )
 from .game_text import SCRIPT_SUFFIXES, extract_script_literals, replace_script_literals, should_translate_string
-from .providers.base import TranslationError
+from .providers.base import Cancelled, TranslationError
 from .translator import translate_document, translate_string_list
 
 SKIP_DIR_NAMES = {
@@ -40,9 +42,9 @@ SKIP_DIR_NAMES = {
 
 DEFAULT_MAX_FILES = 400
 DEFAULT_MAX_BYTES = 80_000_000
-DEFAULT_CONCURRENCY = 2
+DEFAULT_CONCURRENCY = 3  # files at once = the global call limit (runtime.GLOBAL_LIMIT)
 MIN_CONCURRENCY = 1
-MAX_CONCURRENCY = 8
+MAX_CONCURRENCY = 16
 
 
 def clamp_concurrency(value) -> int:
@@ -63,9 +65,26 @@ class BatchItem:
 
 @dataclass
 class BatchReport:
+    """Filled in place while the job runs, so a caller holding it sees partial results."""
+
     written: list[BatchItem] = field(default_factory=list)
-    skipped: list[BatchItem] = field(default_factory=list)
+    skipped: list[BatchItem] = field(default_factory=list)  # never attempted: type, size, path rules
+    failed: list[BatchItem] = field(default_factory=list)  # attempted and errored, or cancelled
     output_root: str = ""
+    planned: list[str] = field(default_factory=list)  # rel paths in run order
+    started: list[str] = field(default_factory=list)  # rel paths a worker has picked up, in start order
+    cancelled: bool = False
+
+
+CANCELLED = "cancelled"
+
+# (done, total, item_or_None), called on the caller's thread: once with item=None
+# before the first file, then once per finished file (per chunk for a single file).
+ProgressFn = Callable[[int, int, "BatchItem | None"], None]
+# (done, total), called on the caller's thread about every TICK_SECONDS while no file finishes,
+# so a UI can redraw (and be interrupted by a Cancel click) during a long file.
+TickFn = Callable[[int, int], None]
+TICK_SECONDS = 0.25
 
 
 def _max_files() -> int:
@@ -172,6 +191,9 @@ def _make_translator(
     project: str | None,
     provider_choice: str,
     model: str | None = None,
+    cancel: threading.Event | None = None,
+    on_chunk: Callable[[int, int], None] | None = None,
+    purpose: str = "general",
 ):
     def translate(strings: list[str]) -> list[str]:
         return translate_string_list(
@@ -181,6 +203,9 @@ def _make_translator(
             project=project,
             provider_choice=provider_choice,
             model=model,
+            purpose=purpose,
+            cancel=cancel,
+            on_chunk=on_chunk,
         )
 
     return translate
@@ -253,14 +278,26 @@ def translate_tree(
     job_name: str = "batch",
     model: str | None = None,
     concurrency: int = DEFAULT_CONCURRENCY,
+    purpose: str = "general",
+    report: BatchReport | None = None,
+    on_progress: ProgressFn | None = None,
+    on_tick: TickFn | None = None,
+    cancel: threading.Event | None = None,
+    only: set[str] | None = None,
 ) -> BatchReport:
+    """``only`` limits the run to those rel paths (retry). Setting ``cancel`` drops queued
+    files and stops running ones at their next chunk. If ``on_progress`` or ``on_tick`` raises
+    (Streamlit interrupts the script on a Cancel click), the same cleanup runs, then the
+    exception propagates."""
     source_root = source_root.resolve()
     if not source_root.is_dir():
         raise TranslationError("That folder was not found.")
 
     out_root = (outputs_dir() / _english_job_name(job_kind, job_name)).resolve()
     out_root.mkdir(parents=True, exist_ok=True)
-    report = BatchReport(output_root=str(out_root))
+    report = report if report is not None else BatchReport()
+    report.output_root = str(out_root)
+    cancel = cancel or threading.Event()
     workers = clamp_concurrency(concurrency)
     kw = dict(
         target_lang=target_lang,
@@ -268,6 +305,8 @@ def translate_tree(
         project=project,
         provider_choice=provider_choice,
         model=model,
+        purpose=purpose,
+        cancel=cancel,
     )
 
     files = iter_source_files(source_root)
@@ -285,6 +324,8 @@ def translate_tree(
     jobs: list[tuple[Path, Path, str]] = []
     for src in files:
         rel = str(src.relative_to(source_root)).replace("\\", "/")
+        if only is not None and rel not in only:
+            continue
         if not stay_inside(source_root, src):
             report.skipped.append(BatchItem(rel=rel, skipped="outside folder"))
             continue
@@ -308,7 +349,10 @@ def translate_tree(
         jobs.append((src, dest, rel))
 
     def _run_one(src: Path, dest: Path, rel: str) -> tuple[str, BatchItem]:
-        translate = _make_translator(target_lang, source_lang, project, provider_choice, model)
+        if cancel.is_set():
+            return "failed", BatchItem(rel=rel, error=CANCELLED)
+        report.started.append(rel)  # list.append is atomic; the UI reads it on the next progress call
+        translate = _make_translator(target_lang, source_lang, project, provider_choice, model, cancel, purpose=purpose)
         suffix = src.suffix.lower()
         try:
             if suffix in SCRIPT_SUFFIXES:
@@ -320,21 +364,65 @@ def translate_tree(
             else:
                 return "skipped", BatchItem(rel=rel, skipped="unsupported type")
             return "written", BatchItem(rel=rel, out=str(dest))
-        except TranslationError as e:
-            return "skipped", BatchItem(rel=rel, error=str(e))
-        except Exception as e:
-            return "skipped", BatchItem(rel=rel, error=str(e))
+        except Cancelled:
+            return "failed", BatchItem(rel=rel, error=CANCELLED)
+        except Exception as e:  # TranslationError, or anything a parser throws
+            return "failed", BatchItem(rel=rel, error=str(e) or type(e).__name__)
 
+    report.planned = [rel for _s, _d, rel in jobs]
     if not jobs:
         return report
-    with ThreadPoolExecutor(max_workers=workers) as pool:
-        futs = [pool.submit(_run_one, src, dest, rel) for src, dest, rel in jobs]
-        for fut in as_completed(futs):
-            kind, item = fut.result()
-            if kind == "written":
-                report.written.append(item)
-            else:
-                report.skipped.append(item)
+    total = len(jobs)
+    pool = ThreadPoolExecutor(max_workers=workers)
+    futs: dict = {}  # future -> rel
+    finished: set[str] = set()
+
+    def record(kind: str, item: BatchItem) -> None:
+        finished.add(item.rel)
+        (report.written if kind == "written" else report.failed).append(item)
+
+    try:
+        for src, dest, rel in jobs:
+            futs[pool.submit(_run_one, src, dest, rel)] = rel
+        if on_progress:  # after submit, so the first frame already shows the files workers picked up
+            on_progress(0, total, None)
+        pending = set(futs)
+        while pending and not cancel.is_set():
+            # Short waits, not a blocking as_completed: the caller gets its thread back while a
+            # long file runs, so a Cancel click is heard without waiting for a file to finish.
+            done, pending = wait(pending, timeout=TICK_SECONDS, return_when=FIRST_COMPLETED)
+            for fut in done:
+                kind, item = fut.result()
+                record(kind, item)
+                if on_progress:
+                    on_progress(len(finished), total, item)
+            if not done and on_tick:
+                on_tick(len(finished), total)
+    finally:
+        # Cancelled, or the caller's callback raised (at any point, the first frame too): drop
+        # queued work, stop running files (a CLI child is killed, an API call ends at its own
+        # timeout), wait for them, and only then return, so "Stopped" is true when it shows.
+        if len(finished) < total:
+            report.cancelled = True
+            for fut in futs:
+                fut.cancel()  # only succeeds for files no worker has picked up
+            cancel.set()
+        pool.shutdown(wait=True, cancel_futures=True)
+        # Record each file left once, by what really happened: a file whose worker wrote its
+        # output while we were stopping is kept as written (so Retry does not redo it).
+        for fut, rel in futs.items():
+            if rel in finished:
+                continue
+            if fut.cancelled():
+                record("failed", BatchItem(rel=rel, error=CANCELLED))
+                continue
+            try:
+                record(*fut.result())
+            except Exception as e:  # _run_one catches its own errors; this is a last guard
+                record("failed", BatchItem(rel=rel, error=str(e) or type(e).__name__))
+        for rel in report.planned:  # interrupted before every file was submitted
+            if rel not in finished:
+                record("failed", BatchItem(rel=rel, error=CANCELLED))
     return report
 
 
@@ -349,19 +437,28 @@ def translate_single_file(
     game_mode: bool,
     model: str | None = None,
     concurrency: int = DEFAULT_CONCURRENCY,
+    purpose: str = "general",
+    on_progress: ProgressFn | None = None,
+    cancel: threading.Event | None = None,
 ) -> None:
+    """``on_progress(done, total, None)`` fires per chunk sent to the provider. Setting ``cancel``
+    stops the job between batches and kills a running CLI child."""
     dest = dest.resolve()
     dest.parent.mkdir(parents=True, exist_ok=True)
     if dest.resolve() == src.resolve():
         raise TranslationError("Refuses to overwrite the source file.")
     _ = clamp_concurrency(concurrency)
-    translate = _make_translator(target_lang, source_lang, project, provider_choice, model)
+    on_chunk = (lambda done, total: on_progress(done, total, None)) if on_progress else None
+    translate = _make_translator(target_lang, source_lang, project, provider_choice, model, cancel, on_chunk=on_chunk, purpose=purpose)
     kw = dict(
+        cancel=cancel,
         target_lang=target_lang,
         source_lang=source_lang,
         project=project,
         provider_choice=provider_choice,
         model=model,
+        purpose=purpose,
+        on_chunk=on_chunk,
     )
     suffix = src.suffix.lower()
     if suffix in SCRIPT_SUFFIXES:
@@ -382,6 +479,10 @@ def translate_zip(
     extract_root = extract_root.resolve()
     extract_root.mkdir(parents=True, exist_ok=True)
     _extracted, zip_skips = safe_extract_zip(zip_path, extract_root)
-    report = translate_tree(extract_root, job_kind="archive", **kwargs)
-    report.skipped = zip_skips + report.skipped
+    report = kwargs.pop("report", None)
+    report = report if report is not None else BatchReport()
+    try:
+        translate_tree(extract_root, job_kind="archive", report=report, **kwargs)
+    finally:  # a caller holding the report sees the zip's skips after a Cancel too
+        report.skipped = zip_skips + report.skipped
     return report

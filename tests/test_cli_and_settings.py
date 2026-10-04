@@ -7,15 +7,14 @@ from pathlib import Path
 from src.batch import DEFAULT_CONCURRENCY, MAX_CONCURRENCY, MIN_CONCURRENCY, clamp_concurrency
 from src.i18n import detect_ui_language
 from src.models import models_for, resolve_model
-from src.providers.codex_cli import build_exec_argv, resolve_codex_binary
-from src.providers.grok_cli import build_print_argv, resolve_grok_binary
+from src.providers.cli import PRESETS, resolve_bin
 from src.security.hosts import is_official_api_host
 from src.updater.github_http import PIN_OWNER, PIN_REPO
 
 
 def test_overlay_pin() -> None:
     assert PIN_OWNER == "mimateinn"
-    assert PIN_REPO == "Smart-File-Translation-System"
+    assert PIN_REPO == "Versora"
 
 
 def test_blocked_websites() -> None:
@@ -33,80 +32,63 @@ def test_blocked_websites() -> None:
 
 
 def test_concurrency_range() -> None:
+    """Files at once = the runtime's global call limit (Litora: default 3, 1-16)."""
     assert clamp_concurrency(None) == DEFAULT_CONCURRENCY
     assert clamp_concurrency("nope") == DEFAULT_CONCURRENCY
     assert clamp_concurrency(0) == MIN_CONCURRENCY
     assert clamp_concurrency(99) == MAX_CONCURRENCY
     assert clamp_concurrency(2) == 2
-    assert DEFAULT_CONCURRENCY == 2
-    assert MIN_CONCURRENCY == 1
-    assert MAX_CONCURRENCY == 8
+    assert (DEFAULT_CONCURRENCY, MIN_CONCURRENCY, MAX_CONCURRENCY) == (3, 1, 16)
 
 
-def test_models_match_provider() -> None:
+def test_models_are_suggestions() -> None:
     assert models_for("auto") == []
     assert resolve_model("auto", "gpt-4o") is None
-    openai = models_for("openai")
-    assert "gpt-4o-mini" in openai
-    assert resolve_model("openai", "gpt-4o") == "gpt-4o"
-    assert "gpt-5.1-codex" in models_for("codex_cli")
-    assert "grok-3-mini" in models_for("grok_cli")
-    assert "gpt-5.1-codex" not in models_for("grok_cli")
-    assert "grok-3-mini" not in models_for("codex_cli")
+    assert "sonnet" in models_for("claude_cli") and "sonnet" not in models_for("grok_cli")
+    assert models_for("grok_cli", ("grok-9-test",))[0] == "grok-9-test"  # ids the CLI reported come first
+    assert resolve_model("openai", "my-finetune-2026") == "my-finetune-2026"  # custom ids are allowed
+    assert resolve_model("openai", "bad id; rm -rf") == resolve_model("openai", "")  # not an id: default
+    assert resolve_model("codex_cli", "") is None  # blank CLI model: the CLI's own default
 
 
-def test_grok_print_argv_isolation(tmp_path: Path | None = None) -> None:
-    import tempfile
+def _argv(pid: str, model: str = "m-1", effort: str = "low") -> list[str]:
+    return PRESETS[pid].args(model, effort, "/tmp/p/prompt.txt", "/tmp/p")
 
-    cwd = Path(tmp_path) if tmp_path else Path(tempfile.mkdtemp(prefix="sfts_t_"))
-    flags = {
-        "-p",
-        "--output-format",
-        "--no-auto-update",
-        "--permission-mode",
-        "--disable-web-search",
-        "--no-subagents",
-        "--sandbox",
-        "--cwd",
-        "--max-turns",
-        "--model",
-    }
-    argv = build_print_argv(Path("/usr/bin/grok"), "hi", cwd, flags, "grok-3-mini")
+
+def test_grok_argv_isolation() -> None:
+    argv = _argv("grok_cli")
+    assert argv[:2] == ["--prompt-file", "/tmp/p/prompt.txt"]  # the text goes in a file, never argv
+    for flag in ("--permission-mode", "--disable-web-search", "--no-subagents", "--no-plan", "--max-turns"):
+        assert flag in argv
+    assert "dontAsk" in argv and argv[argv.index("--max-turns") + 1] == "1"
+    assert ["-m", "m-1"] == argv[argv.index("-m"):argv.index("-m") + 2]
     joined = " ".join(argv)
-    assert argv[0].endswith("grok")
-    assert "-p" in argv
-    assert "--permission-mode" in argv and "dontAsk" in argv
-    assert "--disable-web-search" in argv
-    assert "--no-subagents" in argv
-    assert "--sandbox" in argv and "strict" in argv
-    assert "--cwd" in argv and str(cwd) in argv
-    assert "--max-turns" in argv and "1" in argv
-    assert "--always-approve" not in argv
-    assert "--yolo" not in argv
-    assert "--oauth" not in joined
+    assert not any(b in joined for b in PRESETS["grok_cli"].banned)
+    assert "-m" not in _argv("grok_cli", model="") and "--reasoning-effort" not in _argv("grok_cli", effort="")
 
 
-def test_codex_exec_argv_isolation(tmp_path: Path | None = None) -> None:
-    import tempfile
-
-    cwd = Path(tmp_path) if tmp_path else Path(tempfile.mkdtemp(prefix="sfts_t_"))
-    flags = {"--sandbox", "--cd", "--model", "--skip-git-repo-check", "--ask-for-approval"}
-    argv = build_exec_argv(Path("/usr/bin/codex"), cwd, flags, "gpt-5.1-codex")
+def test_codex_argv_isolation() -> None:
+    argv = _argv("codex_cli")
+    assert argv[0] == "exec" and argv[-1] == "-"  # prompt on stdin
+    assert argv[argv.index("--sandbox") + 1] == "read-only"
+    assert argv[argv.index("--cd") + 1] == "/tmp/p"
+    assert "model_reasoning_effort=low" in argv
     joined = " ".join(argv)
-    assert argv[:2] == ["/usr/bin/codex", "exec"]
-    assert argv[-1] == "-"
-    assert "--sandbox" in argv and "read-only" in argv
-    assert "--cd" in argv and str(cwd) in argv
-    assert "--full-auto" not in argv
-    assert "--yolo" not in argv
-    assert "--dangerously-bypass-approvals-and-sandbox" not in argv
-    assert "danger-full-access" not in joined
-    assert "workspace-write" not in joined
+    assert not any(b in joined for b in PRESETS["codex_cli"].banned)
+    flags = ["-p", "--tools", "", "--strict-mcp-config", "--disable-slash-commands", "--permission-mode", "dontAsk"]
+    assert _argv("claude_cli") == flags + ["--model", "m-1", "--effort", "low"]
+    assert _argv("claude_cli", "", "") == flags
 
 
-def test_cli_binary_names_only() -> None:
-    assert resolve_grok_binary("/tmp/not-grok") is None
-    assert resolve_codex_binary("/tmp/not-codex") is None
+def test_cli_binary_names(tmp_path: Path) -> None:
+    for name in ("codex.CMD", "codex.exe", "claude.cmd", "grok"):
+        (tmp_path / name).write_text("", encoding="utf-8")
+    (tmp_path / "not-grok.exe").write_text("", encoding="utf-8")
+    assert resolve_bin("codex_cli", str(tmp_path / "codex.CMD")) is not None  # npm shim on Windows
+    assert resolve_bin("claude_cli", str(tmp_path / "claude.cmd")) is not None
+    assert resolve_bin("grok_cli", str(tmp_path / "grok")) is not None
+    assert resolve_bin("grok_cli", str(tmp_path / "not-grok.exe")) is None
+    assert resolve_bin("codex_cli", str(tmp_path / "missing.exe")) is None
 
 
 def test_sources_never_read_auth_files() -> None:
@@ -116,12 +98,9 @@ def test_sources_never_read_auth_files() -> None:
         "Path.home() / \".codex\" / \"auth.json\"",
         "~/.grok/auth.json",
         "~/.codex/auth.json",
+        ".claude/.credentials",
     )
-    for rel in (
-        "src/providers/grok_cli.py",
-        "src/providers/codex_cli.py",
-        "app.py",
-    ):
+    for rel in ("src/providers/cli.py", "src/providers/api.py", "app.py"):
         text = (root / rel).read_text(encoding="utf-8")
         for needle in banned_reads:
             assert needle not in text
@@ -136,34 +115,79 @@ def test_detect_language() -> None:
 
 
 def test_v2_chrome_contract() -> None:
+    """Versora chrome. v0.2 changes from v0.1.1, on purpose:
+    - accent: teal #14b8a6 -> one brand colour set only in theme.ACCENTS, read everywhere
+      else through var(--sfts-accent*); no accent hex outside theme.py and config.toml;
+    - no `sfts-hero` block (owner: the drop zone is the page's hero, no big title)."""
     root = Path(__file__).resolve().parents[1]
     icon = (root / "icon.png").read_bytes()
     assert icon[:8] == b"\x89PNG\r\n\x1a\n"
     assert len(icon) > 500
     theme = (root / "src" / "theme.py").read_text(encoding="utf-8")
-    assert "14b8a6" in theme
     assert "st-key-nav_translate" in theme
     assert "stFileUploaderDropzoneInstructions" in theme
     assert "stAppDeployButton" in theme
-    from src.theme import css_for
-    css = css_for("light", "settings", "appearance")
-    assert "data:image/svg+xml" in css
-    assert "inset 3px 0 0 #14b8a6" in css
-    assert "st-key-source_type" in css and "min-width: max-content" in css
+    assert "backdrop-filter" not in theme and "blur(" not in theme
+    from src.theme import ACCENTS, css_for
+    for theme_name in ("light", "dark"):
+        css = css_for(theme_name, "settings", "appearance")
+        assert "data:image/svg+xml" in css
+        assert "width: 3px; border-radius: 2px; background: var(--sfts-accent)" in css  # inset bar, not a crescent (r2)
+        assert "st-key-source_type" in css and "min-width: max-content" in css
+        assert f"--sfts-accent: {ACCENTS[theme_name]['accent']};" in css
+    accent_hexes = {v.lower() for pal in ACCENTS.values() for v in pal.values() if v.startswith("#") and v.lower() not in {"#ffffff", "#0e1320"}}
+    config = (root / ".streamlit" / "config.toml").read_text(encoding="utf-8")
+    assert f'primaryColor = "{ACCENTS["light"]["accent"]}"' in config
     app = (root / "app.py").read_text(encoding="utf-8")
-    assert "sfts-hero" in app
-    assert "sfts-filechip" in app
-    assert 'SETTINGS_PANES = ("appearance", "translation", "keys", "glossary")' in app
-    assert "status.info" not in app
+    for hexv in accent_hexes | {"#14b8a6", "#b95233"}:
+        assert hexv not in app.lower()
+    assert theme.lower().count(ACCENTS["light"]["accent"].lower()) == 1  # set once
+    assert "sfts-frow" in app  # picked file: one compact row (r3 locked L2)
+    assert 'SETTINGS_PANES = ("purposes", "keys", "order", "glossary", "appearance")' in app  # nav == headings (r3)
+    assert "status.info" not in app and "st.info(" not in app and "st.success(" not in app
     assert "L(\"main.status_ready\")" not in app
+    import ast
+    downloads = [n for n in ast.walk(ast.parse(app)) if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == "download_button"]
+    assert len(downloads) == 2 and all(any(k.arg == "on_click" and ast.literal_eval(k.value) == "ignore" for k in n.keywords) for n in downloads)
     maker = (root / "scripts" / "make_icon.py").read_text(encoding="utf-8")
     assert (root / "scripts" / "make_icon.py").is_file()
-    assert "No letters" in maker
+    assert "assets/icon.svg" in maker
     icons = (root / "src" / "icons.py").read_text(encoding="utf-8")
     assert "<svg" in icons
-    for ch in "☀☾📄📁🗜💬🎮🔑📖🖥🌐✕":
+    for ch in "☀☾📄📁🗜💬🎮🔑📖🖥🌐✕✨":
         assert ch not in app
         assert ch not in icons
+
+
+def _reduced_motion_blocks(css: str) -> list[str]:
+    """Bodies of every @media (prefers-reduced-motion: reduce) block, braces balanced."""
+    blocks, at = [], 0
+    while (at := css.find("prefers-reduced-motion: reduce", at)) != -1:
+        start = css.index("{", at) + 1
+        depth, i = 1, start
+        while depth:
+            depth += {"{": 1, "}": -1}.get(css[i], 0)
+            i += 1
+        blocks.append(css[start:i - 1])
+        at = i
+    return blocks
+
+
+def test_reduced_motion_is_still() -> None:
+    """Reduced motion: busy cues stay drawn but nothing loops (r4: a vi-fade loop had crept back in);
+    the shimmer is a flat band, not a gradient."""
+    from src.icons import ICON_CSS
+    from src.theme import css_for
+
+    for theme_name in ("light", "dark"):
+        css = css_for(theme_name, "translate", "appearance")
+        blocks = _reduced_motion_blocks(css)
+        assert len(blocks) >= 2  # theme chrome + icon set
+        for body in blocks:
+            assert "infinite" not in body
+            assert "width: 100%" not in body  # no fake full progress bar
+        assert "gradient(" not in css
+    assert all("infinite" not in b for b in _reduced_motion_blocks(ICON_CSS))
 
 
 def test_locales_hide_subscription_copy() -> None:
@@ -175,16 +199,28 @@ def test_locales_hide_subscription_copy() -> None:
         assert "等候安全審查" not in text
 
 
-if __name__ == "__main__":
-    test_overlay_pin()
-    test_blocked_websites()
-    test_concurrency_range()
-    test_models_match_provider()
-    test_grok_print_argv_isolation()
-    test_codex_exec_argv_isolation()
-    test_cli_binary_names_only()
-    test_sources_never_read_auth_files()
-    test_detect_language()
-    test_v2_chrome_contract()
-    test_locales_hide_subscription_copy()
-    print("ok")
+def test_stopped_copy_and_token_contract() -> None:
+    """r5: cancellation labels exist in every UI language; reduced motion has no frozen percentage."""
+    import json
+    import string
+    from src.theme import css_for
+
+    root = Path(__file__).resolve().parents[1]
+    keys = ("done.stopped", "done.n_unfinished", "batch.unfinished", "batch.retry_remaining", "err.damaged_short", "run.stopped")
+    expected = {"done.n_unfinished": {"n"}, "batch.retry_remaining": {"n"}, "err.damaged_short": {"ext"}}
+    for path in (root / "locales").glob("*.json"):
+        messages = json.loads(path.read_text(encoding="utf-8"))
+        for key in keys:
+            assert messages[key].strip(), (path.name, key)
+            fields = {field for _text, field, _fmt, _convert in string.Formatter().parse(messages[key]) if field}
+            assert fields == expected.get(key, set()), (path.name, key, fields)
+    for mode in ("light", "dark"):
+        css = css_for(mode, "translate", "appearance")
+        assert '[data-testid="stMarkdownContainer"] a { color: var(--sfts-accent-strong) !important; }' in css
+        assert ".sfts-result-path { margin-left: 32px;" in css
+        reduced = "\n".join(_reduced_motion_blocks(css))
+        assert ".sfts-bar::after { animation: none !important; display: none; }" in reduced
+        assert "left: 35%" not in reduced
+    requirements = (root / "requirements.txt").read_text(encoding="utf-8").splitlines()
+    assert "streamlit>=1.65.0" in requirements
+    assert "openai>=1.40.0" in requirements  # owner approved the Streamlit floor only; no other dependency bump

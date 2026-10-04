@@ -1,3 +1,1 @@
-from .router import translate_text, resolve_provider
-
-__all__ = ["translate_text", "resolve_provider"]
+"""Translators: base (call shape, errors), cli (local programs), api (online APIs), demo."""
