@@ -1,8 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="20 16 120 120">
-  <title>Versora concept a-forked-ribbon</title>
-  <rect x="32" y="28" width="96" height="94" rx="14" fill="#ECE7D4"/>
-  <path fill="#B95233" d="M46.6 28H50.8V125H32V42Q32 28 46.6 28Z"/><path fill="#923D27" fill-opacity=".38" d="M48.2 33H49V121H48.2Z"/>
-  <path fill="#B95233" d="M59.1 28H76.9V52L84 72H77.4L68 56.5L58.6 72H52.5L59.1 52Z"/>
-  <path data-part="cover-monogram" fill="#AA9E85" d="M79 76L95 76L95 78L91 78L96.6 97.5L103.2 78L99 78L99 76L111 76L111 78L106 78L96.9 107L94.5 107L84 78L79 78Z"/>
-  <path fill="#141415" d="M38.3 120H114.4Q128 120 128 107V120Q128 132 115.5 132H38.3Q32 132 32 126Q32 120 38.3 120Z"/>
-</svg>
