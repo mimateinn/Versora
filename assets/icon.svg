@@ -1,10 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="20 16 120 120">
   <title>Versora two-leaves book mark</title>
-  <rect data-part="target-leaf" x="52" y="28" width="76" height="80" rx="14" fill="#B95233"/>
-  <rect data-part="cover" x="32" y="40" width="86" height="82" rx="14" fill="#ECE7D4"/>
+  <rect data-part="target-leaf" x="50" y="26" width="78" height="72" rx="14" fill="#923D27"/>
+  <rect data-part="cover" x="32" y="40" width="80" height="82" rx="14" fill="#ECE7D4"/>
   <path data-part="spine" fill="#B95233" d="M46 40H50V125H32V54Q32 40 46 40Z"/>
   <path data-part="spine-groove" fill="#923D27" fill-opacity=".38" d="M47.4 45H48.2V121H47.4Z"/>
-  <path data-part="ribbon" fill="#B95233" d="M59 39H74V70L66.5 64L59 70Z"/>
-  <path data-part="cover-monogram" fill="#AA9E85" d="M72.5 77H86.5V79.5H83.5L89.7 94.5L94.8 79.5H91V77H102.5V79.5H98.5L89.3 107H86.7L75.5 79.5H72.5Z"/>
-  <path data-part="page-block" fill="#141415" d="M38.3 120H104.4Q118 120 118 107V120Q118 132 105.5 132H38.3Q32 132 32 126Q32 120 38.3 120Z"/>
+  <path data-part="ribbon" fill="#B95233" d="M57 26H71V65L64 59.5L57 65Z"/>
+  <path data-part="cover-monogram" fill="#AA9E85" d="M65.5 74L82.5 74L82.5 76.8L78.5 76.8L84.8 94.4L91.5 76.8L88.5 76.8L88.5 74L99.5 74L99.5 76.8L95.5 76.8L83.6 108L80.6 108L69.5 76.8L65.5 76.8Z"/>
+  <path data-part="page-block" fill="#141415" d="M38.3 120H98.4Q112 120 112 107V120Q112 132 99.5 132H38.3Q32 132 32 126Q32 120 38.3 120Z"/>
 </svg>
