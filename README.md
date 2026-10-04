@@ -1,6 +1,31 @@
-# Smart File Translation System
+<p align="center">
+  <img src="docs/brand/versora.png" width="112" height="112" alt="Versora icon">
+</p>
 
+<h1 align="center">Versora</h1>
+
+<p align="center">
 Translate files on your own computer. Drop one file, a folder, or a zip — you get a matching translated file for each input, in the same folder shape.
+</p>
+
+<p align="center">Previously called Smart File Translation System. Existing links still work.</p>
+
+## Related apps
+
+<table>
+  <tr>
+    <td width="50%" align="center" valign="top">
+      <a href="https://github.com/mimateinn/Versora"><img src="docs/brand/versora.png" width="64" height="64" alt="Versora icon"></a>
+      <h3><a href="https://github.com/mimateinn/Versora">Versora</a></h3>
+      <p>Translate files on your own computer, keeping the original folder structure.</p>
+    </td>
+    <td width="50%" align="center" valign="top">
+      <a href="https://github.com/mimateinn/Litora"><img src="docs/brand/litora.png" width="64" height="64" alt="Litora icon"></a>
+      <h3><a href="https://github.com/mimateinn/Litora">Litora</a></h3>
+      <p>A desktop library and reader for your books.</p>
+    </td>
+  </tr>
+</table>
 
 ## What it does
 
@@ -42,9 +67,11 @@ Keys live only in a local `.env`. The repository has no secrets. For extra optio
 
 ---
 
-# 智能檔案翻譯系統
+# Versora
 
 在你自己的電腦上翻譯檔案。丟一個檔案、整個資料夾，或一個 zip——每個輸入檔都會得到對應的譯文，資料夾形狀相同。
+
+Versora 前稱「智能檔案翻譯系統」。舊連結仍然有效。
 
 ## 能做什麼
 
