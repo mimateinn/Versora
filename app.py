@@ -42,7 +42,7 @@ from src.providers.demo import demo_enabled
 from src.providers.grok_cli import INSTALL_HINT as GROK_HINT
 from src.providers.grok_cli import grok_cli_path_setting, probe_grok_cli
 from src.security.secrets import load_secret, redact_secrets, save_secret_to_env
-from src.icons import CHECK, DASH, FILE, GLOBE, wrap
+from src.icons import ALERT, CHECK, DASH, FILE, GLOBE, wrap
 from src.theme import css_for
 from src.ui_prefs import load_prefs, save_prefs
 
@@ -273,6 +273,14 @@ def _set_lang(lang: str, *, follow: bool = False) -> None:
 def _icon_data_uri() -> str:
     raw = ICON_PATH.read_bytes() if ICON_PATH.is_file() else b""
     return "data:image/png;base64," + base64.b64encode(raw).decode("ascii") if raw else ""
+
+
+@st.cache_data(show_spinner=False)
+def _busy_icon_uri() -> str:
+    """The animated app mark (badge lifts and stamps) shown while a job runs."""
+    path = ROOT / "assets" / "icon-animated.svg"
+    raw = path.read_bytes() if path.is_file() else b""
+    return "data:image/svg+xml;base64," + base64.b64encode(raw).decode("ascii")
 
 
 @st.cache_data(ttl=60, show_spinner=False)
@@ -525,7 +533,7 @@ def _key_head(label: str, on: bool, status: str) -> None:
 
 def _field_and_save(label: str, key: str, save_key: str, **field) -> str | None:
     """A field and its Save button on one row; returns the stripped value when Save is clicked."""
-    c1, c2 = st.columns([3, 1.25], vertical_alignment="bottom")
+    c1, c2 = st.columns([2.4, 1.3], vertical_alignment="bottom")
     with c1:
         val = st.text_input(label, key=key, label_visibility="collapsed", **field)
     with c2:
@@ -625,7 +633,7 @@ def render_glossary_pane() -> None:
             with c2:
                 ntr = st.text_input(L("glossary.translation"), value=trans, key=f"gtr_{nonce}_{i}", label_visibility="collapsed")
             with c3:
-                if st.button(L("glossary.delete"), key=f"gdel_{nonce}_{i}", help=L("glossary.delete")):  # ICON: CLOSE
+                if st.button(L("glossary.delete"), key=f"gdel_{nonce}_{i}", help=L("glossary.delete")):  # CLOSE glyph: theme.py mask
                     drop = i
             current.append((nt, ntr))
         if drop is not None:
@@ -800,7 +808,7 @@ def _run_header():
 
 def _run_line(head, text: str, right: str = "") -> None:
     head.markdown(
-        f'<div class="sfts-run"><i></i>{html.escape(text)}<span>{html.escape(right)}</span></div>',
+        f'<div class="sfts-run"><img src="{_busy_icon_uri()}" alt="">{html.escape(text)}<span>{html.escape(right)}</span></div>',
         unsafe_allow_html=True,
     )
 
@@ -917,8 +925,8 @@ def _zip_outputs(report: BatchReport) -> bytes:
 
 def _done_header(title: str, sub: str, warn: bool = False) -> None:
     st.markdown(
-        f'<div class="sfts-done" data-tone="{"warn" if warn else "ok"}">'
-        '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 10.5l4 4 9-9.5"/></svg>'
+        f'<div class="sfts-done {"vi-anim-alert" if warn else "vi-anim-check"}" data-tone="{"warn" if warn else "ok"}">'
+        f'{wrap(ALERT if warn else CHECK)}'
         f'<div><div class="sfts-done-title">{html.escape(title)}</div>'
         f'<div class="sfts-done-sub">{sub}</div></div></div>',
         unsafe_allow_html=True,
@@ -1016,7 +1024,7 @@ def _show_file_chip() -> bool:
             unsafe_allow_html=True,
         )
     with clear:
-        if st.button(L("main.clear"), key="clear_picked", help=L("main.clear")):  # ICON: CLOSE (drawn by theme.py)
+        if st.button(L("main.clear"), key="clear_picked", help=L("main.clear")):  # CLOSE glyph: theme.py mask
             _forget_pick()
             _clear_results()
             st.rerun()

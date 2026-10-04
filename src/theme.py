@@ -14,7 +14,8 @@ from __future__ import annotations
 
 from urllib.parse import quote
 
-from src.icons import MASKS as _ICON_MASKS
+from src import icons as _icons
+from src.icons import ICON_CSS, MASKS as _ICON_MASKS
 
 # The one place the brand colour (Versora ink blue) lives; everything else reads --sfts-accent*.
 # accent = fills (white text on it 4.6:1). accent-strong = text, links, hover fills (6.4:1 on paper).
@@ -26,26 +27,14 @@ ACCENTS = {
 ACCENT = ACCENTS["light"]["accent"]
 
 
-def _glyph(inner: str) -> str:
-    raw = (
-        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" '
-        f'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">{inner}</svg>'
-    )
-    return "data:image/svg+xml," + quote(raw, safe="")
-
-
-# Stand-in glyphs until feat/versora-icon lands; names it exports override these.
-_STANDIN = {
-    "swap": _glyph('<path d="M7 7h12l-3-3M17 17H5l3 3"/>'),  # ICON: SWAP
-    "download": _glyph('<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>'),  # ICON: DOWNLOAD
-    "retry": _glyph('<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/>'),  # ICON: RETRY
-    "open": _glyph('<path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v2"/><path d="M3 7v10a2 2 0 0 0 2 2h11l4-7H8l-4 7"/>'),  # ICON: OPEN_FOLDER
-    "stop": _glyph('<rect x="6" y="6" width="12" height="12" rx="2"/>'),  # ICON: STOP
-    "sun": _glyph('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>'),
-    "moon": _glyph('<path d="M21 14.3A8.5 8.5 0 1 1 9.7 3 7 7 0 0 0 21 14.3z"/>'),
-    "close": _glyph('<path d="M6 6l12 12M18 6 6 18"/>'),  # ICON: CLOSE
+# Button glyphs are CSS masks (Streamlit buttons cannot hold inline SVG). The icon set
+# exports masks for most names; stop/sun/moon are built from its own paths here.
+MASKS = {
+    **_ICON_MASKS,
+    "stop": _icons._mask_uri(_icons._STOP),
+    "sun": _icons._mask_uri(_icons._SUN),
+    "moon": _icons._mask_uri(_icons._MOON),
 }
-MASKS = {**_STANDIN, **_ICON_MASKS}
 
 _TOKENS = {
     "light": {
@@ -83,6 +72,7 @@ _FONTS = """
   --e-out: cubic-bezier(.22,1,.36,1);
   --d-press: 80ms; --d-fast: 140ms; --d-norm: 220ms;
   --h-ctrl: 42px; --h-small: 34px;
+  --vi-accent: var(--sfts-accent);
 """
 
 
@@ -106,7 +96,10 @@ def _vars(theme: str) -> str:
     tok = _TOKENS[theme]
     lines = "".join(f"  --sfts-{k}: {v};\n" for k, v in tok.items())
     art = _art_uri(tok["art-fill"], tok["art-line"], tok["accent"])
-    return f":root {{\n{lines}{_FONTS}  --sfts-art: url(\"{art}\");\n  color-scheme: {theme};\n}}\n"
+    return (
+        f":root {{\n{lines}{_FONTS}  --sfts-art: url(\"{art}\");\n"
+        f"  --sfts-upload: url(\"{MASKS['upload']}\");\n  color-scheme: {theme};\n}}\n"
+    )
 
 
 def _mask_icon(selector: str, name: str, margin: str = "0 8px 0 0", size: int = 16) -> str:
@@ -257,6 +250,8 @@ div[class*="st-key-card_run"] { animation-delay: 24ms; }
   color: var(--sfts-text) !important; background: transparent !important; caret-color: var(--sfts-accent);
 }
 [data-testid="stSelectbox"] button, [data-testid="stSelectbox"] svg { color: var(--sfts-muted) !important; }
+.stApp input::placeholder, .stApp textarea::placeholder { color: var(--sfts-faint) !important; opacity: 1 !important; -webkit-text-fill-color: var(--sfts-faint) !important; }
+[data-testid="stTextInput"] button, [data-testid="stTextInput"] svg { color: var(--sfts-muted) !important; }
 [role="listbox"] { background: var(--sfts-card) !important; border: 1px solid var(--sfts-line) !important; border-radius: 10px !important; box-shadow: var(--sfts-shadow) !important; }
 [role="listbox"] [role="option"] { color: var(--sfts-text) !important; border-radius: 6px; font-size: 14px; }
 [role="listbox"] [role="option"]:hover, [role="listbox"] [role="option"][data-focused="true"] { background: var(--sfts-sunken) !important; }
@@ -306,6 +301,10 @@ div[class*="st-key-card_run"] { animation-delay: 24ms; }
 }
 [data-testid="stFileUploaderDropzone"] > span { order: 1; }
 [data-testid="stFileUploaderDropzone"] button { min-width: 144px; }
+[data-testid="stFileUploaderDropzone"] button [data-testid="stIconMaterial"] { font-size: 0 !important; width: 16px; height: 16px; display: inline-block;
+  background-color: currentColor; -webkit-mask: var(--sfts-upload) center / contain no-repeat; mask: var(--sfts-upload) center / contain no-repeat;
+  transition: transform 300ms var(--e-out); }
+[data-testid="stFileUploaderDropzone"]:hover button [data-testid="stIconMaterial"] { transform: translateY(-2.4px); }
 [data-testid="stFileUploaderDropzone"] button [data-testid="stMarkdownContainer"] p { font-size: 0 !important; }
 [data-testid="stFileUploaderDropzone"] button [data-testid="stMarkdownContainer"] p::after { content: var(--sfts-drop-browse); font-size: 14px; }
 [data-testid="stFileUploaderDropzoneInstructions"] { order: 2; }
@@ -328,7 +327,7 @@ div[class*="st-key-card_run"] { animation-delay: 24ms; }
 
 /* ── Running ── */
 .sfts-run { display: flex; align-items: center; gap: 8px; height: 20px; font-weight: 600; color: var(--sfts-text); }
-.sfts-run i { width: 8px; height: 8px; border-radius: 50%; background: var(--sfts-accent); animation: sfts-pulse 1.1s var(--e-out) infinite; }
+.sfts-run img { width: 20px; height: 20px; display: block; }
 .sfts-run span { color: var(--sfts-muted); font-weight: 400; font-family: var(--f-mono); font-size: 12px; margin-left: auto; }
 @keyframes sfts-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .35; transform: scale(.8); } }
 [data-testid="stProgress"] > div > div { background: var(--sfts-sunken) !important; height: 3px !important; border-radius: 3px !important; }
@@ -364,10 +363,9 @@ div[class*="st-key-card_run"] { animation-delay: 24ms; }
 
 /* ── Done: a drawn tick, no badge ── */
 .sfts-done { display: flex; align-items: flex-start; gap: 12px; }
-.sfts-done svg { flex: 0 0 20px; width: 20px; height: 20px; margin-top: 0; }
-.sfts-done path { fill: none; stroke: var(--sfts-ok); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round;
-  stroke-dasharray: 20; stroke-dashoffset: 20; animation: sfts-draw 420ms 120ms var(--e-out) forwards; }
-.sfts-done[data-tone="warn"] path { stroke: var(--sfts-accent); }
+.sfts-done > .sfts-ico { flex: 0 0 20px; width: 20px; height: 20px; margin: 0; color: var(--sfts-ok); --vi-accent: var(--sfts-ok); }
+.sfts-done > .sfts-ico svg { width: 20px; height: 20px; }
+.sfts-done[data-tone="warn"] > .sfts-ico { color: var(--sfts-accent); --vi-accent: var(--sfts-accent); }
 .sfts-done-title { font-size: 15px; line-height: 20px; font-weight: 600; color: var(--sfts-text); }
 .sfts-done-sub { color: var(--sfts-muted); font-size: 13px; line-height: 20px; margin-top: 4px; }
 .sfts-path { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; }
@@ -442,7 +440,7 @@ def _chrome_keys(theme: str, page: str, pane: str) -> str:
             _mask_icon('[class*="st-key-swap_langs"] button', "swap", "0"),
             _mask_icon('[class*="st-key-theme_toggle"] button', "moon" if theme == "light" else "sun", "0"),
             _mask_icon('[class*="st-key-dl_"] button', "download"),
-            _mask_icon('[class*="st-key-open_out"] button', "open"),
+            _mask_icon('[class*="st-key-open_out"] button', "folder_open"),
             _mask_icon('[class*="st-key-retry_failed"] button', "retry"),
             _mask_icon('[class*="st-key-cancel_run"] button', "stop", "0 6px 0 0", 12),
             _mask_icon('[class*="st-key-clear_picked"] button', "close", "0", 14),
@@ -483,6 +481,7 @@ def _chrome_keys(theme: str, page: str, pane: str) -> str:
   width: 100% !important; justify-content: space-between !important; padding: 0 12px !important;
   background: var(--sfts-raised) !important; border: 1px solid var(--sfts-line-strong) !important; color: var(--sfts-text) !important;
 }}
+[class*="st-key-provider_chip"] button > div {{ flex: 1 1 auto !important; justify-content: flex-start !important; text-align: left !important; min-width: 0; }}
 [class*="st-key-provider_chip"] button p {{ overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
 [class*="st-key-provider_chip"] button::after {{ content: "›"; color: var(--sfts-muted); font-size: 18px; line-height: 1; margin-left: 8px; }}
 [class*="st-key-provider_chip"] button:hover {{ border-color: var(--sfts-accent) !important; }}
@@ -527,5 +526,5 @@ def css_for(
         copy += f'  --sfts-{name}: "{safe}";\n'
     return (
         "<style>\n" + _vars(theme) + (":root {\n" + copy + "}\n" if copy else "")
-        + _SHARED + _chrome_keys(theme, page, pane) + "</style>"
+        + _SHARED + ICON_CSS + _chrome_keys(theme, page, pane) + "</style>"
     )
