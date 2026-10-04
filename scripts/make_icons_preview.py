@@ -43,6 +43,13 @@ def film() -> str:
             for t in times
         )
         rows.append(f"<tr><th>{name}<br><small>{cls or 'always'}</small></th>{cells}</tr>")
+    anim = (ROOT / "assets" / "icon-animated.svg").read_text(encoding="utf-8")
+    anim = anim.replace('width="160" height="160"', 'width="72" height="72"', 1)
+    cells = "".join(
+        f'<td><span class="frame" data-cls="" data-t="{t}">{anim}</span><small>{t}</small></td>'
+        for t in (0, 2900, 3200, 3450, 3700, 4100)
+    )
+    rows.append(f"<tr><th>app icon<br><small>4.8 s loop</small></th>{cells}</tr>")
     return f'<section class="panel light film"><h2>motion, frozen frames (ms)</h2><table>{"".join(rows)}</table></section>'
 
 
