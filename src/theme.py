@@ -323,7 +323,7 @@ div[class*="st-key-card_"].is-new { animation: sfts-enter 320ms var(--e-out) bot
 [data-testid="stFileUploaderDropzone"]:is(:hover, .is-drag) button [data-testid="stIconMaterial"] { transform: translateY(-2.4px); }
 [data-testid="stFileUploaderDropzone"] button [data-testid="stMarkdownContainer"] p { font-size: 0 !important; }
 [data-testid="stFileUploaderDropzone"] button [data-testid="stMarkdownContainer"] p::after { content: var(--sfts-drop-browse); font-size: 14px; }
-[data-testid="stFileUploaderDropzoneInstructions"] { order: 0; margin: -8px 0 0 !important; padding: 0 !important; display: block !important; width: 100%; max-width: 560px; }  /* hint + formats sit under the title, Browse below */
+[data-testid="stFileUploaderDropzoneInstructions"] { order: 0; margin: -8px 0 0 !important; padding: 0 !important; display: block !important; width: 100%; max-width: 560px; align-self: flex-start !important; }  /* hint + formats sit under the title, Browse below */
 [data-testid="stFileUploaderDropzoneInstructions"]::before {
   content: var(--sfts-drop-hint); display: block; font-size: 13px; line-height: 20px; color: var(--sfts-muted); margin-bottom: 4px;
 }

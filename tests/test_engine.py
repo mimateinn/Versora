@@ -278,3 +278,36 @@ def test_single_file_cancel_kills_cli_child(tmp_path, monkeypatch) -> None:
         batch.translate_single_file(src, tmp_path / "out.txt", target_lang="ja", source_lang=None, project=None,
                                     provider_choice="auto", game_mode=False, cancel=stop)
     assert time.monotonic() - t0 < 10 and not (tmp_path / "out.txt").exists()
+
+
+def test_add_online_translator_save_and_test(tmp_path, monkeypatch) -> None:
+    """Settings → Translators: an unset API sits in the "add" list; Save and test stores the key,
+    runs one test sentence and leaves a visible result under the row."""
+    import src.config as config
+    import src.security.secrets as secrets
+    import src.ui_prefs as ui_prefs
+    from streamlit.testing.v1 import AppTest
+
+    class Ok(Engine):
+        id = "openai"
+
+        def complete(self, system, user, *, cancel=None):
+            return "1. Hallo! Die Datei ist fertig."
+
+    monkeypatch.setattr(ui_prefs, "prefs_path", lambda: tmp_path / ".sfts-ui.json")
+    monkeypatch.setattr(secrets, "_ROOT", tmp_path)
+    monkeypatch.setattr(cli, "probe", lambda pid, fresh=False: cli.CliStatus(pid, None))
+    monkeypatch.setattr(config, "_available_cache", None)
+    monkeypatch.setattr(runtime, "make_engine", lambda link: Ok())
+    monkeypatch.setenv("OPENAI_API_KEY", "")  # recorded, so the key the test saves is removed afterwards
+    app = str(Path(__file__).resolve().parents[1] / "app.py")
+    at = AppTest.from_file(app, default_timeout=60)
+    at.query_params["page"], at.query_params["pane"] = "settings", "keys"
+    at.run()
+    assert not any(t.key == "paste_openai" for t in at.text_input)  # only the one being added shows a field
+    at.button(key="svc_add_openai").click().run()
+    at.text_input(key="paste_openai").input("sk-test-0000aaaa1111")
+    at.button(key="svc_save_openai").click().run()
+    assert "OPENAI_API_KEY=sk-test-0000aaaa1111" in (tmp_path / ".env").read_text(encoding="utf-8")
+    shown = " ".join(m.value for m in at.markdown)
+    assert "Works · " in shown and "••••1111" in shown
