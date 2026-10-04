@@ -4,6 +4,8 @@ Writes:
   icon.png               256 px RGBA (the app + README load this; keep the path)
   assets/icon-512.png    512 px RGBA
   assets/favicon.ico     16 / 32 / 48 / 256
+  assets/icon-animated.svg  same artwork + a CSS loop (badge lifts and stamps, A dims);
+                            identical to icon.svg at rest and under reduced motion
 
 Why a tiny in-house rasteriser: the icon is flat fills only, and the repo has
 no SVG renderer. Supported on purpose (not a general SVG engine):
@@ -28,6 +30,29 @@ SVG = ROOT / "assets" / "icon.svg"
 OUT = ROOT / "icon.png"
 OUT_512 = ROOT / "assets" / "icon-512.png"
 OUT_ICO = ROOT / "assets" / "favicon.ico"
+OUT_ANIM = ROOT / "assets" / "icon-animated.svg"
+
+_ANIM_CSS = """<style>
+  .badge-top { animation: stamp 4.8s cubic-bezier(.22, 1, .36, 1) infinite; }
+  .source { animation: read 4.8s cubic-bezier(.22, 1, .36, 1) infinite; }
+  @keyframes stamp {
+    0%, 58% { transform: none; }
+    68% { transform: translateY(-4px); }
+    77% { transform: translateY(1.5px); }
+    84%, 100% { transform: none; }
+  }
+  @keyframes read { 0%, 56% { opacity: 1; } 66%, 74% { opacity: .45; } 86%, 100% { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .badge-top, .source { animation: none; } }
+</style>"""
+
+
+def animated(svg: str) -> str:
+    """Same paths as the master; badge + its glyph grouped so they can lift off the depth slab."""
+    svg = svg.replace("</title>", "</title>\n  " + _ANIM_CSS, 1)
+    svg = svg.replace('<path data-part="source-glyph"', '<path class="source" data-part="source-glyph"', 1)
+    start = svg.index('<rect data-part="badge"')
+    end = svg.index("/>", svg.index('data-part="target-glyph"')) + 2
+    return svg[:start] + '<g class="badge-top">' + svg[start:end] + "</g>" + svg[end:]
 SIZE = 256
 SS = 8  # supersample per axis
 
@@ -137,7 +162,8 @@ def main() -> None:
     sizes = [16, 32, 48, 256]
     frames = [render(svg, s) for s in sizes]
     frames[-1].save(OUT_ICO, format="ICO", sizes=[(s, s) for s in sizes], append_images=frames[:-1])
-    for p in (OUT, OUT_512, OUT_ICO):
+    OUT_ANIM.write_text(animated(svg), encoding="utf-8")
+    for p in (OUT, OUT_512, OUT_ICO, OUT_ANIM):
         print(p.relative_to(ROOT), p.stat().st_size)
 
 
