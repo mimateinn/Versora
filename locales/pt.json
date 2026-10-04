@@ -10,7 +10,7 @@
   "sidebar.target_lang": "Idioma de destino",
   "sidebar.source_lang": "Idioma de origem",
   "sidebar.source_auto": "Detecção automática",
-  "sidebar.project": "Projeto (glossário)",
+  "sidebar.project": "Projeto do glossário",
   "sidebar.new_project": "Nome do novo projeto",
   "sidebar.create_project": "Criar",
   "sidebar.glossary_editor": "Entradas do glossário",
@@ -200,7 +200,7 @@
   "purpose.business": "Textos comerciais",
   "purpose.custom": "Personalizado",
   "card.purpose": "Uso personalizado",
-  "purpose.hint": "Suas próprias instruções, usadas com o uso Personalizado. O glossário continua mandando.",
+  "purpose.hint": "Este editor é o uso Personalizado. Os usos predefinidos são escolhidos na barra rápida da página Traduzir; escolha Personalizado lá para usar estas instruções. O glossário continua mandando.",
   "purpose.start_from": "Partir de",
   "purpose.copy": "Copiar para o editor",
   "purpose.instructions": "Instruções",
@@ -275,5 +275,8 @@
   "order.col_name": "Tradutor",
   "order.col_on": "Ativo",
   "order.files": "Arquivos ao mesmo tempo",
-  "about.version": "Versora {v}"
+  "about.version": "Versora {v}",
+  "order.not_set_up": "Não configurado",
+  "order.set_up": "Configurar",
+  "quick.manage": "Gerenciar"
 }

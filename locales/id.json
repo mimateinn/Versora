@@ -10,7 +10,7 @@
   "sidebar.target_lang": "Bahasa target",
   "sidebar.source_lang": "Bahasa sumber",
   "sidebar.source_auto": "Deteksi otomatis",
-  "sidebar.project": "Proyek (glosarium)",
+  "sidebar.project": "Proyek glosarium",
   "sidebar.new_project": "Nama proyek baru",
   "sidebar.create_project": "Buat",
   "sidebar.glossary_editor": "Entri glosarium",
@@ -200,7 +200,7 @@
   "purpose.business": "Teks bisnis",
   "purpose.custom": "Kustom",
   "card.purpose": "Kegunaan kustom",
-  "purpose.hint": "Instruksi Anda sendiri, dipakai bila Kegunaan = Kustom. Glosarium tetap diutamakan.",
+  "purpose.hint": "Editor ini adalah Kegunaan Kustom. Preset dipilih di bilah cepat halaman Terjemahkan; pilih Kustom di sana untuk memakai instruksi ini. Glosarium tetap diutamakan.",
   "purpose.start_from": "Mulai dari",
   "purpose.copy": "Salin ke editor",
   "purpose.instructions": "Instruksi",
@@ -275,5 +275,8 @@
   "order.col_name": "Penerjemah",
   "order.col_on": "Aktif",
   "order.files": "Berkas yang diterjemahkan sekaligus",
-  "about.version": "Versora {v}"
+  "about.version": "Versora {v}",
+  "order.not_set_up": "Belum diatur",
+  "order.set_up": "Atur",
+  "quick.manage": "Kelola"
 }

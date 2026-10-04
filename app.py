@@ -506,7 +506,7 @@ def render_purposes_pane() -> None:
         version, body = load_purpose("custom") if custom_path().is_file() else (0, load_purpose("general")[1])
         if "purpose_body" not in st.session_state:
             st.session_state["purpose_body"] = body
-        st.markdown(f'<div class="sfts-muted">{L("purpose.hint")}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="sfts-note">{L("purpose.hint")}</div>', unsafe_allow_html=True)
         with st.container(key="purpose_from_row", horizontal=True, vertical_alignment="bottom", gap="small", wrap=False):
             st.selectbox(
                 L("purpose.start_from"), options=list(PURPOSE_PRESETS),
@@ -746,12 +746,16 @@ def render_keys_pane() -> None:
 
 
 def _order_row(n: int, row: dict, last: bool) -> None:
+    """One chain row. A translator that is not set up keeps its saved row (model, effort, on/off
+    stay in prefs) but its controls are drawn disabled, with "Not set up" and a Set up link."""
     pid = row["id"]
     is_cli = pid in cli_engine.PRESETS
     state, tone = _service_state(pid)
+    off = pid not in list_available_providers()
     with st.container(key=f"ord_{pid}", horizontal=True, vertical_alignment="center", gap="small", wrap=False):
         st.markdown(
-            f'<div class="sfts-ord"><span class="sfts-rank">{n}</span><i class="sfts-dot" data-tone="{tone}"></i>'
+            f'<div class="sfts-ord"{" data-off" if off else ""}><span class="sfts-rank">{n}</span>'
+            f'<i class="sfts-dot" data-tone="{"off" if off else tone}"></i>'
             f'<b>{html.escape(SERVICE_NAMES[pid])}</b></div>',
             unsafe_allow_html=True,
         )
@@ -760,11 +764,16 @@ def _order_row(n: int, row: dict, last: bool) -> None:
         if row.get("model") and row["model"] not in options:
             options = [row["model"], *options]
         st.selectbox(
-            L("order.model"), options=options, index=options.index(row["model"]) if row.get("model") in options else None,
-            placeholder=L("order.model_default"), accept_new_options=True, label_visibility="collapsed",
-            key=f"ord_model_{pid}", on_change=_chain_set, args=(pid, "model", f"ord_model_{pid}"),
+            L("order.model"), options=options,
+            index=None if off else (options.index(row["model"]) if row.get("model") in options else None),
+            placeholder=L("order.not_set_up") if off else L("order.model_default"), accept_new_options=True,
+            label_visibility="collapsed", disabled=off,
+            key=f"ord_model_off_{pid}" if off else f"ord_model_{pid}", on_change=_chain_set, args=(pid, "model", f"ord_model_{pid}"),
         )
-        if is_cli:
+        if off:
+            st.markdown(f'<div class="sfts-ord-none"><a href="?page=settings&pane=keys">{L("order.set_up")}</a></div>',
+                        unsafe_allow_html=True)
+        elif is_cli:
             labels = {"": L("order.effort_default"), "low": L("order.low"), "medium": L("order.medium"), "high": L("order.high")}
             st.selectbox(
                 L("order.effort"), options=list(EFFORTS), index=EFFORTS.index(row.get("effort") or ""),
@@ -774,7 +783,7 @@ def _order_row(n: int, row: dict, last: bool) -> None:
         else:
             st.markdown('<div class="sfts-ord-none">—</div>', unsafe_allow_html=True)
         st.toggle(L("order.col_on"), value=row.get("enabled", True), key=f"ord_on_{pid}", label_visibility="collapsed",
-                  on_change=_chain_set, args=(pid, "enabled", f"ord_on_{pid}"))
+                  disabled=off, on_change=_chain_set, args=(pid, "enabled", f"ord_on_{pid}"))
         st.button(L("order.up"), key=f"ord_up_{pid}", on_click=_chain_move, args=(pid, -1), disabled=n == 1, help=L("order.up"))
         st.button(L("order.down"), key=f"ord_dn_{pid}", on_click=_chain_move, args=(pid, 1), disabled=last, help=L("order.down"))
 
@@ -836,6 +845,7 @@ def render_glossary_pane() -> None:
             ensure_project("default")
             projects = list_projects()
         p_idx = projects.index(st.session_state.project) if st.session_state.project in projects else 0
+        saved_pairs = load_glossary(st.session_state.project)  # the file is the durable source, not the widgets
         c1, c2, c3 = st.columns([2, 2, 1], vertical_alignment="bottom")
         with c1:
             selected = st.selectbox(L("sidebar.project"), options=projects, index=p_idx, key="project_select")
@@ -858,7 +868,7 @@ def render_glossary_pane() -> None:
 
         pairs = list(st.session_state.glossary_pairs or [])
         if not pairs:
-            st.caption(L("glossary.empty"))
+            st.markdown(f'<div class="sfts-note">{L("glossary.empty")}</div>', unsafe_allow_html=True)
         else:
             h1, h2, _h3 = st.columns([2, 2, 0.5])
             h1.markdown(f'<div class="sfts-panel-title">{L("glossary.col_src")}</div>', unsafe_allow_html=True)
@@ -882,15 +892,15 @@ def render_glossary_pane() -> None:
             st.session_state.glossary_pairs = [p for j, p in enumerate(current) if j != drop]
             st.session_state.glossary_nonce += 1
             st.rerun()
-        b1, b2 = st.columns(2)
-        with b1:
-            if st.button(L("sidebar.add_term"), key="glossary_add", use_container_width=True):
+        # Save only when the normalized rows differ from the saved file (a removed saved term counts).
+        edited = [(a.strip(), b.strip()) for a, b in current if a.strip()]
+        with st.container(key="glossary_actions", horizontal=True, horizontal_alignment="distribute",
+                          vertical_alignment="center", wrap=False):
+            if st.button(L("sidebar.add_term"), key="glossary_add"):
                 st.session_state.glossary_pairs = current + [("", "")]
                 st.session_state.glossary_nonce += 1
                 st.rerun()
-        with b2:
-            if st.button(L("sidebar.save_glossary"), type="primary", key="glossary_save", use_container_width=True):
-                edited = [(a.strip(), b.strip()) for a, b in current if a.strip()]
+            if st.button(L("sidebar.save_glossary"), type="primary", key="glossary_save", disabled=edited == saved_pairs):
                 save_glossary(st.session_state.project, edited)
                 st.session_state.glossary_pairs = edited
                 st.session_state.glossary_nonce += 1
@@ -973,7 +983,8 @@ def render_quick_bar() -> None:
                   help=L("quick.swap") if can_swap else L("quick.swap_auto"))
         st.selectbox(L("quick.to"), options=TARGET_CODES, format_func={c: L(f"target.{c}") for c in TARGET_CODES}.get,
                      disabled=busy, **_bound("qb_target", "target_lang"))
-        label = L("quick.purpose") + (f' · [{L("purpose.edit")}](?page=settings&pane=purposes)' if custom else "")
+        # Settings links in labels are dropped while a job runs: following one would rerun and kill it.
+        label = L("quick.purpose") + (f' · [{L("purpose.edit")}](?page=settings&pane=purposes)' if custom and not busy else "")
         st.selectbox(label, options=list(PURPOSES), format_func={p: L(f"purpose.{p}") for p in PURPOSES}.get,
                      disabled=busy, **_bound("qb_purpose", "purpose"))
         if available:
@@ -981,7 +992,8 @@ def render_quick_bar() -> None:
             if st.session_state.provider not in options:
                 st.session_state.provider = "auto"
                 st.session_state.pop("qb_provider", None)
-            st.selectbox(L("quick.translator"), options=options, format_func={p: _translator_label(p) for p in options}.get,
+            label = L("quick.translator") + ("" if busy else f' · [{L("quick.manage")}](?page=settings&pane=keys)')
+            st.selectbox(label, options=options, format_func={p: _translator_label(p) for p in options}.get,
                          disabled=busy, **_bound("qb_provider", "provider"))
         else:
             with st.container(key="qb_setup"):
@@ -1241,7 +1253,7 @@ def _done_header(title: str, sub: str, warn: bool = False, tone: str | None = No
         f'<div class="sfts-done {"vi-anim-alert" if warn else "vi-anim-check"}" data-tone="{tone or ("warn" if warn else "ok")}">'
         f'{wrap(ALERT if warn else CHECK)}'
         f'<div><div class="sfts-done-title">{html.escape(title)}</div>'
-        f'<div class="sfts-done-sub">{sub}</div></div></div>',
+        + (f'<div class="sfts-done-sub">{sub}</div>' if sub else "") + "</div></div>",
         unsafe_allow_html=True,
     )
 
@@ -1297,7 +1309,8 @@ def render_single_result() -> None:
 
 def _error_card(reason: str, name: str, detail: str, choose) -> None:
     """One error component for a file or a whole batch: the reason, then exactly one retry
-    (primary) and one other way out (choose another)."""
+    (primary) and one other way out (choose another). ``name`` may be "" (the file row above
+    already names a single file); Details stays collapsed."""
 
     def actions() -> None:
         st.button(L("main.choose_another"), key="choose_another", on_click=choose, disabled=_busy())
@@ -1312,7 +1325,7 @@ def _error_card(reason: str, name: str, detail: str, choose) -> None:
 
 def render_single_error() -> None:
     err = st.session_state.single_error
-    _error_card(_file_reason(err["msg"], err["name"], int(err.get("size") or 0)), err["name"],
+    _error_card(_file_reason(err["msg"], err["name"], int(err.get("size") or 0)), "",
                 _detail_text(err["msg"], err["name"]), _remove_pick)
 
 
@@ -1409,6 +1422,8 @@ def _show_file_row() -> None:
         problem = L("error.unsupported_format")
     type_name = _TYPE_NAMES.get(suffix, suffix.lstrip(".").upper())
     out = f"archive_{Path(name).stem}/" if kind == "zip" else _out_name(name)
+    if kind == "file" and st.session_state.result:  # the name really written, collision suffix included
+        out = Path(st.session_state.result["path"]).name
     before, _, after = (html.escape(s) for s in L("main.saves_as", name="\x00").partition("\x00"))
     with st.container(key="filerow", horizontal=True, vertical_alignment="center", gap="small", wrap=False):
         st.markdown(
@@ -1456,7 +1471,7 @@ def render_translate() -> None:
                 disabled=busy,
                 **_bound("source_type_seg", "source_type"),
             )
-            if st.session_state.picked_name and not busy:
+            if st.session_state.picked_name and not busy and not _has_result():  # a selected, idle file only
                 st.markdown(f'<div class="sfts-muted">{L("main.switch_clears")}</div>', unsafe_allow_html=True)
         kind = st.session_state.source_type
         with st.container(key="sourcebody"):

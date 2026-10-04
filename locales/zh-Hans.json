@@ -10,7 +10,7 @@
   "sidebar.target_lang": "目标语言",
   "sidebar.source_lang": "源语言",
   "sidebar.source_auto": "自动检测",
-  "sidebar.project": "项目（术语表）",
+  "sidebar.project": "术语表项目",
   "sidebar.new_project": "新项目名称",
   "sidebar.create_project": "创建",
   "sidebar.glossary_editor": "术语表条目",
@@ -200,7 +200,7 @@
   "purpose.business": "商业文案",
   "purpose.custom": "自定义",
   "card.purpose": "自定义用途",
-  "purpose.hint": "你自己的翻译指示，用途选“自定义”时使用。术语表仍然优先。",
+  "purpose.hint": "这里编辑的就是“自定义”用途。预设用途在翻译页的快捷栏中选择；在那里选“自定义”即使用这些指示。术语表仍然优先。",
   "purpose.start_from": "以此为起点",
   "purpose.copy": "复制到编辑区",
   "purpose.instructions": "指示",
@@ -275,5 +275,8 @@
   "order.col_name": "翻译服务",
   "order.col_on": "启用",
   "order.files": "同时翻译的文件数",
-  "about.version": "Versora {v}"
+  "about.version": "Versora {v}",
+  "order.not_set_up": "未设置",
+  "order.set_up": "去设置",
+  "quick.manage": "管理"
 }

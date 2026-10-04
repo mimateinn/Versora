@@ -10,7 +10,7 @@
   "sidebar.target_lang": "대상 언어",
   "sidebar.source_lang": "원본 언어",
   "sidebar.source_auto": "자동 감지",
-  "sidebar.project": "프로젝트 (용어집)",
+  "sidebar.project": "용어집 프로젝트",
   "sidebar.new_project": "새 프로젝트 이름",
   "sidebar.create_project": "만들기",
   "sidebar.glossary_editor": "용어집 항목",
@@ -200,7 +200,7 @@
   "purpose.business": "비즈니스 카피",
   "purpose.custom": "사용자 지정",
   "card.purpose": "사용자 지정 용도",
-  "purpose.hint": "용도가 '사용자 지정'일 때 쓰는 나만의 지시입니다. 용어집이 항상 우선합니다.",
+  "purpose.hint": "여기서 편집하는 것이 '사용자 지정' 용도입니다. 프리셋은 번역 페이지의 빠른 막대에서 고릅니다. 거기서 '사용자 지정'을 고르면 이 지시를 씁니다. 용어집이 항상 우선합니다.",
   "purpose.start_from": "시작할 용도",
   "purpose.copy": "편집기로 복사",
   "purpose.instructions": "지시 내용",
@@ -275,5 +275,8 @@
   "order.col_name": "번역 서비스",
   "order.col_on": "사용",
   "order.files": "동시에 번역할 파일 수",
-  "about.version": "Versora {v}"
+  "about.version": "Versora {v}",
+  "order.not_set_up": "설정 안 됨",
+  "order.set_up": "설정하기",
+  "quick.manage": "관리"
 }

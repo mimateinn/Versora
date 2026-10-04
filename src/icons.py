@@ -255,7 +255,6 @@ ICON_CSS = f"""
 @keyframes vi-lean {{ 0% {{ transform: rotate(0); }} 30% {{ transform: rotate(-14deg) scale(.92); }} 64% {{ transform: rotate(6deg) scale(1.06); }} 100% {{ transform: none; }} }}
 @keyframes vi-spin-press {{ 0% {{ transform: rotate(0) scale(1); }} 40% {{ transform: rotate(200deg) scale(.9); }} 100% {{ transform: rotate(360deg) scale(1); }} }}
 @keyframes vi-open {{ 0% {{ transform: scaleX(1); }} 35% {{ transform: scaleX(.72); }} 70% {{ transform: scaleX(1.12); }} 100% {{ transform: none; }} }}
-@keyframes vi-fade {{ from {{ opacity: 1; }} to {{ opacity: .35; }} }}
 @keyframes vi-in {{ from {{ opacity: 0; transform: scale(.78); }} to {{ opacity: 1; transform: none; }} }}
 @keyframes vi-flip {{ from {{ transform: rotate(0); }} to {{ transform: rotate(180deg); }} }}
 @keyframes vi-rays-in {{ from {{ opacity: 0; transform: rotate(-60deg) scale(.7); }} to {{ opacity: 1; transform: none; }} }}
@@ -268,8 +267,8 @@ ICON_CSS = f"""
   .vi, .vi * {{ animation: none !important; transition: none !important; transform: none !important; }}
   .vi .vi-rail-a, .vi .vi-rail-b {{ stroke-dashoffset: 0 !important; }}
   .vi .vi-pulse-ring {{ opacity: 0; }}
-  /* busy icons keep a non-moving cue: a slow fade instead of rotation / ripple */
-  .vi.vi-spinner .vi-arc, .vi.vi-dot .vi-dot-core {{ animation: vi-fade 1.2s ease-in-out infinite alternate !important; }}
+  /* busy icons keep a still cue: the spinner's arc and the dot's core stay drawn, nothing loops */
+  .vi.vi-spinner .vi-arc, .vi.vi-dot .vi-dot-core {{ opacity: 1 !important; }}
 }}
 """
 

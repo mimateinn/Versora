@@ -78,6 +78,7 @@ _FONTS = """
   --e-out: cubic-bezier(.22,1,.36,1);
   --d-press: 80ms; --d-fast: 140ms; --d-norm: 220ms;
   --h-ctrl: 42px; --h-small: 34px;
+  --w-body: 400; --w-ctrl: 500; --w-strong: 600;  /* one weight scale, identical in both themes */
   --vi-accent: var(--sfts-accent);
 """
 
@@ -122,8 +123,11 @@ _SHARED = """
 html, body, .stApp, .stMarkdown, button, input, textarea, label, [data-testid="stWidgetLabel"] {
   font-family: var(--f-ui) !important;
 }
-.stApp { font-size: 14px; }
+.stApp { font-size: 14px; font-weight: var(--w-body); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 .stApp [data-testid="stMarkdownContainer"] p, .stApp button p, .stApp input, .stApp textarea { font-size: 14px; }
+/* Field text had no weight of its own (it fell to UA/Streamlit defaults, and dark sets color-scheme: dark
+   on form controls); pin it so fields, options and the textarea read the same in both themes. */
+.stApp input, .stApp textarea, [role="listbox"] [role="option"]:not([aria-selected="true"]) { font-weight: var(--w-body) !important; }
 /* Streamlit chrome off */
 [data-testid="stSidebar"], [data-testid="stSidebarCollapsedControl"], [data-testid="stHeader"],
 [data-testid="stToolbar"], [data-testid="stDecoration"], [data-testid="stStatusWidget"],
@@ -211,7 +215,7 @@ div[class*="st-key-card_"].is-new { animation: sfts-enter 320ms var(--e-out) bot
 /* ── Buttons: 42 tall, 10px corners, no pills ── */
 [data-testid^="stBaseButton"] {
   min-height: var(--h-ctrl) !important; height: var(--h-ctrl) !important; padding: 0 16px !important;
-  border-radius: 10px !important; font-weight: 500 !important; box-shadow: none !important;
+  border-radius: 10px !important; font-weight: var(--w-ctrl) !important; box-shadow: none !important;
   display: inline-flex !important; align-items: center !important; justify-content: center !important;
   transition: background-color var(--d-fast) var(--e-out), color var(--d-fast) var(--e-out),
               border-color var(--d-fast) var(--e-out), box-shadow var(--d-fast) var(--e-out),
@@ -350,8 +354,10 @@ div[class*="st-key-card_"].is-new { animation: sfts-enter 320ms var(--e-out) bot
 [class*="st-key-folder_row"] > [data-testid="stElementContainer"]:first-child { flex: 1 1 auto !important; min-width: 0; }
 
 /* ── Running ── */
-.sfts-run { display: flex; align-items: center; gap: 8px; height: 20px; font-weight: 600; color: var(--sfts-text); }
-.sfts-run > .sfts-ico { margin: 0; color: var(--sfts-accent); --vi-accent: var(--sfts-accent); }
+/* 20px icon + 12 gap, as .sfts-done and .sfts-frow: the run title starts where the done title will */
+.sfts-run { display: flex; align-items: center; gap: 12px; height: 20px; font-weight: 600; color: var(--sfts-text); }
+.sfts-run > .sfts-ico { margin: 0; flex: 0 0 20px; width: 20px; height: 20px; color: var(--sfts-accent); --vi-accent: var(--sfts-accent); }
+.sfts-run > .sfts-ico svg { width: 20px; height: 20px; }
 .sfts-run span { color: var(--sfts-muted); font-weight: 400; font-size: 13px; font-variant-numeric: tabular-nums; margin-left: auto; }
 @keyframes sfts-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .35; transform: scale(.8); } }
 /* 1.65: an (empty) label row, then track > fill; the fill moves by transform */
@@ -361,10 +367,10 @@ div[class*="st-key-card_"].is-new { animation: sfts-enter 320ms var(--e-out) bot
   height: 3px !important; border-radius: 3px !important; position: relative; overflow: hidden;
   background: var(--sfts-accent) !important; transition: transform var(--d-norm) var(--e-out) !important;
 }
-/* shimmer: a lighter band of the same hue slides along the filled part */
+/* shimmer: a flat lighter band of the same hue slides along the filled part (no gradients) */
 [data-testid="stProgress"] [role="progressbar"] > div > div::after {
-  content: ""; position: absolute; inset: 0; width: 40%;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,.45), transparent);
+  content: ""; position: absolute; inset: 0; width: 40%; border-radius: 3px;
+  background: rgba(255,255,255,.28);
   animation: sfts-shimmer 1.4s linear infinite;
 }
 /* one file has no fraction to show: a 30% band slides along the track */
@@ -479,8 +485,13 @@ div[class*="st-key-card_"].is-new { animation: sfts-enter 320ms var(--e-out) bot
   width: 112px !important; flex: 0 0 112px !important;
 }
 [class*="st-key-ord_on_"] { flex: 0 0 48px !important; width: 48px !important; }
-.sfts-ord-head { display: grid; grid-template-columns: 136px 1fr 112px 48px 92px; gap: 8px; margin-bottom: -8px;
-  font-size: 12px; line-height: 20px; font-weight: 500; color: var(--sfts-muted); }
+.sfts-ord-head { display: grid; grid-template-columns: 136px 1fr 112px 48px 76px; gap: 8px; margin-bottom: -8px;
+  font-family: var(--f-mono); font-size: 12px; line-height: 20px; font-weight: 500; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--sfts-muted); }  /* the eyebrow label treatment; 76 = two 34 arrows + 8 */
+/* a translator that is not set up: grey dot, muted name, "Set up" link in the effort column */
+.sfts-ord[data-off] b { color: var(--sfts-muted); font-weight: 500; }
+.sfts-ord-none a { color: var(--sfts-accent-strong); text-decoration: none; font-size: 13px; font-weight: 500; }
+.sfts-ord-none a:hover { text-decoration: underline; text-underline-offset: 3px; }
 [class*="st-key-ord_global_row"], [class*="st-key-ord_per_row"], [class*="st-key-about_row"], [class*="st-key-svc_addrow"] { flex-wrap: nowrap !important; }
 [class*="st-key-ord_global_row"] [data-testid="stSelectbox"], [class*="st-key-ord_per_row"] [data-testid="stSelectbox"] { width: 96px; }
 [class*="st-key-ord_global_row"] > :first-child, [class*="st-key-ord_per_row"] > :first-child,
@@ -493,7 +504,7 @@ div[class*="st-key-card_"].is-new { animation: sfts-enter 320ms var(--e-out) bot
 .sfts-note { color: var(--sfts-muted); font-size: 13px; line-height: 20px; }
 .sfts-note .sfts-ico { color: var(--sfts-accent-strong); }
 .sfts-warn { color: var(--sfts-err); font-size: 13px; line-height: 20px; }
-.sfts-row-label { color: var(--sfts-text); font-size: 14px; font-weight: 500; line-height: 42px; }
+.sfts-row-label { color: var(--sfts-text); font-size: 14px; font-weight: var(--w-ctrl); line-height: 42px; }
 .sfts-pane-title { font-family: var(--f-disp); font-size: 22px; line-height: 28px; height: 28px; font-weight: 600; letter-spacing: -.01em; margin: 0; color: var(--sfts-text); }
 .sfts-key-name { font-size: 14px; font-weight: 600; line-height: 20px; display: flex; align-items: center; gap: 8px; }
 .sfts-ico { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; vertical-align: -3px; margin-right: 6px; }
@@ -516,7 +527,10 @@ hr { border-color: var(--sfts-line) !important; margin: 0 !important; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; }
   .sfts-wm-a, .sfts-wm-b { animation: none !important; }
-  .sfts-bar::after { width: 100%; animation: vi-fade 1.2s ease-in-out infinite alternate !important; }  /* busy, but still */
+  /* busy cues stay drawn and still: a partial band mid-track (not a fake full bar), no shimmer */
+  .sfts-bar::after { animation: none !important; left: 35%; transform: none; }
+  [data-testid="stProgress"] [role="progressbar"] > div > div::after { animation: none !important; display: none; }
+  [class*="st-key-start_busy"] button::before { animation: none !important; }
 }
 """
 
@@ -564,15 +578,21 @@ def _chrome_keys(theme: str, page: str, pane: str) -> str:
 }}
 [class*="st-key-topnav"] {{ gap: 24px !important; flex-wrap: nowrap !important; }}  /* tab, tab, theme: one even rhythm */
 /* Square icon buttons */
+[class*="st-key-theme_toggle"] button, [class*="st-key-swap_langs"] button, [class*="st-key-gdel_"] button {{
+  width: var(--h-ctrl) !important; min-width: var(--h-ctrl) !important;
+}}
 [class*="st-key-theme_toggle"] button, [class*="st-key-swap_langs"] button, [class*="st-key-ord_up_"] button, [class*="st-key-ord_dn_"] button,
 [class*="st-key-clear_picked"] button, [class*="st-key-gdel_"] button {{
-  width: var(--h-ctrl) !important; min-width: var(--h-ctrl) !important; padding: 0 !important;
+  padding: 0 !important;
   background: transparent !important; border: 1px solid var(--sfts-line) !important; color: var(--sfts-muted) !important;
 }}
-[class*="st-key-clear_picked"] button, [class*="st-key-gdel_"] button {{ border-color: transparent !important; }}
-[class*="st-key-clear_picked"] button {{
+[class*="st-key-gdel_"] button {{ border-color: transparent !important; }}
+/* 34px round controls. The file row's x keeps its hairline so the action group visibly ends on
+   the card's inner right edge (a borderless x read as an inset); its wrapper is exactly 34 wide. */
+[class*="st-key-clear_picked"] button, [class*="st-key-ord_up_"] button, [class*="st-key-ord_dn_"] button {{
   width: var(--h-small) !important; min-width: var(--h-small) !important; height: var(--h-small) !important; min-height: var(--h-small) !important;
 }}
+[class*="st-key-filerow"] > [class*="st-key-clear_picked"] {{ flex: 0 0 var(--h-small) !important; width: var(--h-small) !important; margin: 0 !important; }}
 [class*="st-key-theme_toggle"] button, [class*="st-key-swap_langs"] button, [class*="st-key-ord_up_"] button,
 [class*="st-key-ord_dn_"] button, [class*="st-key-clear_picked"] button {{ border-radius: 50% !important; }}
 [class*="st-key-theme_toggle"] button:hover, [class*="st-key-swap_langs"] button:hover:not(:disabled),
@@ -658,7 +678,7 @@ def _chrome_keys(theme: str, page: str, pane: str) -> str:
 # Page behaviour Streamlit has no hook for. st.html runs this in the page itself; the flag keeps one
 # set of listeners per tab across reruns.
 #   - drag-over: the drop zone gets .is-drag (its accent outline) while a file hovers it;
-#   - Cancel: disabled and relabelled "Cancelling…" at once (the server stops the job on its rerun);
+#   - Cancel: disabled and relabelled "Cancelling…" at once, on the button only (the server stops the job on its rerun);
 #   - Copy path buttons (data-copy) copy to the clipboard and say so;
 #   - ?page= links inside labels navigate in this tab;
 #   - batch rows: the running row stays in view (rAF-throttled) until the user scrolls the list;
@@ -687,9 +707,7 @@ FX_JS = """<script>
       setTimeout(() => {  // after React has taken the click
         stop.disabled = true;
         const label = stop.querySelector('p');
-        if (word && label) label.textContent = word;
-        const right = run && run.querySelector('span');
-        if (word && right) right.textContent = word;
+        if (word && label) label.textContent = word;  // the button alone says it; the status line keeps its count
       }, 0);
     }
     const copy = t.closest('[data-copy]');

@@ -89,6 +89,11 @@ def check(page, label: str) -> list[str]:
         if max(tops) - min(tops) > 1:
             bad.append(f"rows    tops/centres differ: {[round(t, 1) for t in tops]}")
     print(f"{'ok ' if not bad else 'BAD'} {label}: {len(blocks)} blocks, {len(m['controls'])} controls")
+    if blocks:
+        print("      geometry edges=" + ", ".join(f"{b['name']}:{b['x']:.1f}..{b['r']:.1f}" for b in blocks)
+              + f"; gaps={[round(n['y'] - p['b'], 1) for p, n in zip(blocks, blocks[1:])]}; "
+              + f"heights={sorted({round(c['h'], 1) for c in m['controls']})}; "
+              + f"row_deltas={[round(max(r) - min(r), 2) for r in m['rows']]}; spill={len(m['spill'])}")
     for line in bad:
         print("      " + line)
     return bad

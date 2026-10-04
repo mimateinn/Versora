@@ -10,7 +10,7 @@
   "sidebar.target_lang": "Ngôn ngữ đích",
   "sidebar.source_lang": "Ngôn ngữ nguồn",
   "sidebar.source_auto": "Tự động phát hiện",
-  "sidebar.project": "Dự án (bảng thuật ngữ)",
+  "sidebar.project": "Dự án bảng thuật ngữ",
   "sidebar.new_project": "Tên dự án mới",
   "sidebar.create_project": "Tạo",
   "sidebar.glossary_editor": "Mục thuật ngữ",
@@ -200,7 +200,7 @@
   "purpose.business": "Văn bản kinh doanh",
   "purpose.custom": "Tùy chỉnh",
   "card.purpose": "Mục đích tùy chỉnh",
-  "purpose.hint": "Hướng dẫn riêng của bạn, dùng khi Mục đích là Tùy chỉnh. Thuật ngữ vẫn được ưu tiên.",
+  "purpose.hint": "Đây là mục đích Tùy chỉnh. Các mục đích có sẵn được chọn trên thanh nhanh của trang Dịch; chọn Tùy chỉnh ở đó để dùng các hướng dẫn này. Thuật ngữ vẫn được ưu tiên.",
   "purpose.start_from": "Bắt đầu từ",
   "purpose.copy": "Chép vào trình sửa",
   "purpose.instructions": "Hướng dẫn",
@@ -275,5 +275,8 @@
   "order.col_name": "Dịch vụ",
   "order.col_on": "Bật",
   "order.files": "Số tệp dịch cùng lúc",
-  "about.version": "Versora {v}"
+  "about.version": "Versora {v}",
+  "order.not_set_up": "Chưa thiết lập",
+  "order.set_up": "Thiết lập",
+  "quick.manage": "Quản lý"
 }

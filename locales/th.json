@@ -10,7 +10,7 @@
   "sidebar.target_lang": "ภาษาเป้าหมาย",
   "sidebar.source_lang": "ภาษาต้นทาง",
   "sidebar.source_auto": "ตรวจจับอัตโนมัติ",
-  "sidebar.project": "โครงการ (คำศัพท์)",
+  "sidebar.project": "โครงการอภิธานศัพท์",
   "sidebar.new_project": "ชื่อโครงการใหม่",
   "sidebar.create_project": "สร้าง",
   "sidebar.glossary_editor": "รายการคำศัพท์",
@@ -200,7 +200,7 @@
   "purpose.business": "ข้อความธุรกิจ",
   "purpose.custom": "กำหนดเอง",
   "card.purpose": "การใช้งานที่กำหนดเอง",
-  "purpose.hint": "คำสั่งของคุณเอง ใช้เมื่อเลือกการใช้งานแบบกำหนดเอง อภิธานศัพท์ยังมีผลเหนือกว่า",
+  "purpose.hint": "ส่วนนี้คือการใช้งานแบบกำหนดเอง แบบสำเร็จรูปเลือกได้ที่แถบด่วนในหน้าแปล เลือก กำหนดเอง ที่นั่นเพื่อใช้คำสั่งเหล่านี้ อภิธานศัพท์ยังมีผลเหนือกว่า",
   "purpose.start_from": "เริ่มจาก",
   "purpose.copy": "คัดลอกไปที่ช่องแก้ไข",
   "purpose.instructions": "คำสั่ง",
@@ -275,5 +275,8 @@
   "order.col_name": "บริการแปล",
   "order.col_on": "เปิด",
   "order.files": "จำนวนไฟล์ที่แปลพร้อมกัน",
-  "about.version": "Versora {v}"
+  "about.version": "Versora {v}",
+  "order.not_set_up": "ยังไม่ได้ตั้งค่า",
+  "order.set_up": "ตั้งค่า",
+  "quick.manage": "จัดการ"
 }

@@ -13,7 +13,7 @@
   "sidebar.target_lang": "目標語言",
   "sidebar.source_lang": "來源語言",
   "sidebar.source_auto": "自動偵測",
-  "sidebar.project": "專案（用語表）",
+  "sidebar.project": "用語表專案",
   "sidebar.new_project": "新專案名稱",
   "sidebar.create_project": "建立",
   "sidebar.glossary_editor": "用語表條目",
@@ -234,7 +234,7 @@
   "purpose.business": "商業文案",
   "purpose.custom": "自訂",
   "card.purpose": "自訂用途",
-  "purpose.hint": "你自己的翻譯指示，用途選「自訂」時使用。用語表仍然優先。",
+  "purpose.hint": "呢個編輯器就係「自訂」用途。預設用途喺翻譯頁嘅快捷列揀；喺嗰度揀「自訂」就會用呢段指示。用語表仍然優先。",
   "purpose.start_from": "以此為起點",
   "purpose.copy": "複製到編輯區",
   "purpose.instructions": "指示",
@@ -309,5 +309,8 @@
   "order.col_name": "翻譯服務",
   "order.col_on": "啟用",
   "order.files": "同時翻譯的檔案數",
-  "about.version": "Versora {v}"
+  "about.version": "Versora {v}",
+  "order.not_set_up": "未設定",
+  "order.set_up": "去設定",
+  "quick.manage": "管理"
 }

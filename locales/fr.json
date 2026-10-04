@@ -10,7 +10,7 @@
   "sidebar.target_lang": "Langue cible",
   "sidebar.source_lang": "Langue source",
   "sidebar.source_auto": "Détection automatique",
-  "sidebar.project": "Projet (glossaire)",
+  "sidebar.project": "Projet de glossaire",
   "sidebar.new_project": "Nom du nouveau projet",
   "sidebar.create_project": "Créer",
   "sidebar.glossary_editor": "Entrées du glossaire",
@@ -200,7 +200,7 @@
   "purpose.business": "Textes commerciaux",
   "purpose.custom": "Personnalisé",
   "card.purpose": "Usage personnalisé",
-  "purpose.hint": "Vos propres consignes, utilisées avec l’usage Personnalisé. Le glossaire reste prioritaire.",
+  "purpose.hint": "Cet éditeur est l’usage Personnalisé. Les usages prédéfinis se choisissent dans la barre rapide de la page Traduire ; choisissez-y Personnalisé pour utiliser ces consignes. Le glossaire reste prioritaire.",
   "purpose.start_from": "Partir de",
   "purpose.copy": "Copier dans l’éditeur",
   "purpose.instructions": "Consignes",
@@ -275,5 +275,8 @@
   "order.col_name": "Traducteur",
   "order.col_on": "Actif",
   "order.files": "Fichiers traduits en même temps",
-  "about.version": "Versora {v}"
+  "about.version": "Versora {v}",
+  "order.not_set_up": "Non configuré",
+  "order.set_up": "Configurer",
+  "quick.manage": "Gérer"
 }

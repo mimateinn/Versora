@@ -115,6 +115,44 @@ def test_choices_survive_settings_visit(tmp_path, monkeypatch) -> None:
     assert at2.selectbox(key="qb_target").value == "ja"
 
 
+def test_glossary_save_only_with_changes(tmp_path, monkeypatch) -> None:
+    """Glossary Save is off until the rows differ from the saved file; an edit and a removal of a
+    saved term both enable it, and saving writes the file and turns it off again."""
+    import src.config as config
+    import src.glossary as glossary
+    import src.ui_prefs as ui_prefs
+    from streamlit.testing.v1 import AppTest
+
+    monkeypatch.setattr(ui_prefs, "prefs_path", lambda: tmp_path / ".sfts-ui.json")
+    monkeypatch.setattr(config, "_probe_available", lambda: ["demo"])
+    monkeypatch.setattr(config, "_available_cache", None)
+    monkeypatch.setattr(glossary, "projects_dir", lambda: tmp_path / "projects")
+    (tmp_path / "projects").mkdir()
+    glossary.save_glossary("default", [("API", "接口")])
+    saved = lambda: json.loads((tmp_path / "projects" / "default" / "glossary.json").read_text(encoding="utf-8"))
+
+    app = str(Path(__file__).resolve().parents[1] / "app.py")
+    at = AppTest.from_file(app, default_timeout=60)
+    at.session_state["page"] = "settings"
+    at.session_state["settings_pane"] = "glossary"
+    at.run()
+    assert not at.exception
+    assert at.button(key="glossary_save").disabled  # unchanged
+
+    n = at.session_state["glossary_nonce"]
+    at.text_input(key=f"gtr_{n}_0").set_value("  介面 ").run()  # edited (normalized on compare)
+    assert not at.button(key="glossary_save").disabled
+    at.button(key="glossary_save").click().run()
+    assert saved() == [{"term": "API", "translation": "介面"}]
+    assert at.button(key="glossary_save").disabled
+
+    n = at.session_state["glossary_nonce"]
+    at.button(key=f"gdel_{n}_0").click().run()  # removing a saved term is a change too
+    assert not at.button(key="glossary_save").disabled
+    at.button(key="glossary_save").click().run()
+    assert saved() == [] and at.button(key="glossary_save").disabled
+
+
 def test_single_file_result_error_and_notice(tmp_path, monkeypatch) -> None:
     """Single file: once a result shows, Translate steps down to secondary and Open folder appears;
     a failure is an error card with Try again (not a toast); no translator shows the notice."""
@@ -137,6 +175,7 @@ def test_single_file_result_error_and_notice(tmp_path, monkeypatch) -> None:
         Path(dest).write_text("[ja] hello", encoding="utf-8")
 
     monkeypatch.setattr(batch_mod, "translate_single_file", fake)
+    (tmp_path / "notes.en.txt").write_text("older result", encoding="utf-8")  # forces the timestamp suffix
     app = str(Path(__file__).resolve().parents[1] / "app.py")
     at = AppTest.from_file(app, default_timeout=60)
     at.session_state["source_type"] = "file"
@@ -145,10 +184,14 @@ def test_single_file_result_error_and_notice(tmp_path, monkeypatch) -> None:
     at.session_state["picked_size"] = 5
     at.run()
     assert at.button(key="start_translate").proto.type == "primary"
+    assert any("Switching clears" in m.value for m in at.markdown)  # a selected, idle file
     at.button(key="start_translate").click().run()
     assert at.session_state["result"] and not at.exception
     assert at.button(key="start_translate").proto.type == "secondary"
     assert at.button(key="open_out_single").label
+    real = Path(at.session_state["result"]["path"]).name
+    assert real != "notes.en.txt" and any(f"<code>{real}</code>" in m.value for m in at.markdown)  # Saves as = real name
+    assert not any("Switching clears" in m.value for m in at.markdown)  # hidden once a result shows
 
     at.button(key="start_translate").click().run()  # second call fails
     assert at.session_state["single_error"]["msg"] == "boom 7f3a" and not at.session_state["result"]

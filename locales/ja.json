@@ -10,7 +10,7 @@
   "sidebar.target_lang": "翻訳先言語",
   "sidebar.source_lang": "原文言語",
   "sidebar.source_auto": "自動検出",
-  "sidebar.project": "プロジェクト（用語集）",
+  "sidebar.project": "用語集プロジェクト",
   "sidebar.new_project": "新しいプロジェクト名",
   "sidebar.create_project": "作成",
   "sidebar.glossary_editor": "用語集エントリ",
@@ -200,7 +200,7 @@
   "purpose.business": "ビジネス文案",
   "purpose.custom": "カスタム",
   "card.purpose": "カスタム用途",
-  "purpose.hint": "用途が「カスタム」のときに使う独自の指示です。用語集が常に優先されます。",
+  "purpose.hint": "ここで編集するのは「カスタム」用途です。プリセットは翻訳ページのクイックバーで選びます。そこで「カスタム」を選ぶと、この指示が使われます。用語集が常に優先されます。",
   "purpose.start_from": "元にする用途",
   "purpose.copy": "エディターにコピー",
   "purpose.instructions": "指示",
@@ -275,5 +275,8 @@
   "order.col_name": "翻訳サービス",
   "order.col_on": "有効",
   "order.files": "同時に翻訳するファイル数",
-  "about.version": "Versora {v}"
+  "about.version": "Versora {v}",
+  "order.not_set_up": "未設定",
+  "order.set_up": "設定する",
+  "quick.manage": "管理"
 }

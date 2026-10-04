@@ -10,7 +10,7 @@
   "sidebar.target_lang": "Zielsprache",
   "sidebar.source_lang": "Quellsprache",
   "sidebar.source_auto": "Automatisch erkennen",
-  "sidebar.project": "Projekt (Glossar)",
+  "sidebar.project": "Glossar-Projekt",
   "sidebar.new_project": "Neuer Projektname",
   "sidebar.create_project": "Erstellen",
   "sidebar.glossary_editor": "Glossareinträge",
@@ -200,7 +200,7 @@
   "purpose.business": "Werbetext",
   "purpose.custom": "Eigene",
   "card.purpose": "Eigener Zweck",
-  "purpose.hint": "Eigene Anweisungen für den Zweck „Eigene“. Das Glossar hat weiterhin Vorrang.",
+  "purpose.hint": "Hier bearbeiten Sie den Zweck „Eigene“. Vorlagen wählen Sie in der Schnellleiste der Übersetzen-Seite; wählen Sie dort „Eigene“, um diese Anweisungen zu nutzen. Das Glossar hat weiterhin Vorrang.",
   "purpose.start_from": "Ausgehend von",
   "purpose.copy": "In den Editor kopieren",
   "purpose.instructions": "Anweisungen",
@@ -275,5 +275,8 @@
   "order.col_name": "Übersetzer",
   "order.col_on": "An",
   "order.files": "Dateien gleichzeitig",
-  "about.version": "Versora {v}"
+  "about.version": "Versora {v}",
+  "order.not_set_up": "Nicht eingerichtet",
+  "order.set_up": "Einrichten",
+  "quick.manage": "Verwalten"
 }

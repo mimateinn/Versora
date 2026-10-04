@@ -155,6 +155,37 @@ def test_v2_chrome_contract() -> None:
         assert ch not in icons
 
 
+def _reduced_motion_blocks(css: str) -> list[str]:
+    """Bodies of every @media (prefers-reduced-motion: reduce) block, braces balanced."""
+    blocks, at = [], 0
+    while (at := css.find("prefers-reduced-motion: reduce", at)) != -1:
+        start = css.index("{", at) + 1
+        depth, i = 1, start
+        while depth:
+            depth += {"{": 1, "}": -1}.get(css[i], 0)
+            i += 1
+        blocks.append(css[start:i - 1])
+        at = i
+    return blocks
+
+
+def test_reduced_motion_is_still() -> None:
+    """Reduced motion: busy cues stay drawn but nothing loops (r4: a vi-fade loop had crept back in);
+    the shimmer is a flat band, not a gradient."""
+    from src.icons import ICON_CSS
+    from src.theme import css_for
+
+    for theme_name in ("light", "dark"):
+        css = css_for(theme_name, "translate", "appearance")
+        blocks = _reduced_motion_blocks(css)
+        assert len(blocks) >= 2  # theme chrome + icon set
+        for body in blocks:
+            assert "infinite" not in body
+            assert "width: 100%" not in body  # no fake full progress bar
+        assert "gradient(" not in css
+    assert all("infinite" not in b for b in _reduced_motion_blocks(ICON_CSS))
+
+
 def test_locales_hide_subscription_copy() -> None:
     root = Path(__file__).resolve().parents[1] / "locales"
     for path in root.glob("*.json"):
