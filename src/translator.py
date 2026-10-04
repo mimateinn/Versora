@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from typing import List, Optional, Tuple
+from typing import Callable, List, Optional, Tuple
 
 from .config import get_chunk_size
 from .glossary import glossary_to_prompt_block, load_glossary
 from .providers import translate_text
-from .providers.base import TranslationError
+from .providers.base import Cancelled, TranslationError
 
 
 def _split_chunks(text: str, max_chars: int) -> List[str]:
@@ -47,10 +47,13 @@ def translate_document(
     project: Optional[str] = None,
     provider_choice: str = "auto",
     model: str | None = None,
+    cancel=None,
+    on_chunk: Optional[Callable[[int, int], None]] = None,
 ) -> Tuple[str, int]:
     """
     Returns (translated_full_text, number_of_chunks).
-    Raises TranslationError on failure.
+    Raises TranslationError on failure, Cancelled once ``cancel`` (a threading.Event) is set.
+    ``on_chunk(done, total)`` runs after each chunk.
     """
     if not text or not text.strip():
         raise TranslationError("Empty text; nothing to translate.")
@@ -60,7 +63,11 @@ def translate_document(
     max_chars = get_chunk_size()
     chunks = _split_chunks(text, max_chars)
     results: List[str] = []
-    for chunk in chunks:
+    if on_chunk:
+        on_chunk(0, len(chunks))
+    for n, chunk in enumerate(chunks, 1):
+        if cancel is not None and cancel.is_set():
+            raise Cancelled()
         out = translate_text(
             text=chunk,
             target_lang=target_lang,
@@ -70,6 +77,8 @@ def translate_document(
             model=model,
         )
         results.append(out)
+        if on_chunk:
+            on_chunk(n, len(chunks))
     return "\n".join(results), len(chunks)
 
 
@@ -83,8 +92,11 @@ def translate_string_list(
     project: Optional[str] = None,
     provider_choice: str = "auto",
     model: str | None = None,
+    cancel=None,
+    on_chunk: Optional[Callable[[int, int], None]] = None,
 ) -> list[str]:
-    """Translate player-facing strings. Identical inputs share one result."""
+    """Translate player-facing strings. Identical inputs share one result.
+    ``cancel`` / ``on_chunk`` work as in translate_document."""
     if not strings:
         return []
     unique: list[str] = []
@@ -109,13 +121,17 @@ def translate_string_list(
 
     translated_unique = [""] * len(unique)
     max_chars = get_chunk_size()
-    batch: list[int] = []
+    batches: list[list[int]] = [[]]
     size = 0
+    for i, s in enumerate(unique):
+        need = len(s) + 16
+        if batches[-1] and size + need > max_chars:
+            batches.append([])
+            size = 0
+        batches[-1].append(i)
+        size += need
 
-    def flush() -> None:
-        nonlocal batch, size
-        if not batch:
-            return
+    def flush(batch: list[int]) -> None:
         parts = []
         for i in batch:
             parts.append(_MARK.format(i=i))
@@ -140,14 +156,13 @@ def translate_string_list(
             nxt = _MARK.format(i=batch[n + 1]) if n + 1 < len(batch) else None
             piece = leftover.split(nxt, 1)[0] if nxt and nxt in leftover else leftover
             translated_unique[i] = piece.strip()
-        batch = []
-        size = 0
 
-    for i, s in enumerate(unique):
-        need = len(s) + 16
-        if batch and size + need > max_chars:
-            flush()
-        batch.append(i)
-        size += need
-    flush()
+    if on_chunk:
+        on_chunk(0, len(batches))
+    for n, batch in enumerate(batches, 1):
+        if cancel is not None and cancel.is_set():
+            raise Cancelled()
+        flush(batch)
+        if on_chunk:
+            on_chunk(n, len(batches))
     return [translated_unique[i] for i in index]

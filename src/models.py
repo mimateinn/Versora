@@ -21,6 +21,7 @@ _MODELS: dict[str, list[str]] = {
     "xai": ["grok-3-mini", "grok-3", "grok-2-latest"],
     "grok_cli": ["grok-3-mini", "grok-3", "grok-4", "grok-2-latest"],
     "codex_cli": ["gpt-5.1-codex", "gpt-5", "gpt-5-mini", "o4-mini", "o3"],
+    "demo": ["demo"],
 }
 
 

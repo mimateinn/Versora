@@ -10,6 +10,7 @@ from .gemini_provider import GeminiProvider
 from .xai_provider import XAIProvider
 from .grok_cli import GrokCLIProvider
 from .codex_cli import CodexCLIProvider
+from .demo import DemoProvider
 
 
 def resolve_provider(choice: str = "auto", model: str | None = None) -> BaseProvider:
@@ -72,6 +73,8 @@ def resolve_provider(choice: str = "auto", model: str | None = None) -> BaseProv
                 provider="codex_cli",
             )
         return CodexCLIProvider(model=model)
+    if choice == "demo" and "demo" in available:
+        return DemoProvider(model=model)
 
     raise TranslationError(f"Unknown provider: {choice}")
 

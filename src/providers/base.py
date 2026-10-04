@@ -12,6 +12,13 @@ class TranslationError(Exception):
         self.provider = provider
 
 
+class Cancelled(TranslationError):
+    """The user stopped the job; raised between chunks."""
+
+    def __init__(self) -> None:
+        super().__init__("cancelled")
+
+
 class BaseProvider(ABC):
     name: str
 

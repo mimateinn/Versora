@@ -10,7 +10,7 @@ from urllib.parse import urlparse
 import httpx
 
 PIN_OWNER = "mimateinn"
-PIN_REPO = "Smart-File-Translation-System"
+PIN_REPO = "Versora"
 GITHUB_HOSTS = frozenset({"api.github.com", "codeload.github.com"})
 
 _TAG_RE = re.compile(r"^v?\d+(?:\.\d+)*[A-Za-z0-9._-]*$")

@@ -15,7 +15,7 @@ from src.updater.github_http import PIN_OWNER, PIN_REPO
 
 def test_overlay_pin() -> None:
     assert PIN_OWNER == "mimateinn"
-    assert PIN_REPO == "Smart-File-Translation-System"
+    assert PIN_REPO == "Versora"
 
 
 def test_blocked_websites() -> None:
@@ -93,7 +93,7 @@ def test_codex_exec_argv_isolation(tmp_path: Path | None = None) -> None:
     flags = {"--sandbox", "--cd", "--model", "--skip-git-repo-check", "--ask-for-approval"}
     argv = build_exec_argv(Path("/usr/bin/codex"), cwd, flags, "gpt-5.1-codex")
     joined = " ".join(argv)
-    assert argv[:2] == ["/usr/bin/codex", "exec"]
+    assert argv[:2] == [str(Path("/usr/bin/codex")), "exec"]
     assert argv[-1] == "-"
     assert "--sandbox" in argv and "read-only" in argv
     assert "--cd" in argv and str(cwd) in argv
@@ -136,32 +136,43 @@ def test_detect_language() -> None:
 
 
 def test_v2_chrome_contract() -> None:
+    """Versora chrome. v0.2 changes from v0.1.1, on purpose:
+    - accent: teal #14b8a6 -> one brand colour set only in theme.ACCENTS, read everywhere
+      else through var(--sfts-accent*); no accent hex outside theme.py and config.toml;
+    - no `sfts-hero` block (owner: the drop zone is the page's hero, no big title)."""
     root = Path(__file__).resolve().parents[1]
     icon = (root / "icon.png").read_bytes()
     assert icon[:8] == b"\x89PNG\r\n\x1a\n"
     assert len(icon) > 500
     theme = (root / "src" / "theme.py").read_text(encoding="utf-8")
-    assert "14b8a6" in theme
     assert "st-key-nav_translate" in theme
     assert "stFileUploaderDropzoneInstructions" in theme
     assert "stAppDeployButton" in theme
-    from src.theme import css_for
-    css = css_for("light", "settings", "appearance")
-    assert "data:image/svg+xml" in css
-    assert "inset 3px 0 0 #14b8a6" in css
-    assert "st-key-source_type" in css and "min-width: max-content" in css
+    assert "backdrop-filter" not in theme and "blur(" not in theme
+    from src.theme import ACCENTS, css_for
+    for theme_name in ("light", "dark"):
+        css = css_for(theme_name, "settings", "appearance")
+        assert "data:image/svg+xml" in css
+        assert "inset 3px 0 0 var(--sfts-accent)" in css
+        assert "st-key-source_type" in css and "min-width: max-content" in css
+        assert f"--sfts-accent: {ACCENTS[theme_name]['accent']};" in css
+    accent_hexes = {v.lower() for pal in ACCENTS.values() for v in pal.values() if v.startswith("#") and v.lower() not in {"#ffffff", "#0e1320"}}
+    config = (root / ".streamlit" / "config.toml").read_text(encoding="utf-8")
+    assert f'primaryColor = "{ACCENTS["light"]["accent"]}"' in config
     app = (root / "app.py").read_text(encoding="utf-8")
-    assert "sfts-hero" in app
+    for hexv in accent_hexes | {"#14b8a6", "#b95233"}:
+        assert hexv not in app.lower()
+    assert theme.lower().count(ACCENTS["light"]["accent"].lower()) == 1  # set once
     assert "sfts-filechip" in app
     assert 'SETTINGS_PANES = ("appearance", "translation", "keys", "glossary")' in app
-    assert "status.info" not in app
+    assert "status.info" not in app and "st.info(" not in app and "st.success(" not in app
     assert "L(\"main.status_ready\")" not in app
     maker = (root / "scripts" / "make_icon.py").read_text(encoding="utf-8")
     assert (root / "scripts" / "make_icon.py").is_file()
     assert "No letters" in maker
     icons = (root / "src" / "icons.py").read_text(encoding="utf-8")
     assert "<svg" in icons
-    for ch in "☀☾📄📁🗜💬🎮🔑📖🖥🌐✕":
+    for ch in "☀☾📄📁🗜💬🎮🔑📖🖥🌐✕✨":
         assert ch not in app
         assert ch not in icons
 

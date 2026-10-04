@@ -17,19 +17,19 @@ def test_pin_rejects_other_hosts_and_branches() -> None:
     assert not is_release_tag("main")
     try:
         assert_github_overlay_url(
-            "https://api.github.com/repos/mimateinn/Smart-File-Translation-System/zipball/main"
+            "https://api.github.com/repos/mimateinn/Versora/zipball/main"
         )
         raise AssertionError("branch zipball must be rejected")
     except GitHubHostError:
         pass
     try:
-        assert_github_overlay_url("https://github.com/mimateinn/Smart-File-Translation-System/archive/refs/heads/main.zip")
+        assert_github_overlay_url("https://github.com/mimateinn/Versora/archive/refs/heads/main.zip")
         raise AssertionError("github.com archive host must be rejected")
     except GitHubHostError:
         pass
     try:
         assert_github_overlay_url(
-            "https://api.github.com/repos/someone-else/Smart-File-Translation-System/releases"
+            "https://api.github.com/repos/someone-else/Versora/releases"
         )
         raise AssertionError("other owner must be rejected")
     except GitHubHostError:

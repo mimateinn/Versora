@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import time
 from pathlib import Path
 from dataclasses import dataclass
 from typing import Optional
@@ -95,7 +96,23 @@ def get_xai_config() -> ProviderConfig:
     )
 
 
-def list_available_providers() -> list[str]:
+_AVAILABLE_TTL = 60.0
+_available_cache: tuple[float, list[str]] | None = None
+
+
+def list_available_providers(*, fresh: bool = False) -> list[str]:
+    """Cached for 60 s: the CLI probes spawn processes (8 s timeout each) and the
+    router asks once per chunk. ``fresh=True`` after a key or CLI path is saved."""
+    global _available_cache
+    now = time.monotonic()
+    if not fresh and _available_cache and now - _available_cache[0] < _AVAILABLE_TTL:
+        return list(_available_cache[1])
+    names = _probe_available()
+    _available_cache = (now, names)
+    return list(names)
+
+
+def _probe_available() -> list[str]:
     names = []
     if get_openai_config().available:
         names.append("openai")
@@ -112,6 +129,10 @@ def list_available_providers() -> list[str]:
         names.append("grok_cli")
     if probe_codex_cli().usable:
         names.append("codex_cli")
+    from .providers.demo import demo_enabled
+
+    if demo_enabled():
+        names.append("demo")
     return names
 
 

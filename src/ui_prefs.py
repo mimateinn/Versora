@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -19,7 +20,15 @@ _PROVIDERS = {
     "xai",
     "grok_cli",
     "codex_cli",
+    "demo",
 }
+# Last-used translate choices. Codes are short tags ("en", "zh-Hant", "auto", "other");
+# the free-text "other" target is a language code or name typed by the user.
+_CHOICES = {
+    "source_type": {"file", "folder", "zip"},
+    "content_mode": {"document", "game"},
+}
+_CODE_RE = re.compile(r"^[A-Za-z]{2,8}(-[A-Za-z0-9]{1,8})*$")
 
 
 def prefs_path() -> Path:
@@ -55,31 +64,46 @@ def load_prefs() -> dict[str, Any]:
         out["concurrency"] = clamp_concurrency(data.get("concurrency"))
     if "ui_lang_follow" in data:
         out["ui_lang_follow"] = bool(data.get("ui_lang_follow"))
+    for key, allowed in _CHOICES.items():
+        val = str(data.get(key) or "").strip()
+        if val in allowed:
+            out[key] = val
+    for key in ("target_lang", "source_choice"):
+        val = str(data.get(key) or "").strip()
+        if _CODE_RE.match(val):
+            out[key] = val
+    other = str(data.get("target_other") or "").strip()[:40]
+    if other:
+        out["target_other"] = other
     return out
 
 
-def save_prefs(
-    *,
-    theme: str | None = None,
-    ui_lang: str | None = None,
-    ui_lang_follow: bool | None = None,
-    provider: str | None = None,
-    model_by_provider: dict[str, str] | None = None,
-    concurrency: int | None = None,
-) -> None:
+def save_prefs(**values: Any) -> None:
+    """Merge known keys into the prefs file; unknown or invalid values are dropped."""
     current = load_prefs()
+    theme = values.get("theme")
     if theme in _THEMES:
         current["theme"] = theme
-    if ui_lang:
-        current["ui_lang"] = ui_lang
-    if ui_lang_follow is not None:
-        current["ui_lang_follow"] = bool(ui_lang_follow)
-    if provider in _PROVIDERS:
-        current["provider"] = provider
-    if model_by_provider is not None:
-        current["model_by_provider"] = {str(k): str(v) for k, v in model_by_provider.items() if k and v}
-    if concurrency is not None:
-        current["concurrency"] = clamp_concurrency(concurrency)
+    if values.get("ui_lang"):
+        current["ui_lang"] = values["ui_lang"]
+    if values.get("ui_lang_follow") is not None:
+        current["ui_lang_follow"] = bool(values["ui_lang_follow"])
+    if values.get("provider") in _PROVIDERS:
+        current["provider"] = values["provider"]
+    models = values.get("model_by_provider")
+    if models is not None:
+        current["model_by_provider"] = {str(k): str(v) for k, v in models.items() if k and v}
+    if values.get("concurrency") is not None:
+        current["concurrency"] = clamp_concurrency(values["concurrency"])
+    for key, allowed in _CHOICES.items():
+        if values.get(key) in allowed:
+            current[key] = values[key]
+    for key in ("target_lang", "source_choice"):
+        val = str(values.get(key) or "")
+        if _CODE_RE.match(val):
+            current[key] = val
+    if values.get("target_other") is not None:
+        current["target_other"] = str(values["target_other"]).strip()[:40]
     path = prefs_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(current, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

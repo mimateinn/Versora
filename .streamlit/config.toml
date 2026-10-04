@@ -6,8 +6,8 @@ showSidebarNavigation = false
 gatherUsageStats = false
 
 [theme]
-primaryColor = "#14b8a6"
-backgroundColor = "#f4f6f7"
-secondaryBackgroundColor = "#ffffff"
-textColor = "#1f2937"
+primaryColor = "#4677B5"  # mirrors src/theme.py ACCENTS["light"]; tests/test_cli_and_settings.py checks they match
+backgroundColor = "#FAF8F5"
+secondaryBackgroundColor = "#F5F0E6"
+textColor = "#1A1A1A"
 font = "sans serif"
