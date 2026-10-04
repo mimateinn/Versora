@@ -13,9 +13,9 @@ Versora was called Smart File Translation System until v0.1.1. Old links still w
 
 It reads txt, md, docx, pdf, json, csv, tsv, yaml, po, xliff, xlsx, html, srt, and vtt. Game-text mode changes only the words players see. A glossary keeps important terms consistent later.
 
-The screen comes in 12 languages, light or dark. You pick the model. Folder and zip jobs can run 1–8 files at a time (default 2). Finished files go to `data/outputs/`, and you can download them in the browser.
+The screen comes in 12 languages, light or dark. You pick the model. Folder and zip jobs can run up to 16 files at a time, within the overall and per-translator limits. Finished files go to `data/outputs/`, and you can download them in the browser.
 
-It uses official developer APIs (OpenAI, Anthropic, Gemini, xAI, and others). If the official Grok CLI or Codex CLI is already installed and signed in on this computer, you can use those too. Chat websites are not supported.
+It uses official developer APIs (OpenAI, Anthropic, Gemini, xAI, and others). If the official Claude Code, Codex CLI or Grok CLI is already installed and signed in on this computer, you can use those too. Chat websites are not supported.
 
 You can check for official updates in the app, or just start it — at most once a day.
 
@@ -28,8 +28,10 @@ You can check for official updates in the app, or just start it — at most once
 ![Dark mode](screenshots/translate-dark.png)
 *Dark mode.*
 
+[Verification evidence and unverified limits](screenshots/VERIFICATION.md)
+
 ![Settings](screenshots/settings.png)
-*Settings: appearance, translator and model, keys, glossary.*
+*Settings: purposes, translators, order, glossary and appearance.*
 
 ## How to use
 
@@ -87,9 +89,9 @@ Versora 在 v0.1.1 之前叫「智能檔案翻譯系統」。舊連結仍然有�
 
 支援 txt、md、docx、pdf、json、csv、tsv、yaml、po、xliff、xlsx、html、srt、vtt。遊戲文字模式只改玩家會看到的字。用語表讓重要用詞之後保持一致。
 
-畫面有 12 種語言，淺色或深色。可選模型。資料夾／zip 一次可跑 1–8 個檔（預設 2）。譯文在 `data/outputs/`，也可以在瀏覽器下載。
+畫面有 12 種語言，淺色或深色。可選模型。資料夾／zip 一次最多可跑 16 個檔，受整體及各翻譯服務的上限限制。譯文在 `data/outputs/`，也可以在瀏覽器下載。
 
-用官方開發者 API（OpenAI、Anthropic、Gemini、xAI 等）。如果這台電腦已安裝並已登入官方 Grok CLI 或 Codex CLI，也可以用。不支援聊天網站。
+用官方開發者 API（OpenAI、Anthropic、Gemini、xAI 等）。如果這台電腦已安裝並已登入官方 Claude Code、Codex CLI 或 Grok CLI，也可以用。不支援聊天網站。
 
 可在程式裡檢查官方更新，或直接啟動——一天最多查一次。
 
@@ -103,7 +105,7 @@ Versora 在 v0.1.1 之前叫「智能檔案翻譯系統」。舊連結仍然有�
 *深色模式。*
 
 ![設定](screenshots/settings.png)
-*設定：外觀、翻譯服務與模型、金鑰、用語表。*
+*設定：用途、翻譯服務、順序、用語表與外觀。*
 
 ## 怎麼用
 
