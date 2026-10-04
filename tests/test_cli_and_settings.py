@@ -158,7 +158,7 @@ def test_v2_chrome_contract() -> None:
     assert "L(\"main.status_ready\")" not in app
     maker = (root / "scripts" / "make_icon.py").read_text(encoding="utf-8")
     assert (root / "scripts" / "make_icon.py").is_file()
-    assert "No letters" in maker
+    assert "assets/icon.svg" in maker
     icons = (root / "src" / "icons.py").read_text(encoding="utf-8")
     assert "<svg" in icons
     for ch in "☀☾📄📁🗜💬🎮🔑📖🖥🌐✕":

@@ -106,7 +106,18 @@ def sheet(rows: list[tuple[str, str]], out: Path) -> None:
     img.save(out)
 
 
+def review(out_name: str = "review.png") -> None:
+    """Final master vs Litora only."""
+    rows = [("Litora (reference)", LITORA.read_text(encoding="utf-8")),
+            ("Versora assets/icon.svg", (ROOT / "assets" / "icon.svg").read_text(encoding="utf-8"))]
+    sheet(rows, HERE / out_name)
+    print("ok", HERE / out_name)
+
+
 def main() -> None:
+    if len(sys.argv) > 1:
+        review(sys.argv[1])
+        return
     rows = [("Litora (reference, C soft-bound book)", LITORA.read_text(encoding="utf-8"))]
     for name, parts in CONCEPTS.items():
         svg = svg_of(parts, f"Versora concept {name}")
