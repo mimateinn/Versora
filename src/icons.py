@@ -13,12 +13,13 @@ Animation contract -- inject ``ICON_CSS`` once (e.g. in theme.py). Every icon ro
 Hover (any ancestor that is ``button``, ``a``, ``label``, ``[role=button]`` or ``.vi-host``, on
 ``:hover`` / ``:focus-visible`` / ``.is-hover``):
   SUN rays turn 45deg; MOON tilts; DOWNLOAD arrow drops; UPLOAD arrow lifts; RETRY turns once;
-  CLOSE / PLUS turn 90deg; SETTINGS leans; SWAP arrows part; FOLDER_OPEN flap opens.
+  SETTINGS knobs slide along their rails; SWAP arrows part; FOLDER_OPEN flap opens.
+Press (same hosts on ``:active`` or ``.is-press``): CLOSE / PLUS pop (Litora's nav-pop curve).
   ``.vi-drag`` on an ancestor (drop zone during drag-over) lifts UPLOAD and keeps it lifted.
 One-shot on appear (put the class on the svg or any ancestor; replays whenever the node is
 re-created, so add it only where a fresh appearance is meaningful):
   ``.vi-anim-check``  CHECK ring settles and the tick draws itself
-  ``.vi-anim-alert``  ALERT shakes once (small)
+  ``.vi-anim-alert``  ALERT's "!" springs up once
   ``.vi-anim-in``     any icon fades and scales in
 On action (add ``.vi-play`` for one frame-pair, e.g. after a click; remove it to re-arm):
   SWAP flips 180deg; SUN rays spin in; MOON swings in.
@@ -69,7 +70,7 @@ _GLOBE = _p(
     f"{_RING}M4.6 9.6h14.8M4.6 14.4h14.8M12 4.4c1.9 2.1 3 4.7 3 7.6s-1.1 5.5-3 7.6"
     "c-1.9-2.1-3-4.7-3-7.6s1.1-5.5 3-7.6"
 )
-_KEY = _p("M15.2 4.6a4.6 4.6 0 1 0 0 9.2 4.6 4.6 0 0 0 0-9.2M11.9 12.5 4.6 19.8M7.2 17.2l2 2M9.6 14.8l2 2")
+_KEY = _p("M14.8 4.2a5 5 0 1 0 0 10 5 5 0 0 0 0-10M11.3 12.7 4.4 19.6M7 17l2 2M9.4 14.6l2 2")
 _BOOK = _p(
     "M12 6.8C10.1 5.5 7.9 4.9 5.4 5a.8.8 0 0 0-.8.8v10.8a.8.8 0 0 0 .8.8c2.5-.1 4.7.5 6.6 1.8"
     " 1.9-1.3 4.1-1.9 6.6-1.8a.8.8 0 0 0 .8-.8V5.8a.8.8 0 0 0-.8-.8c-2.5-.1-4.7.5-6.6 1.8zM12 6.8v12.4"
@@ -83,16 +84,16 @@ _FOLDER = _p(
     "a1.5 1.5 0 0 1-1.5-1.5z"
 )
 _ZIP = _p(
-    "M6 5.4h12a.6.6 0 0 1 .6.6v2.4a.6.6 0 0 1-.6.6H6a.6.6 0 0 1-.6-.6V6a.6.6 0 0 1 .6-.6z"
-    "M6.4 9v8.4a1.2 1.2 0 0 0 1.2 1.2h8.8a1.2 1.2 0 0 0 1.2-1.2V9M10.4 12.2h3.2"
+    "M6.6 5.4h10.8a1.2 1.2 0 0 1 1.2 1.2v1.2a1.2 1.2 0 0 1-1.2 1.2H6.6a1.2 1.2 0 0 1-1.2-1.2V6.6"
+    "a1.2 1.2 0 0 1 1.2-1.2zM6.4 9v8.4a1.2 1.2 0 0 0 1.2 1.2h8.8a1.2 1.2 0 0 0 1.2-1.2V9M10.4 12.2h3.2"
 )
 _BUBBLE = _p(
-    "M6.2 5h11.6a1.6 1.6 0 0 1 1.6 1.6v7.8a1.6 1.6 0 0 1-1.6 1.6h-6L7.4 19.4V16H6.2a1.6 1.6 0 0 1-1.6-1.6"
-    "V6.6A1.6 1.6 0 0 1 6.2 5z"
+    "M6.2 5.5h11.6a1.6 1.6 0 0 1 1.6 1.6v7.8a1.6 1.6 0 0 1-1.6 1.6h-6L7.4 19.9v-3.4H6.2a1.6 1.6 0 0 1-1.6-1.6"
+    "V7.1a1.6 1.6 0 0 1 1.6-1.6z"
 )
 _GAME = _p(
-    "M8.2 7.6h7.6a4.2 4.2 0 0 1 4.2 4.2v.4a4.2 4.2 0 0 1-4.2 4.2H8.2A4.2 4.2 0 0 1 4 12.2v-.4"
-    "a4.2 4.2 0 0 1 4.2-4.2zM8.4 10.4v3.2M6.8 12h3.2M15.4 11.2h.01M17.2 12.8h.01"
+    "M8.6 7.6h6.8a4.2 4.2 0 0 1 4.2 4.2v.4a4.2 4.2 0 0 1-4.2 4.2H8.6a4.2 4.2 0 0 1-4.2-4.2v-.4"
+    "a4.2 4.2 0 0 1 4.2-4.2zM8.6 10.4v3.2M7 12h3.2M15.2 10.8h.01M17.2 13.2h.01"
 )
 _SUN = _p("M12 8.6a3.4 3.4 0 1 0 0 6.8 3.4 3.4 0 0 0 0-6.8") + _p(
     "M12 4.2v1.6M12 18.2v1.6M4.2 12h1.6M18.2 12h1.6M6.5 6.5l1.1 1.1M16.4 16.4l1.1 1.1"
@@ -117,17 +118,23 @@ _SWAP = (
     + "</g>"
 )
 _RETRY = _p("M18.6 12a6.6 6.6 0 1 1-1.9-4.65M18.8 4.6v3.4h-3.4", "vi-retry-arrow")
-_STOP = _p("M7.1 5.9h9.8a1.2 1.2 0 0 1 1.2 1.2v9.8a1.2 1.2 0 0 1-1.2 1.2H7.1a1.2 1.2 0 0 1-1.2-1.2V7.1a1.2 1.2 0 0 1 1.2-1.2z")
-_ALERT = '<g class="vi-shake">' + _p(_RING) + _p("M12 8v4.6M12 15.8h.01") + "</g>"
-_SETTINGS = '<g class="vi-lean">' + _p(
-    "M4.6 8h8.8M17.6 8h1.8M4.6 16h1.8M10.6 16h8.8M15.4 5.8v4.4M8.6 13.8v4.4"
-) + "</g>"
-_PLUS = _p("M12 5.4v13.2M5.4 12h13.2", "vi-quarter")
-_CLOSE = _p("M6.8 6.8l10.4 10.4M17.2 6.8 6.8 17.2", "vi-quarter")
+_STOP = _p(
+    "M7.1 5.6h9.8a1.5 1.5 0 0 1 1.5 1.5v9.8a1.5 1.5 0 0 1-1.5 1.5H7.1a1.5 1.5 0 0 1-1.5-1.5V7.1a1.5 1.5 0 0 1 1.5-1.5z"
+)
+_ALERT = _p(_RING) + _p("M12 8v4.6M12 15.8h.01", "vi-mark")
+# sliders: each rail is one line whose gap is a dash pattern, so the gap travels with its knob
+_SETTINGS = (
+    _p("M4.6 8h14.8", "vi-rail-a", ' stroke-dasharray="7.5 4.2 30"')
+    + _p("M4.6 16h14.8", "vi-rail-b", ' stroke-dasharray="3.1 4.2 30"')
+    + _p("M14.2 5.8v4.4", "vi-knob-a")
+    + _p("M9.8 13.8v4.4", "vi-knob-b")
+)
+_PLUS = _p("M12 5.4v13.2M5.4 12h13.2", "vi-press")
+_CLOSE = _p("M6.8 6.8l10.4 10.4M17.2 6.8 6.8 17.2", "vi-press")
 _SPINNER = _p(_RING, "vi-track") + _p("M12 4.4a7.6 7.6 0 0 1 7.6 7.6", "vi-arc vi-accent")
 _DOT = (
-    '<circle class="vi-pulse-ring vi-accent" cx="12" cy="12" r="6.4" stroke-width="1.4"/>'
-    '<circle class="vi-dot-core vi-accent-fill" cx="12" cy="12" r="3.4" fill="currentColor" stroke="none"/>'
+    '<circle class="vi-pulse-ring vi-accent" cx="12" cy="12" r="7.6"/>'
+    '<circle class="vi-dot-core vi-accent-fill" cx="12" cy="12" r="4" fill="currentColor" stroke="none"/>'
 )
 
 # ---- exports -----------------------------------------------------------------------------
@@ -186,6 +193,7 @@ MASKS = {
 }
 
 _HOST = ':is(.vi-host, button, a, label, [role="button"]):is(:hover, :focus-visible, .is-hover)'
+_PRESS = ':is(.vi-host, button, a, label, [role="button"]):is(:active, .is-press)'
 
 ICON_CSS = f"""
 .vi {{ --vi-ease: cubic-bezier(.22, 1, .36, 1); overflow: visible; transform-origin: 50% 50%; }}
@@ -194,25 +202,29 @@ ICON_CSS = f"""
 .vi .vi-accent-fill {{ fill: var(--vi-accent, currentColor); }}
 .vi .vi-track {{ opacity: .22; }}
 
-.vi-rays, .vi-moon-body, .vi-lift, .vi-drop, .vi-quarter, .vi-lean, .vi-swap-a, .vi-swap-b, .vi-flap {{
-  transition: transform 320ms var(--vi-ease);
+.vi-rays, .vi-moon-body, .vi-lift, .vi-drop, .vi-swap-a, .vi-swap-b, .vi-flap, .vi-knob-a, .vi-knob-b {{
+  transition: transform 300ms var(--vi-ease);
 }}
-.vi-quarter {{ transition-duration: 240ms; }}
+.vi-rail-a, .vi-rail-b {{ transition: stroke-dashoffset 300ms var(--vi-ease); }}
+.vi-knob-b, .vi-rail-b {{ transition-delay: 50ms; }}
 {_HOST} .vi-rays {{ transform: rotate(45deg); }}
 {_HOST} .vi-moon-body {{ transform: rotate(-18deg); }}
-{_HOST} .vi-drop {{ transform: translateY(1.6px); }}
-{_HOST} .vi-lift, .vi-drag .vi-lift {{ transform: translateY(-1.6px); }}
-{_HOST} .vi-quarter {{ transform: rotate(90deg); }}
-{_HOST} .vi-lean {{ transform: rotate(-12deg); }}
-{_HOST} .vi-swap-a {{ transform: translateX(1.2px); }}
-{_HOST} .vi-swap-b {{ transform: translateX(-1.2px); }}
+{_HOST} .vi-drop {{ transform: translateY(2.4px); }}
+{_HOST} .vi-lift, .vi-drag .vi-lift {{ transform: translateY(-2.4px); }}
+{_HOST} .vi-swap-a {{ transform: translateX(1.4px); }}
+{_HOST} .vi-swap-b {{ transform: translateX(-1.4px); }}
 {_HOST} .vi-flap {{ transform: translateY(-.8px) skewX(-6deg); }}
-{_HOST} .vi-retry-arrow {{ animation: vi-turn 380ms var(--vi-ease) 1; }}
+{_HOST} .vi-knob-a {{ transform: translateX(1.6px); }}
+{_HOST} .vi-rail-a {{ stroke-dashoffset: -1.6; }}
+{_HOST} .vi-knob-b {{ transform: translateX(-1.6px); }}
+{_HOST} .vi-rail-b {{ stroke-dashoffset: 1.6; }}
+{_HOST} .vi-retry-arrow {{ animation: vi-retry 380ms var(--vi-ease) 1; }}
+{_PRESS} .vi-press {{ animation: vi-pop 240ms var(--vi-ease) 1; }}
 
 .vi-anim-check .vi-ring {{ animation: vi-settle 300ms var(--vi-ease) both; }}
 .vi-anim-check .vi-tick {{ animation: vi-draw 380ms var(--vi-ease) 120ms both; }}
-.vi-anim-alert .vi-shake {{ animation: vi-shake 360ms var(--vi-ease) 1; }}
-.vi-anim-in.vi, .vi-anim-in .vi {{ animation: vi-in 240ms var(--vi-ease) both; }}
+.vi-anim-alert .vi-mark {{ animation: vi-alert 320ms var(--vi-ease) 1; transform-origin: 12px 16px; }}
+.vi-anim-in.vi, .vi-anim-in .vi {{ animation: vi-in 300ms var(--vi-ease) both; }}
 .vi-play .vi-swap-g {{ animation: vi-flip 380ms var(--vi-ease) 1; }}
 .vi-play .vi-rays {{ animation: vi-rays-in 380ms var(--vi-ease) 1; }}
 .vi-play .vi-moon-body {{ animation: vi-moon-in 380ms var(--vi-ease) 1; }}
@@ -220,25 +232,34 @@ ICON_CSS = f"""
 .vi-dot .vi-pulse-ring {{ animation: vi-ripple 1600ms var(--vi-ease) infinite; }}
 
 @keyframes vi-turn {{ from {{ transform: rotate(0); }} to {{ transform: rotate(360deg); }} }}
+@keyframes vi-retry {{
+  0% {{ transform: rotate(0); }} 45% {{ transform: rotate(220deg) scale(.9); }} 100% {{ transform: rotate(360deg); }}
+}}
 @keyframes vi-draw {{
   from {{ stroke-dasharray: 1 1; stroke-dashoffset: 1; }}
   to {{ stroke-dasharray: 1 1; stroke-dashoffset: 0; }}
 }}
 @keyframes vi-settle {{ from {{ opacity: 0; transform: scale(.82); }} to {{ opacity: 1; transform: none; }} }}
-@keyframes vi-shake {{
-  0%, 100% {{ transform: none; }} 20% {{ transform: translateX(-1.4px); }}
-  45% {{ transform: translateX(1.2px); }} 70% {{ transform: translateX(-.6px); }}
+@keyframes vi-alert {{
+  0% {{ transform: scaleY(.6); opacity: 0; }} 55% {{ transform: scaleY(1.12); opacity: 1; }} 100% {{ transform: none; }}
 }}
-@keyframes vi-in {{ from {{ opacity: 0; transform: scale(.86); }} to {{ opacity: 1; transform: none; }} }}
+@keyframes vi-pop {{
+  0% {{ transform: scale(1); }} 35% {{ transform: scale(.8); }} 70% {{ transform: scale(1.08); }} 100% {{ transform: none; }}
+}}
+@keyframes vi-in {{
+  0% {{ opacity: 0; transform: scale(.78); }} 60% {{ opacity: 1; transform: scale(1.06); }}
+  100% {{ opacity: 1; transform: none; }}
+}}
 @keyframes vi-flip {{ from {{ transform: rotate(0); }} to {{ transform: rotate(180deg); }} }}
 @keyframes vi-rays-in {{ from {{ opacity: 0; transform: rotate(-60deg) scale(.7); }} to {{ opacity: 1; transform: none; }} }}
 @keyframes vi-moon-in {{ from {{ opacity: 0; transform: rotate(40deg) scale(.85); }} to {{ opacity: 1; transform: none; }} }}
 @keyframes vi-ripple {{
-  0% {{ opacity: .55; transform: scale(.55); }} 70%, 100% {{ opacity: 0; transform: scale(1.12); }}
+  0% {{ opacity: .5; transform: scale(.55); }} 70%, 100% {{ opacity: 0; transform: scale(1); }}
 }}
 
 @media (prefers-reduced-motion: reduce) {{
   .vi, .vi * {{ animation: none !important; transition: none !important; transform: none !important; }}
+  .vi .vi-rail-a, .vi .vi-rail-b {{ stroke-dashoffset: 0 !important; }}
   .vi .vi-pulse-ring {{ opacity: 0; }}
 }}
 """

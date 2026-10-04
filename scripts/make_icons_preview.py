@@ -24,12 +24,12 @@ ACTION = {"check": "vi-anim-check", "alert": "vi-anim-alert", "swap": "vi-play",
 FILM = [
     ("sun", "is-hover", (0, 60, 120, 180, 240, 320)), ("sun", "vi-play", (0, 60, 120, 180, 260, 380)),
     ("moon", "is-hover", (0, 60, 120, 180, 240, 320)), ("moon", "vi-play", (0, 60, 120, 180, 260, 380)),
-    ("check", "vi-anim-check", (0, 80, 160, 240, 320, 500)), ("alert", "vi-anim-alert", (0, 60, 120, 180, 260, 360)),
+    ("check", "vi-anim-check", (0, 80, 160, 240, 320, 500)), ("alert", "vi-anim-alert", (0, 60, 120, 180, 240, 320)),
     ("swap", "is-hover", (0, 60, 120, 180, 240, 320)), ("swap", "vi-play", (0, 60, 120, 180, 260, 380)),
     ("download", "is-hover", (0, 60, 120, 180, 240, 320)), ("upload", "is-hover", (0, 60, 120, 180, 240, 320)),
-    ("retry", "is-hover", (0, 60, 120, 180, 260, 380)), ("close", "is-hover", (0, 40, 80, 120, 180, 240)),
-    ("plus", "is-hover", (0, 40, 80, 120, 180, 240)), ("settings", "is-hover", (0, 60, 120, 180, 240, 320)),
-    ("folder_open", "is-hover", (0, 60, 120, 180, 240, 320)), ("file", "vi-anim-in", (0, 40, 80, 120, 180, 240)),
+    ("retry", "is-hover", (0, 60, 120, 180, 260, 380)), ("close", "is-press", (0, 40, 80, 120, 180, 240)),
+    ("plus", "is-press", (0, 40, 80, 120, 180, 240)), ("settings", "is-hover", (0, 60, 120, 180, 240, 320)),
+    ("folder_open", "is-hover", (0, 60, 120, 180, 240, 320)), ("file", "vi-anim-in", (0, 60, 120, 180, 240, 300)),
     ("spinner", "", (0, 150, 300, 450, 600, 750)), ("dot", "", (0, 260, 520, 780, 1040, 1300)),
 ]
 
@@ -47,9 +47,9 @@ def film() -> str:
     anim = anim.replace('width="160" height="160"', 'width="72" height="72"', 1)
     cells = "".join(
         f'<td><span class="frame" data-cls="" data-t="{t}">{anim}</span><small>{t}</small></td>'
-        for t in (0, 2900, 3200, 3450, 3700, 4100)
+        for t in (0, 6500, 6660, 6750, 6850, 7000)
     )
-    rows.append(f"<tr><th>app icon<br><small>4.8 s loop</small></th>{cells}</tr>")
+    rows.append(f"<tr><th>app icon<br><small>8 s loop</small></th>{cells}</tr>")
     return f'<section class="panel light film"><h2>motion, frozen frames (ms)</h2><table>{"".join(rows)}</table></section>'
 
 

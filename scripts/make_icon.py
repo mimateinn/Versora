@@ -4,7 +4,7 @@ Writes:
   icon.png               256 px RGBA (the app + README load this; keep the path)
   assets/icon-512.png    512 px RGBA
   assets/favicon.ico     16 / 32 / 48 / 256
-  assets/icon-animated.svg  same artwork + a CSS loop (badge lifts and stamps, A dims);
+  assets/icon-animated.svg  same artwork + an 8 s CSS loop (badge lifts, stamps, settles; A dims);
                             identical to icon.svg at rest and under reduced motion
 
 Why a tiny in-house rasteriser: the icon is flat fills only, and the repo has
@@ -33,15 +33,15 @@ OUT_ICO = ROOT / "assets" / "favicon.ico"
 OUT_ANIM = ROOT / "assets" / "icon-animated.svg"
 
 _ANIM_CSS = """<style>
-  .badge-top { animation: stamp 4.8s cubic-bezier(.22, 1, .36, 1) infinite; }
-  .source { animation: read 4.8s cubic-bezier(.22, 1, .36, 1) infinite; }
+  .badge-top { animation: stamp 8s infinite; }
+  .source { animation: read 8s cubic-bezier(.22, 1, .36, 1) infinite; }
   @keyframes stamp {
-    0%, 58% { transform: none; }
-    68% { transform: translateY(-4px); }
-    77% { transform: translateY(1.5px); }
-    84%, 100% { transform: none; }
+    0%, 80% { transform: none; animation-timing-function: cubic-bezier(.22, 1, .36, 1); }
+    83.25% { transform: translateY(-4px); animation-timing-function: cubic-bezier(.5, 0, .9, .6); }
+    84.4% { transform: translateY(5px); animation-timing-function: cubic-bezier(.22, 1, .36, 1); }
+    87.5%, 100% { transform: none; }
   }
-  @keyframes read { 0%, 56% { opacity: 1; } 66%, 74% { opacity: .45; } 86%, 100% { opacity: 1; } }
+  @keyframes read { 0%, 79% { opacity: 1; } 83%, 88% { opacity: .4; } 93%, 100% { opacity: 1; } }
   @media (prefers-reduced-motion: reduce) { .badge-top, .source { animation: none; } }
 </style>"""
 
