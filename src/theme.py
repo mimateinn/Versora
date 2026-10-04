@@ -140,6 +140,8 @@ html, body, .stApp { background: var(--sfts-bg) !important; color: var(--sfts-te
   padding: 16px 24px 40px !important; max-width: 912px !important;
 }
 [data-testid="stMarkdownContainer"] p { color: inherit; margin-bottom: 0; }
+/* Streamlit pulls markdown up by -16px; our blocks size themselves, so their box must be their content */
+[data-testid="stMarkdownContainer"] { margin-bottom: 0 !important; }
 [data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"],
 [data-testid="stMainBlockContainer"] > div > [data-testid="stVerticalBlock"] { gap: 24px !important; }  /* one section gap */
 a { color: var(--sfts-accent-strong); }
@@ -192,8 +194,11 @@ div[class*="st-key-card_run"] { animation-delay: 24ms; }
   letter-spacing: .14em !important; text-transform: uppercase !important;
   color: var(--sfts-muted) !important; font-weight: 500 !important;
 }
-.sfts-flabel { height: 20px; margin: 0 0 4px; }
-[data-testid="stElementContainer"]:has(.sfts-flabel) { margin-bottom: -16px; }  /* label hugs its control */
+.sfts-flabel { height: 20px; margin: 0; }
+/* quick bar columns: label + 4 + control, same as a widget's own label */
+[class*="st-key-quickbar"] [data-testid="stColumn"] > [data-testid="stVerticalBlock"] { gap: 4px !important; }
+/* settings rail: items 4 apart */
+[data-testid="stColumn"]:has([class*="st-key-pane_"]) > [data-testid="stVerticalBlock"] { gap: 4px !important; }
 .sfts-eyebrow, .sfts-panel-title {
   font-family: var(--f-mono); font-size: 11px; line-height: 20px; font-weight: 500; letter-spacing: .14em;
   text-transform: uppercase; color: var(--sfts-muted); margin: 0;
@@ -365,6 +370,8 @@ div[class*="st-key-card_run"] { animation-delay: 24ms; }
 .sfts-done[data-tone="warn"] path { stroke: var(--sfts-accent); }
 .sfts-done-title { font-size: 15px; line-height: 20px; font-weight: 600; color: var(--sfts-text); }
 .sfts-done-sub { color: var(--sfts-muted); font-size: 13px; line-height: 20px; margin-top: 4px; }
+.sfts-path { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; }
+.sfts-done > div { min-width: 0; flex: 1 1 auto; }
 .sfts-done-sub code { font-family: var(--f-mono); font-size: 11px; background: none; color: var(--sfts-faint); padding: 0; word-break: break-all; }
 @keyframes sfts-draw { to { stroke-dashoffset: 0; } }
 
@@ -382,6 +389,8 @@ div[class*="st-key-card_run"] { animation-delay: 24ms; }
 [data-testid="stToast"] * { color: var(--sfts-toast-ink) !important; font-size: 13px !important; }
 [data-testid="stToast"] [data-testid="stIconMaterial"] { color: var(--sfts-accent) !important; font-size: 18px !important; }
 [data-testid="stToast"] button { display: none !important; }
+[data-testid="stToast"] > div, [data-testid="stToast"] [data-testid="stToastIcon"] { align-items: center !important; }
+[data-testid="stToast"] p { margin: 0 !important; line-height: 20px !important; }
 @keyframes sfts-toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 
 /* ── Text bits ── */

@@ -10,6 +10,7 @@ For each page in light and dark it measures, from bounding boxes:
   gaps      vertical gaps between top-level blocks are equal (±1px)
   heights   every visible control is 34 or 42px tall (±0.5px)
   rows      fields in one row start at the same top (±1px)
+  spill     text blocks stay inside the box the layout gave them (±1px)
 Exit code 1 if anything is off.
 """
 
@@ -48,7 +49,22 @@ MEASURE = """() => {
       .filter(vis).map(el => el.getBoundingClientRect().top);
     if (tops.length) rows.push(tops);
   }
-  return {blocks, controls, rows};
+  // header row: brand, tabs and theme button share one centre line
+  const mid = el => { const r = el.getBoundingClientRect(); return r.top + r.height / 2; };
+  const head = ['.sfts-brand', '.st-key-nav_translate button', '.st-key-nav_settings button', '.st-key-theme_toggle button']
+    .map(s => document.querySelector(s)).filter(Boolean).map(mid);
+  if (head.length) rows.push(head);
+  // a block's drawn content must sit inside the box the layout reserved for it
+  const spill = [];
+  for (const md of document.querySelectorAll('[data-testid="stElementContainer"] [data-testid="stMarkdownContainer"]')) {
+    if (md.closest('button, [data-testid="stSlider"]') || !vis(md)) continue;
+    const host = md.closest('[data-testid="stElementContainer"]');
+    if (getComputedStyle(host).position === 'absolute') continue;
+    const a = md.getBoundingClientRect(), h = host.getBoundingClientRect();
+    if (a.bottom > h.bottom + 1 || a.top < h.top - 1)
+      spill.push(`${(md.textContent || '').trim().slice(0, 24)}: content ${a.top.toFixed(0)}..${a.bottom.toFixed(0)}, box ${h.top.toFixed(0)}..${h.bottom.toFixed(0)}`);
+  }
+  return {blocks, controls, rows, spill};
 }"""
 
 
@@ -67,9 +83,11 @@ def check(page, label: str) -> list[str]:
     for c in m["controls"]:
         if not any(abs(c["h"] - a) <= 0.5 for a in ALLOWED):
             bad.append(f"heights {c['name']}: {c['h']:.1f}px")
+    for s in m["spill"]:
+        bad.append(f"spill   {s}")
     for tops in m["rows"]:
         if max(tops) - min(tops) > 1:
-            bad.append(f"rows    quick bar tops differ: {[round(t, 1) for t in tops]}")
+            bad.append(f"rows    tops/centres differ: {[round(t, 1) for t in tops]}")
     print(f"{'ok ' if not bad else 'BAD'} {label}: {len(blocks)} blocks, {len(m['controls'])} controls")
     for line in bad:
         print("      " + line)
@@ -82,7 +100,13 @@ def settle(page) -> None:
         "!document.querySelector('[data-testid=stStatusWidget] [data-testid=stStatusWidgetRunningIcon]')",
         timeout=60000,
     )
-    page.wait_for_timeout(500)
+    page.wait_for_selector(".sfts-footer", timeout=30000)
+    # entrance animations move boxes by 4px; wait until every finite one has ended
+    page.wait_for_function(
+        "document.getAnimations().every(a => a.playState !== 'running' || a.effect.getComputedTiming().iterations === Infinity)",
+        timeout=10000,
+    )
+    page.wait_for_timeout(200)
 
 
 def main() -> int:

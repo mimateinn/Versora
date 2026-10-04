@@ -514,22 +514,39 @@ def _saved_key(env_name: str, value: str) -> None:
     st.rerun()
 
 
+def _key_head(label: str, on: bool, status: str) -> None:
+    pill = (
+        f"<span class='sfts-pill-on'>{wrap(CHECK)}{html.escape(status)}</span>"
+        if on
+        else f"<span class='sfts-pill-off'>{wrap(DASH)}{html.escape(status)}</span>"
+    )
+    st.markdown(f'<div class="sfts-key-name">{html.escape(label)}{pill}</div>', unsafe_allow_html=True)
+
+
+def _field_and_save(label: str, key: str, save_key: str, **field) -> str | None:
+    """A field and its Save button on one row; returns the stripped value when Save is clicked."""
+    c1, c2 = st.columns([3, 1.25], vertical_alignment="bottom")
+    with c1:
+        val = st.text_input(label, key=key, label_visibility="collapsed", **field)
+    with c2:
+        clicked = st.button(L("keys.save_local"), key=save_key, use_container_width=True)
+    return val.strip() if clicked and val.strip() else None
+
+
 def _cli_block(which: str, label: str, hint_url: str, path_setting: str, prefix: str) -> None:
     status = _probe(which)
-    if status.usable:
+    _key_head(label, status.usable, L("keys.connected_cli") if status.usable else L("keys.unset"))
+    if not status.usable:
         st.markdown(
-            f"**{label}** &nbsp; <span class='sfts-pill-on'>{wrap(CHECK)}{L('keys.connected_cli')}</span>",
+            f'<div class="sfts-muted">{L(f"keys.{prefix}_login") if status.hint == "login" else L(f"keys.{prefix}_missing", url=hint_url)}</div>',
             unsafe_allow_html=True,
         )
-    else:
-        st.markdown(
-            f"**{label}** &nbsp; <span class='sfts-pill-off'>{wrap(DASH)}{L('keys.unset')}</span>",
-            unsafe_allow_html=True,
-        )
-        st.caption(L(f"keys.{prefix}_login") if status.hint == "login" else L(f"keys.{prefix}_missing", url=hint_url))
-    path_val = st.text_input(L(f"keys.{prefix}_path"), value=path_setting, key=f"{prefix}_path_input")
-    if st.button(L("keys.save_local"), key=f"save_{prefix}_path") and path_val.strip():
-        _saved_key("GROK_CLI_PATH" if which == "grok" else "CODEX_CLI_PATH", path_val.strip())
+    saved = _field_and_save(
+        L(f"keys.{prefix}_path"), f"{prefix}_path_input", f"save_{prefix}_path",
+        value=path_setting, placeholder=L(f"keys.{prefix}_path"),
+    )
+    if saved:
+        _saved_key("GROK_CLI_PATH" if which == "grok" else "CODEX_CLI_PATH", saved)
     st.markdown(f'<div class="sfts-muted">{L(f"keys.{prefix}_hint")}</div>', unsafe_allow_html=True)
     st.markdown('<hr class="sfts-divider">', unsafe_allow_html=True)
 
@@ -542,34 +559,23 @@ def render_keys_pane() -> None:
             val = load_secret(env_name)
             if val:
                 tail = val[-4:] if len(val) >= 4 else ""
-                status = L("keys.connected", tail=tail) if tail else L("keys.set")
-                st.markdown(
-                    f"**{label}** &nbsp; <span class='sfts-pill-on'>{wrap(CHECK)}{status}</span>",
-                    unsafe_allow_html=True,
-                )
+                _key_head(label, True, L("keys.connected", tail=tail) if tail else L("keys.set"))
             else:
-                st.markdown(
-                    f"**{label}** &nbsp; <span class='sfts-pill-off'>{wrap(DASH)}{L('keys.unset')}</span>",
-                    unsafe_allow_html=True,
+                _key_head(label, False, L("keys.unset"))
+                saved = _field_and_save(
+                    L("keys.paste_api"), f"paste_{env_name}", f"save_{env_name}", type="password", placeholder=env_name,
                 )
-                c1, c2 = st.columns([3, 1.2], vertical_alignment="bottom")
-                with c1:
-                    pasted = st.text_input(
-                        L("keys.paste_api"),
-                        type="password",
-                        key=f"paste_{env_name}",
-                        placeholder=env_name,
-                    )
-                with c2:
-                    if st.button(L("keys.save_local"), key=f"save_{env_name}", use_container_width=True) and pasted.strip():
-                        _saved_key(env_name, pasted.strip())
+                if saved:
+                    _saved_key(env_name, saved)
         st.markdown(f'<div class="sfts-muted">{L("keys.xai_hint")}</div>', unsafe_allow_html=True)
         st.markdown('<hr class="sfts-divider">', unsafe_allow_html=True)
         _cli_block("grok", _key_label("Official Grok CLI", "keys.grok_cli"), GROK_HINT, grok_cli_path_setting(), "grok_cli")
         _cli_block("codex", _key_label("Official Codex CLI", "keys.codex_cli"), CODEX_HINT, codex_cli_path_setting(), "codex_cli")
-        st.markdown(f'<div class="sfts-muted">{L("keys.local_only")}</div>', unsafe_allow_html=True)
-        st.caption(L("sidebar.connect_official_only"))
-        st.caption(L("sidebar.connect_no_websites"))
+        st.markdown(
+            f'<div class="sfts-muted">{L("keys.local_only")} {L("sidebar.connect_official_only")} '
+            f'{L("sidebar.connect_no_websites")}</div>',
+            unsafe_allow_html=True,
+        )
 
 
 def render_glossary_pane() -> None:
@@ -651,7 +657,7 @@ def render_settings() -> None:
         "glossary": L("card.glossary"),
     }
     with rail:
-        st.markdown('<div style="height:28px"></div>', unsafe_allow_html=True)  # = pane title, so rail and card tops meet
+        st.markdown('<div style="height:40px"></div>', unsafe_allow_html=True)  # title 28 + gap 16 - rail gap 4: rail meets card top
         for pane_id in SETTINGS_PANES:
             if st.button(labels[pane_id], use_container_width=True, key=f"pane_{pane_id}"):
                 _go("settings", pane_id)
@@ -740,7 +746,7 @@ def render_quick_bar() -> None:
         with c_chip:
             st.markdown(f'<div class="sfts-flabel">{L("quick.translator")}</div>', unsafe_allow_html=True)
             text, warn = _chip_text(available)
-            if st.button(text, key="provider_chip_warn" if warn else "provider_chip", help=L("quick.change")):
+            if st.button(text, key="provider_chip_warn" if warn else "provider_chip", help=L("quick.change"), use_container_width=True):
                 _go("settings", "keys" if warn else "translation")
         if st.session_state.target_lang == "other":
             st.text_input(L("sidebar.target_other"), placeholder="e.g. it, nl, pl", **_bound("qb_other", "target_other"))
@@ -782,22 +788,36 @@ def _preview_text(raw: bytes) -> str:
     return raw[:16000].decode("utf-8", errors="replace")[:4000]
 
 
+def _run_header():
+    """Status line with Cancel on the right, then a thin bar. Returns (head, bar)."""
+    line, stop = st.columns([6, 1], vertical_alignment="center")
+    with line:
+        head = st.empty()
+    with stop:
+        st.button(L("run.cancel"), key="cancel_run", on_click=_cancel_clicked, use_container_width=True)
+    return head, st.progress(0.0)
+
+
+def _run_line(head, text: str, right: str = "") -> None:
+    head.markdown(
+        f'<div class="sfts-run"><i></i>{html.escape(text)}<span>{html.escape(right)}</span></div>',
+        unsafe_allow_html=True,
+    )
+
+
 def _run_single() -> None:
     name = st.session_state.picked_name
     raw = st.session_state.picked_bytes or b""
     suffix = Path(name).suffix.lower()
     out_path = _unique_out(name, suffix)
     with st.container(border=True, key="card_run"):
-        st.markdown(
-            f'<div class="sfts-run"><i></i>{html.escape(L("run.file", name=name))}<span>{html.escape(_target_lang())}</span></div>',
-            unsafe_allow_html=True,
-        )
-        bar = st.progress(0.0, text=L("run.preparing"))
-        st.button(L("run.cancel"), key="cancel_run", on_click=_cancel_clicked)
+        head, bar = _run_header()
+        _run_line(head, L("run.file", name=name), L("run.preparing"))
 
         def progress(done: int, total: int, _item) -> None:
             if total:
-                bar.progress(min(1.0, done / total), text=L("run.chunks", done=done, total=total))
+                _run_line(head, L("run.file", name=name), L("run.chunks", done=done, total=total))
+                bar.progress(min(1.0, done / total))
 
         try:
             with tempfile.TemporaryDirectory(prefix="versora_") as tmp:
@@ -846,19 +866,13 @@ def _run_batch(job: dict, only: set[str] | None = None) -> None:
     st.session_state.batch_zip = None
     workers = clamp_concurrency(st.session_state.concurrency)
     with st.container(border=True, key="card_run"):
-        head = st.empty()
-        head.markdown(f'<div class="sfts-run"><i></i>{html.escape(L("run.preparing"))}</div>', unsafe_allow_html=True)
-        bar = st.progress(0.0)
-        st.button(L("run.cancel"), key="cancel_run", on_click=_cancel_clicked)
+        head, bar = _run_header()
+        _run_line(head, L("run.preparing"))
         rows = st.empty()
 
         def progress(done: int, total: int, _item) -> None:
-            head.markdown(
-                f'<div class="sfts-run"><i></i>{html.escape(L("run.batch", total=total))}'
-                f'<span>{done} / {total}</span></div>',
-                unsafe_allow_html=True,
-            )
-            bar.progress(min(1.0, done / total) if total else 0.0, text=L("run.files", done=done, total=total))
+            _run_line(head, L("run.batch", total=total), L("run.files", done=done, total=total))
+            bar.progress(min(1.0, done / total) if total else 0.0)
             rows.markdown(_files_html(report, workers), unsafe_allow_html=True)
 
         try:
@@ -917,7 +931,7 @@ def render_single_result() -> None:
     with st.container(border=True, key="card_result"):
         top, act = st.columns([3, 1.4], vertical_alignment="center")
         with top:
-            _done_header(L("done.file"), f"<code>{html.escape(str(path))}</code>")
+            _done_header(L("done.file"), f'<code class="sfts-path">{html.escape(str(path))}</code>')
         with act:
             if path.is_file():
                 st.download_button(
@@ -949,7 +963,7 @@ def render_batch_result() -> None:
         if n_skip:
             parts.append(L("done.n_skipped", n=n_skip))
         title = L("run.cancelled") if report.cancelled else (L("done.batch") if not n_fail else L("done.batch_some"))
-        _done_header(title, " · ".join(parts) + f'<br><code>{html.escape(report.output_root)}</code>', warn=bool(n_fail))
+        _done_header(title, " · ".join(parts) + f'<br><code class="sfts-path">{html.escape(report.output_root)}</code>', warn=bool(n_fail))
         b1, b2, b3 = st.columns(3)
         with b1:
             if n_ok:
