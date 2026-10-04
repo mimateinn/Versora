@@ -118,8 +118,8 @@ def main() -> int:
         browser = p.chromium.launch()
         for theme in ("light", "dark"):
             page = browser.new_page(viewport={"width": 1440, "height": 900})
-            for query in ("page=translate", "page=settings&pane=appearance", "page=settings&pane=translation",
-                          "page=settings&pane=keys", "page=settings&pane=glossary"):
+            for query in ("page=translate", "page=settings&pane=purposes", "page=settings&pane=keys",
+                          "page=settings&pane=order", "page=settings&pane=glossary", "page=settings&pane=appearance"):
                 page.goto(f"{args.url}?{query}&theme={theme}")
                 page.wait_for_selector(".st-key-nav_translate", timeout=30000)
                 settle(page)

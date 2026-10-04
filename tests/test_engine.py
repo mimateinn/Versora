@@ -252,3 +252,29 @@ def test_translators_pane_remove_is_two_step(tmp_path, monkeypatch) -> None:
     at.button(key="svc_rm_openai").click().run()
     assert "OPENAI_API_KEY" not in (tmp_path / ".env").read_text(encoding="utf-8")
     assert not any(b.key == "svc_rm_openai" for b in at.button)
+
+
+def test_single_file_cancel_kills_cli_child(tmp_path, monkeypatch) -> None:
+    """Cancel during a one-file job reaches the running CLI child (run_cli tree-kills it) at once."""
+    import src.batch as batch
+    import src.config as config
+
+    class Slow(Engine):
+        id = "demo"
+
+        def complete(self, system, user, *, cancel=None):
+            cli.run_cli([PY, "-c", "import time; time.sleep(60)"], cwd=tmp_path, env=cli.child_env(), cancel=cancel)
+            return "1. never"
+
+    monkeypatch.setattr(config, "_probe_available", lambda: ["demo"])
+    monkeypatch.setattr(config, "_available_cache", None)
+    monkeypatch.setattr(runtime, "make_engine", lambda link: Slow())
+    src = tmp_path / "a.txt"
+    src.write_text("hello", encoding="utf-8")
+    stop = threading.Event()
+    threading.Timer(0.5, stop.set).start()
+    t0 = time.monotonic()
+    with pytest.raises(Cancelled):
+        batch.translate_single_file(src, tmp_path / "out.txt", target_lang="ja", source_lang=None, project=None,
+                                    provider_choice="auto", game_mode=False, cancel=stop)
+    assert time.monotonic() - t0 < 10 and not (tmp_path / "out.txt").exists()

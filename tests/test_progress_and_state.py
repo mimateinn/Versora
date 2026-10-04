@@ -54,6 +54,7 @@ def test_batch_progress_cancel_retry(tmp_path, monkeypatch) -> None:
     assert calls[0] == (0, 7, None)
     assert [c[0] for c in calls[1:]] == list(range(1, 8))
     assert len(report.written) == 6 and [f.rel for f in report.failed] == ["bad.txt"] and not report.skipped
+    assert sorted(report.started) == sorted(report.planned)  # every file was really picked up by a worker
     assert not report.cancelled
 
     # Cancel after the first file: queued files are dropped and recorded as cancelled.

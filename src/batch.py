@@ -72,6 +72,7 @@ class BatchReport:
     failed: list[BatchItem] = field(default_factory=list)  # attempted and errored, or cancelled
     output_root: str = ""
     planned: list[str] = field(default_factory=list)  # rel paths in run order
+    started: list[str] = field(default_factory=list)  # rel paths a worker has picked up, in start order
     cancelled: bool = False
 
 
@@ -344,6 +345,7 @@ def translate_tree(
     def _run_one(src: Path, dest: Path, rel: str) -> tuple[str, BatchItem]:
         if cancel.is_set():
             return "failed", BatchItem(rel=rel, error=CANCELLED)
+        report.started.append(rel)  # list.append is atomic; the UI reads it on the next progress call
         translate = _make_translator(target_lang, source_lang, project, provider_choice, model, cancel, purpose=purpose)
         suffix = src.suffix.lower()
         try:
@@ -365,10 +367,10 @@ def translate_tree(
     if not jobs:
         return report
     total = len(jobs)
-    if on_progress:
-        on_progress(0, total, None)
     pool = ThreadPoolExecutor(max_workers=workers)
     futs = [pool.submit(_run_one, src, dest, rel) for src, dest, rel in jobs]
+    if on_progress:  # after submit, so the first frame already shows the files workers picked up
+        on_progress(0, total, None)
     finished: set[str] = set()
     try:
         for fut in as_completed(futs):
@@ -406,16 +408,19 @@ def translate_single_file(
     concurrency: int = DEFAULT_CONCURRENCY,
     purpose: str = "general",
     on_progress: ProgressFn | None = None,
+    cancel: threading.Event | None = None,
 ) -> None:
-    """``on_progress(done, total, None)`` fires per chunk sent to the provider."""
+    """``on_progress(done, total, None)`` fires per chunk sent to the provider. Setting ``cancel``
+    stops the job between batches and kills a running CLI child."""
     dest = dest.resolve()
     dest.parent.mkdir(parents=True, exist_ok=True)
     if dest.resolve() == src.resolve():
         raise TranslationError("Refuses to overwrite the source file.")
     _ = clamp_concurrency(concurrency)
     on_chunk = (lambda done, total: on_progress(done, total, None)) if on_progress else None
-    translate = _make_translator(target_lang, source_lang, project, provider_choice, model, on_chunk=on_chunk, purpose=purpose)
+    translate = _make_translator(target_lang, source_lang, project, provider_choice, model, cancel, on_chunk=on_chunk, purpose=purpose)
     kw = dict(
+        cancel=cancel,
         target_lang=target_lang,
         source_lang=source_lang,
         project=project,

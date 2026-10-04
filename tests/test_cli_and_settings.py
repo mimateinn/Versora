@@ -141,8 +141,8 @@ def test_v2_chrome_contract() -> None:
     for hexv in accent_hexes | {"#14b8a6", "#b95233"}:
         assert hexv not in app.lower()
     assert theme.lower().count(ACCENTS["light"]["accent"].lower()) == 1  # set once
-    assert "sfts-fp" in app  # picked file panel (r2; was the 42px chip)
-    assert 'SETTINGS_PANES = ("translation", "keys", "glossary", "appearance")' in app  # owner order, round 2
+    assert "sfts-frow" in app  # picked file: one compact row (r3 locked L2)
+    assert 'SETTINGS_PANES = ("purposes", "keys", "order", "glossary", "appearance")' in app  # nav == headings (r3)
     assert "status.info" not in app and "st.info(" not in app and "st.success(" not in app
     assert "L(\"main.status_ready\")" not in app
     maker = (root / "scripts" / "make_icon.py").read_text(encoding="utf-8")

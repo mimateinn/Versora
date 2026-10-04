@@ -6,8 +6,7 @@ Start the app with the demo provider, slowed down so a run can be caught in prog
     python scripts/shoot.py --out <dir> [--url http://localhost:8511/] [--themes light dark]
 
 Writes <state>-<theme>.png at 1440x900, and runs check_alignment's measurements on each: idle, file-chosen, translating-file, file-done,
-file-error, translating-batch, batch-done, settings-translation, settings-keys, settings-appearance,
-settings-order (the Translators pane scrolled to its Order card).
+file-error, translating-batch, batch-done, settings-purposes, settings-keys, settings-order, settings-appearance.
 The provider must be Demo in prefs (Auto would pick a local CLI).
 """
 
@@ -106,12 +105,9 @@ def main() -> int:
                 settle(page)
                 shot("batch-done")
 
-            for pane in ("translation", "appearance", "keys"):  # keys last: the Order shot scrolls it
+            for pane in ("purposes", "keys", "order", "appearance"):
                 fresh(f"page=settings&pane={pane}", mode=None)
                 shot(f"settings-{pane}")
-            page.locator(".st-key-card_order").scroll_into_view_if_needed()
-            page.wait_for_timeout(300)
-            shot("settings-order")
 
             fresh()  # leave the prefs on single-file mode
             page.close()
