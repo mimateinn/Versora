@@ -36,11 +36,12 @@ from src.extractors import SUPPORTED_SUFFIXES, is_supported
 from src.game_text import SCRIPT_SUFFIXES
 from src.glossary import ensure_project, list_projects, load_glossary, save_glossary
 from src.i18n import FALLBACK_LANG, available_languages, detect_ui_language, language_display_name, t
-from src.models import default_model, models_for, resolve_model
-from src.prompts import PRESETS as PURPOSE_PRESETS, PURPOSES, custom_path, load as load_purpose, save_custom
+from src.models import default_model, models_for
+from src.prompts import PRESETS as PURPOSE_PRESETS, PURPOSES, custom_path, load as load_purpose, save_custom, system_prompt
 from src.providers import cli as cli_engine
 from src.providers.demo import demo_enabled
-from src.security.secrets import load_secret, redact_secrets, save_secret_to_env
+from src.security.secrets import load_secret, redact_secrets, remove_secret_from_env, save_secret_to_env
+from src import runtime
 from src.icons import ALERT, CHECK, DASH, FILE, GLOBE, wrap
 from src.theme import FX_JS, css_for
 from src import __version__
@@ -57,17 +58,7 @@ TARGET_CODES = [
 PROVIDER_OPTIONS = ["auto", "claude_cli", "codex_cli", "grok_cli", "openai", "anthropic", "gemini", "xai"] + (
     ["demo"] if demo_enabled() else []
 )
-PROVIDER_SHORT = {
-    "openai": "OpenAI", "anthropic": "Claude", "gemini": "Gemini", "xai": "xAI",
-    "claude_cli": "Claude Code", "grok_cli": "Grok CLI", "codex_cli": "Codex CLI", "demo": "Demo",
-}
 SETTINGS_PANES = ("translation", "keys", "glossary", "appearance")
-KEY_ROWS = (
-    ("OpenAI", "OPENAI_API_KEY", "keys.openai"),
-    ("Anthropic", "ANTHROPIC_API_KEY", "keys.anthropic"),
-    ("Gemini API", "GEMINI_API_KEY", "keys.gemini"),
-    ("Grok / xAI API key", "XAI_API_KEY", "keys.xai"),
-)
 # Translate choices live in plain keys. Their widgets use other keys and copy back on
 # change: Streamlit deletes a widget's key on any run that does not draw it, which is
 # what reset these every time Settings was opened.
@@ -291,11 +282,6 @@ def _busy_icon_uri() -> str:
     return "data:image/svg+xml;base64," + base64.b64encode(raw).decode("ascii")
 
 
-@st.cache_data(ttl=60, show_spinner=False)
-def _probe(pid: str):
-    return cli_engine.probe(pid)
-
-
 def _fmt_size(n: int) -> str:
     if n < 1024:
         return f"{n} B"
@@ -359,6 +345,9 @@ def _open_folder(path: str) -> None:
 # Error text from providers and parsers → one plain sentence.
 _ERROR_HINTS = (
     (CANCELLED, "err.cancelled"),
+    ("[timeout]", "err.timeout"), ("[limit]", "err.rate"), ("[refused]", "err.refused"),
+    ("[empty]", "err.blank"), ("[truncated]", "err.truncated"),
+    ("logged in", "err.signin"), ("login", "err.signin"), ("[auth]", "err.key"), ("[spawn]", "err.spawn"),
     ("401", "err.key"), ("403", "err.key"), ("api key", "err.key"), ("unauthorized", "err.key"),
     ("authentication", "err.key"),
     ("429", "err.rate"), ("rate limit", "err.rate"), ("quota", "err.rate"), ("overloaded", "err.rate"),
@@ -464,14 +453,6 @@ def render_appearance_pane() -> None:
         )
 
 
-def _provider_labels() -> dict[str, str]:
-    labels = {p: L(f"sidebar.provider_{p}") for p in PROVIDER_OPTIONS}
-    labels["auto"] = L("sidebar.provider_auto")
-    if "demo" in labels:
-        labels["demo"] = L("sidebar.provider_demo")
-    return labels
-
-
 def _copy_purpose() -> None:
     st.session_state["purpose_body"] = load_purpose(st.session_state.get("purpose_from") or "general")[1]
 
@@ -500,83 +481,275 @@ def render_translation_pane() -> None:
                 st.rerun()
 
 
-def _key_label(fallback: str, locale_key: str) -> str:
-    text = L(locale_key)
-    return fallback if text == locale_key else text
+API_KEY_NAMES = {"openai": "OPENAI_API_KEY", "anthropic": "ANTHROPIC_API_KEY", "gemini": "GEMINI_API_KEY", "xai": "XAI_API_KEY"}
+API_HOSTS = {"openai": "api.openai.com", "anthropic": "api.anthropic.com", "gemini": "generativelanguage.googleapis.com", "xai": "api.x.ai"}
+SERVICE_NAMES = {"claude_cli": "Claude Code", "codex_cli": "Codex", "grok_cli": "Grok", "openai": "OpenAI",
+                 "anthropic": "Anthropic", "gemini": "Gemini", "xai": "xAI", "demo": "Demo"}
+EFFORTS = ("", "low", "medium", "high")
+
+
+def _services() -> list[str]:
+    return [*cli_engine.PRESETS, *API_KEY_NAMES] + (["demo"] if demo_enabled() else [])
 
 
 def _saved_key(env_name: str, value: str) -> None:
     save_secret_to_env(env_name, value)
     cli_engine.forget_status()
     list_available_providers(fresh=True)
-    _probe.clear()
     _toast(L("sidebar.save_key_ok"))
     st.rerun()
 
 
-def _key_head(label: str, on: bool, status: str) -> None:
-    pill = (
-        f"<span class='sfts-pill-on'>{wrap(CHECK)}{html.escape(status)}</span>"
-        if on
-        else f"<span class='sfts-pill-off'>{wrap(DASH)}{html.escape(status)}</span>"
-    )
-    st.markdown(f'<div class="sfts-key-name">{html.escape(label)}{pill}</div>', unsafe_allow_html=True)
+def _removed_key(pid: str) -> None:
+    remove_secret_from_env(API_KEY_NAMES[pid])
+    st.session_state.pop(f"svc_remove_{pid}", None)
+    st.session_state.get("svc_test", {}).pop(pid, None)
+    list_available_providers(fresh=True)
+    _toast(L("svc.removed"))
+
+
+def _recheck(pid: str) -> None:
+    cli_engine.probe(pid, fresh=True)
+    list_available_providers(fresh=True)
+
+
+def _chain_rows() -> list[dict]:
+    """The saved order, plus every known translator not yet in it (appended, on)."""
+    rows = [r for r in load_prefs().get("chain", []) if r["id"] in _services()]
+    have = {r["id"] for r in rows}
+    return rows + [{"id": pid, "model": "", "effort": "", "enabled": True} for pid in _services() if pid not in have]
+
+
+def _save_chain(rows: list[dict]) -> None:
+    save_prefs(chain=rows)
+
+
+def _chain_set(pid: str, field: str, widget_key: str) -> None:
+    rows = _chain_rows()
+    for row in rows:
+        if row["id"] == pid:
+            value = st.session_state.get(widget_key)
+            row[field] = bool(value) if field == "enabled" else (value or "")
+    _save_chain(rows)
+
+
+def _chain_move(pid: str, step: int) -> None:
+    rows = _chain_rows()
+    i = next(n for n, r in enumerate(rows) if r["id"] == pid)
+    j = max(0, min(len(rows) - 1, i + step))
+    rows[i], rows[j] = rows[j], rows[i]
+    _save_chain(rows)
+
+
+def _service_state(pid: str) -> tuple[str, str]:
+    """(state key, tone) for the chip: ready / signed_out / limit / setup / retrying / unchecked."""
+    h = runtime.health(pid)
+    now = time.time()
+    if h.get("retry_until", 0) > now:
+        return "retrying", "warn"
+    if h.get("kind") == "limit" and now - h.get("at", 0) < 900:
+        return "limit", "warn"
+    test = st.session_state.get("svc_test", {}).get(pid)
+    if pid == "demo":
+        return "ready", "ok"
+    if pid in cli_engine.PRESETS:
+        status = cli_engine.probe(pid)
+        if not status.present:
+            return "setup", "off"
+        if status.logged_in is False or h.get("kind") == "auth":
+            return "signed_out", "err"
+        if status.logged_in or (test and test[0] == "ok") or (h and h.get("kind") is None):
+            return "ready", "ok"
+        return "unchecked", "off"
+    cfg_ok = pid in list_available_providers()
+    if not load_secret(API_KEY_NAMES[pid]) or not cfg_ok or h.get("kind") == "auth":
+        return "setup", "off" if not h.get("kind") else "err"
+    if (test and test[0] == "ok") or (h and h.get("kind") is None):
+        return "ready", "ok"
+    return "unchecked", "off"
+
+
+def _test_service(pid: str) -> None:
+    row = next((r for r in _chain_rows() if r["id"] == pid), {})
+    started = time.perf_counter()
+    try:
+        engine = runtime.make_engine(runtime.Link(pid, row.get("model", ""), row.get("effort", "")))
+        target = _target_lang()
+        reply = engine.complete(
+            system_prompt("general", target, "en"),
+            f"Target language: {target}\nTranslate each numbered line.\n\n1. Hello! The file is ready.",
+        )
+        text = runtime.parse_numbered(reply, 1)[0] if reply.strip().startswith("1") else reply.strip()
+        runtime.note(pid, None)
+        result = ("ok", int((time.perf_counter() - started) * 1000), text[:80])
+    except Exception as e:  # shown as a line; nothing here may break the page
+        runtime.note(pid, getattr(e, "kind", None) or "spawn")
+        result = ("err", 0, _human(str(e)))
+    st.session_state.setdefault("svc_test", {})[pid] = result
+
+
+def _service_card(pid: str) -> None:
+    is_cli, name = pid in cli_engine.PRESETS, SERVICE_NAMES[pid]
+    state, tone = _service_state(pid)
+    kind = L("svc.local") if is_cli else (L("svc.builtin") if pid == "demo" else L("svc.online"))
+    if is_cli:
+        status, preset = cli_engine.probe(pid), cli_engine.PRESETS[pid]
+        line = f"{preset.bin} · v{status.version}" if status.present and status.version else (
+            preset.bin if status.present else f"{preset.bin} · {L('svc.not_found')}")
+    elif pid == "demo":
+        line = "demo · offline"
+    else:
+        key = load_secret(API_KEY_NAMES[pid])
+        line = f"{API_HOSTS[pid]} · ••••{key[-4:]}" if key and len(key) >= 4 else API_HOSTS[pid]
+    with st.container(key=f"svc_{pid}"):
+        with st.container(key=f"svc_head_{pid}", horizontal=True, vertical_alignment="center", gap="small", wrap=False):
+            st.markdown(
+                f'<div class="sfts-svc"><i class="sfts-dot" data-tone="{tone}"></i><b>{html.escape(name)}</b>'
+                f'<span class="sfts-chip">{html.escape(kind)}</span>'
+                f'<span class="sfts-state" data-tone="{tone}">{html.escape(L(f"st.{state}"))}</span></div>'
+                f'<code class="sfts-svc-line">{html.escape(line)}</code>',
+                unsafe_allow_html=True,
+            )
+            if pid == "demo":
+                pass
+            elif is_cli:
+                st.button(L("svc.recheck"), key=f"svc_recheck_{pid}", on_click=_recheck, args=(pid,))
+                if status.present:
+                    st.button(L("svc.test"), key=f"svc_test_{pid}", on_click=_test_service, args=(pid,))
+            elif load_secret(API_KEY_NAMES[pid]):
+                st.button(L("svc.test"), key=f"svc_test_{pid}", on_click=_test_service, args=(pid,))
+                st.button(L("svc.replace"), key=f"svc_replace_{pid}",
+                          on_click=lambda: st.session_state.update({f"svc_edit_{pid}": True}))
+                st.button(L("svc.remove"), key=f"svc_remove_btn_{pid}",
+                          on_click=lambda: st.session_state.update({f"svc_remove_{pid}": True}))
+        if is_cli and not status.present:
+            st.markdown(f'<div class="sfts-muted">{L("svc.install", url=preset.install_url)}</div>', unsafe_allow_html=True)
+        elif is_cli and status.logged_in is False:
+            st.markdown(f'<div class="sfts-muted">{L("svc.signin", cmd=f"<code>{preset.login_cmd}</code>")}</div>', unsafe_allow_html=True)
+        elif is_cli and status.logged_in is None and state == "unchecked":
+            st.markdown(f'<div class="sfts-muted">{L("svc.unknown")}</div>', unsafe_allow_html=True)
+        if not is_cli and pid != "demo":
+            key = load_secret(API_KEY_NAMES[pid])
+            if key and pid not in list_available_providers():
+                st.markdown(f'<div class="sfts-warn">{L("svc.blocked")}</div>', unsafe_allow_html=True)
+            if st.session_state.get(f"svc_remove_{pid}"):
+                with st.container(key=f"svc_confirm_{pid}", horizontal=True, vertical_alignment="center", gap="small", wrap=False):
+                    st.markdown(f'<div class="sfts-warn">{L("svc.remove_ask")}</div>', unsafe_allow_html=True)
+                    st.button(L("svc.keep"), key=f"svc_keep_{pid}", on_click=lambda: st.session_state.pop(f"svc_remove_{pid}", None))
+                    st.button(L("svc.confirm_remove"), key=f"svc_rm_{pid}", type="primary", on_click=_removed_key, args=(pid,))
+            if not key or st.session_state.get(f"svc_edit_{pid}"):
+                saved = _field_and_save(L("keys.paste_api"), f"paste_{pid}", f"save_{pid}", type="password",
+                                        placeholder=API_KEY_NAMES[pid])
+                if saved:
+                    st.session_state.pop(f"svc_edit_{pid}", None)
+                    _saved_key(API_KEY_NAMES[pid], saved)
+        test = st.session_state.get("svc_test", {}).get(pid)
+        if test:
+            ok, ms, text = test
+            msg = L("svc.test_ok", ms=ms, text=text) if ok == "ok" else L("svc.test_fail", msg=text)
+            st.markdown(f'<div class="sfts-test" data-tone="{ok}">{html.escape(msg)}</div>', unsafe_allow_html=True)
 
 
 def _field_and_save(label: str, key: str, save_key: str, **field) -> str | None:
     """A field and its Save button on one row; returns the stripped value when Save is clicked."""
-    c1, c2 = st.columns([3, 1], vertical_alignment="bottom")
-    with c1:
+    with st.container(key=f"row_{key}", horizontal=True, vertical_alignment="bottom", gap="small", wrap=False):
         val = st.text_input(label, key=key, label_visibility="collapsed", **field)
-    with c2:
-        clicked = st.button(L("keys.save"), key=save_key, use_container_width=True)
+        clicked = st.button(L("keys.save"), key=save_key)
     return val.strip() if clicked and val.strip() else None
 
 
-def _cli_block(which: str, label: str, hint_url: str, path_setting: str, prefix: str) -> None:
-    status = _probe(prefix)
-    _key_head(label, status.usable, L("keys.connected_cli") if status.usable else L("keys.unset"))
-    if not status.usable:
+def _order_row(n: int, row: dict, last: bool) -> None:
+    pid = row["id"]
+    is_cli = pid in cli_engine.PRESETS
+    state, tone = _service_state(pid)
+    with st.container(key=f"ord_{pid}", horizontal=True, vertical_alignment="center", gap="small", wrap=False):
         st.markdown(
-            f'<div class="sfts-muted">{L(f"keys.{prefix}_login") if status.present else L(f"keys.{prefix}_missing", url=hint_url)}</div>',
+            f'<div class="sfts-ord"><span class="sfts-rank">{n}</span><i class="sfts-dot" data-tone="{tone}"></i>'
+            f'<b>{html.escape(SERVICE_NAMES[pid])}</b></div>',
             unsafe_allow_html=True,
         )
-    saved = _field_and_save(
-        L(f"keys.{prefix}_path"), f"{prefix}_path_input", f"save_{prefix}_path",
-        value=path_setting, placeholder=L(f"keys.{prefix}_path"),
-    )
-    if saved:
-        _saved_key("GROK_CLI_PATH" if which == "grok" else "CODEX_CLI_PATH", saved)
-    st.markdown(f'<div class="sfts-muted">{L(f"keys.{prefix}_hint")}</div>', unsafe_allow_html=True)
-    st.markdown('<hr class="sfts-divider">', unsafe_allow_html=True)
+        extra = cli_engine.probe(pid).models if is_cli else ()
+        options = models_for(pid, tuple(extra))
+        if row.get("model") and row["model"] not in options:
+            options = [row["model"], *options]
+        st.selectbox(
+            L("order.model"), options=options, index=options.index(row["model"]) if row.get("model") in options else None,
+            placeholder=L("order.model_default"), accept_new_options=True, label_visibility="collapsed",
+            key=f"ord_model_{pid}", on_change=_chain_set, args=(pid, "model", f"ord_model_{pid}"),
+        )
+        if is_cli:
+            labels = {"": L("order.effort_default"), "low": L("order.low"), "medium": L("order.medium"), "high": L("order.high")}
+            st.selectbox(
+                L("order.effort"), options=list(EFFORTS), index=EFFORTS.index(row.get("effort") or ""),
+                format_func=labels.get, label_visibility="collapsed",
+                key=f"ord_eff_{pid}", on_change=_chain_set, args=(pid, "effort", f"ord_eff_{pid}"),
+            )
+        else:
+            st.markdown('<div class="sfts-ord-none">—</div>', unsafe_allow_html=True)
+        st.toggle(L("order.on"), value=row.get("enabled", True), key=f"ord_on_{pid}",
+                  on_change=_chain_set, args=(pid, "enabled", f"ord_on_{pid}"))
+        st.button(L("order.up"), key=f"ord_up_{pid}", on_click=_chain_move, args=(pid, -1), disabled=n == 1, help=L("order.up"))
+        st.button(L("order.down"), key=f"ord_dn_{pid}", on_click=_chain_move, args=(pid, 1), disabled=last, help=L("order.down"))
+
+
+def _set_provider() -> None:
+    st.session_state.provider = st.session_state.get("ord_use") or "auto"
+    _persist_prefs()
+
+
+def _set_limits() -> None:
+    save_prefs(concurrency=st.session_state.get("ord_global"), per_provider=st.session_state.get("ord_per"))
+    st.session_state.concurrency = clamp_concurrency(st.session_state.get("ord_global"))
 
 
 def render_keys_pane() -> None:
-    st.markdown(f'<div class="sfts-pane-title">{L("card.keys")}</div>', unsafe_allow_html=True)
-    with st.container(border=True, key="card_keys"):
-        for fallback, env_name, locale_key in KEY_ROWS:
-            label = _key_label(fallback, locale_key)
-            val = load_secret(env_name)
-            if val:
-                tail = val[-4:] if len(val) >= 4 else ""
-                _key_head(label, True, L("keys.connected", tail=tail) if tail else L("keys.set"))
-            else:
-                _key_head(label, False, L("keys.unset"))
-                saved = _field_and_save(
-                    L("keys.paste_api"), f"paste_{env_name}", f"save_{env_name}", type="password", placeholder=env_name,
-                )
-                if saved:
-                    _saved_key(env_name, saved)
-        st.markdown(f'<div class="sfts-muted">{L("keys.xai_hint")}</div>', unsafe_allow_html=True)
+    """Translators: one service card each, then the Order card (Auto = this chain) and the limits."""
+    st.markdown(f'<div class="sfts-pane-title">{L("card.translators")}</div>', unsafe_allow_html=True)
+    with st.container(border=True, key="card_services"):
+        for i, pid in enumerate(_services()):
+            if i:
+                st.markdown('<hr class="sfts-divider">', unsafe_allow_html=True)
+            _service_card(pid)
+        st.markdown(f'<div class="sfts-muted">{L("keys.local_plain")}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="sfts-pane-title">{L("card.order")}</div>', unsafe_allow_html=True)
+    with st.container(border=True, key="card_order"):
+        options = ["auto", *_services()]
+        current = st.session_state.provider if st.session_state.provider in options else "auto"
+        lab, ctl = st.columns([1.1, 2.2], vertical_alignment="center")
+        with lab:
+            st.markdown(f'<div class="sfts-row-label">{L("quick.translator")}</div>', unsafe_allow_html=True)
+        with ctl:
+            st.selectbox(
+                L("quick.translator"), options=options, index=options.index(current),
+                format_func={"auto": L("order.auto"), **SERVICE_NAMES}.get, label_visibility="collapsed",
+                key="ord_use", on_change=_set_provider,
+            )
         st.markdown('<hr class="sfts-divider">', unsafe_allow_html=True)
-        for pid in ("grok_cli", "codex_cli"):
-            pre = cli_engine.PRESETS[pid]
-            _cli_block(pid.split("_")[0], pre.name, pre.install_url, cli_engine.path_setting(pid), pid)
-        st.markdown(
-            f'<div class="sfts-muted">{L("keys.local_only")} {L("sidebar.connect_official_only")} '
-            f'{L("sidebar.connect_no_websites")}</div>',
-            unsafe_allow_html=True,
-        )
+        rows = _chain_rows()
+        for n, row in enumerate(rows, 1):
+            _order_row(n, row, n == len(rows))
+        st.markdown(f'<div class="sfts-muted">{L("order.hint")}</div>', unsafe_allow_html=True)
+        st.markdown('<hr class="sfts-divider">', unsafe_allow_html=True)
+        prefs = load_prefs()
+        lo_g, hi_g, def_g = runtime.GLOBAL_LIMIT
+        lo_p, hi_p, def_p = runtime.PER_LIMIT
+        with st.container(key="ord_limits", horizontal=True, vertical_alignment="center", gap="small", wrap=False):
+            st.markdown(f'<div class="sfts-row-label">{L("order.global")}</div>', unsafe_allow_html=True)
+            g_opts = list(range(lo_g, hi_g + 1))
+            st.selectbox(L("order.global"), options=g_opts, index=g_opts.index(runtime.clamp(prefs.get("concurrency", def_g), runtime.GLOBAL_LIMIT)),
+                         label_visibility="collapsed", key="ord_global", on_change=_set_limits)
+            st.markdown(f'<div class="sfts-row-label">{L("order.per")}</div>', unsafe_allow_html=True)
+            p_opts = list(range(lo_p, hi_p + 1))
+            st.selectbox(L("order.per"), options=p_opts, index=p_opts.index(runtime.clamp(prefs.get("per_provider", def_p), runtime.PER_LIMIT)),
+                         label_visibility="collapsed", key="ord_per", on_change=_set_limits)
+        st.markdown(f'<div class="sfts-muted">{L("order.limits_hint")}</div>', unsafe_allow_html=True)
+        with st.expander(L("order.advanced")):
+            for pid, preset in cli_engine.PRESETS.items():
+                st.markdown(f'<div class="sfts-flabel">{html.escape(L("order.path", name=preset.name))}</div>', unsafe_allow_html=True)
+                saved = _field_and_save(L("order.path", name=preset.name), f"path_{pid}", f"save_path_{pid}",
+                                        value=cli_engine.path_setting(pid), placeholder=preset.bin)
+                if saved:
+                    _saved_key(preset.path_env, saved)
 
 
 def render_glossary_pane() -> None:
@@ -654,7 +827,7 @@ def render_settings() -> None:
     labels = {
         "appearance": L("card.appearance"),
         "translation": L("card.translation"),
-        "keys": L("card.keys"),
+        "keys": L("card.translators"),
         "glossary": L("card.glossary"),
     }
     with rail:
@@ -709,12 +882,14 @@ def _chip_text(available: list[str]) -> tuple[str, bool]:
     if provider == "demo" or (provider == "auto" and available[0] == "demo"):
         return L("quick.demo_chip"), False
     if provider == "auto":
-        return f'{L("quick.auto")} · {PROVIDER_SHORT.get(available[0], available[0])}', False
+        chain = runtime.resolve_chain("auto")
+        head = chain[0].id if chain else available[0]
+        return f'{L("quick.auto")} · {SERVICE_NAMES.get(head, head)}', False
     if provider not in available:
-        return f'{PROVIDER_SHORT.get(provider, provider)} · {L("keys.unset")}', True
-    model = resolve_model(provider, st.session_state.get("model"))
-    name = PROVIDER_SHORT.get(provider, provider)
-    return (f"{name} · {model}" if model and model != "demo" else name), False
+        return f'{SERVICE_NAMES.get(provider, provider)} · {L("st.setup")}', True
+    row = next((r for r in load_prefs().get("chain", []) if r["id"] == provider), {})
+    name = SERVICE_NAMES.get(provider, provider)
+    return (f"{name} · {row['model']}" if row.get("model") else name), False
 
 
 def render_quick_bar() -> None:
@@ -757,7 +932,7 @@ def render_quick_bar() -> None:
             st.markdown(f'<div class="sfts-flabel">{L("quick.translator")}</div>', unsafe_allow_html=True)
             text, warn = _chip_text(available)
             if st.button(text, key="provider_chip_warn" if warn else "provider_chip", help=L("quick.change"), use_container_width=True):
-                _go("settings", "keys" if warn else "translation")
+                _go("settings", "keys")
         if st.session_state.target_lang == "other":
             st.text_input(L("sidebar.target_other"), placeholder="e.g. it, nl, pl", **_bound("qb_other", "target_other"))
         if not available:
@@ -772,7 +947,7 @@ def _job_kwargs() -> dict:
         provider_choice=st.session_state.provider,
         game_mode=st.session_state.purpose == "game",  # game text: only player-facing strings are sent
         purpose=st.session_state.purpose if st.session_state.purpose in PURPOSES else "general",
-        model=resolve_model(st.session_state.provider, st.session_state.get("model")),
+        model=None,  # each translator's model lives in its Order row
         concurrency=clamp_concurrency(st.session_state.concurrency),
     )
 

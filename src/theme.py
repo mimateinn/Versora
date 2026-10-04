@@ -34,6 +34,8 @@ MASKS = {
     "stop": _icons._mask_uri(_icons._STOP),
     "sun": _icons._mask_uri(_icons._SUN),
     "moon": _icons._mask_uri(_icons._MOON),
+    "up": _icons._mask_uri(_icons._p("M12 18.6V5.4M7.6 9.8 12 5.4l4.4 4.4")),
+    "down": _icons._mask_uri(_icons._p("M12 5.4v13.2M7.6 14.2l4.4 4.4 4.4-4.4")),
 }
 
 _TOKENS = {
@@ -429,6 +431,41 @@ div[class*="st-key-card_run"] { animation-delay: 24ms; }
 @keyframes sfts-toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes sfts-toast-out { to { opacity: 0; transform: translateY(8px); } }
 
+/* ── Translators: service rows and the order chain ── */
+.sfts-svc { display: flex; align-items: center; gap: 8px; min-height: 20px; flex-wrap: wrap; }
+.sfts-svc b, .sfts-ord b { font-size: 14px; font-weight: 600; color: var(--sfts-text); }
+.sfts-dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 8px; background: var(--sfts-wait); }
+.sfts-dot[data-tone="ok"] { background: var(--sfts-ok); }
+.sfts-dot[data-tone="warn"] { background: var(--sfts-accent); }
+.sfts-dot[data-tone="err"] { background: var(--sfts-err); }
+.sfts-chip { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 999px;
+  border: 1px solid var(--sfts-line-strong); color: var(--sfts-muted); font-size: 12px; }
+.sfts-state { font-size: 12px; font-weight: 500; color: var(--sfts-muted); }
+.sfts-state[data-tone="ok"] { color: var(--sfts-ok); }
+.sfts-state[data-tone="warn"] { color: var(--sfts-accent-strong); }
+.sfts-state[data-tone="err"] { color: var(--sfts-err); }
+.sfts-svc-line { display: block; margin: 4px 0 0 16px; font-family: var(--f-mono); font-size: 12px; line-height: 16px;
+  color: var(--sfts-faint); background: none; padding: 0; }
+.sfts-test { font-size: 13px; line-height: 20px; color: var(--sfts-ok); }
+.sfts-test[data-tone="err"] { color: var(--sfts-err); }
+.sfts-muted code, .sfts-warn code { font-family: var(--f-mono); font-size: 12px; background: var(--sfts-sunken); padding: 0 4px; border-radius: 4px; color: var(--sfts-text); }
+[class*="st-key-svc_head_"] > [data-testid="stElementContainer"]:first-child,
+[class*="st-key-svc_confirm_"] > [data-testid="stElementContainer"]:first-child,
+[class*="st-key-row_"] > [data-testid="stElementContainer"]:first-child { flex: 1 1 auto !important; min-width: 0; width: auto !important; }
+[class*="st-key-svc_"]:not([class*="st-key-svc_head_"]):not([class*="st-key-svc_confirm_"]) { gap: 8px !important; }
+.sfts-ord { display: flex; align-items: center; gap: 8px; width: 136px; white-space: nowrap; }
+[data-testid="stHorizontalBlock"][class*="st-key-ord_"] { gap: 8px !important; }
+[data-testid="stHorizontalBlock"][class*="st-key-ord_"]:not([class*="st-key-ord_limits"]) > [data-testid="stElementContainer"]:first-child { flex: 0 0 136px !important; }
+.sfts-rank { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%;
+  background: var(--sfts-sunken); color: var(--sfts-muted); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; flex: 0 0 24px; }
+.sfts-ord-none { width: 112px; color: var(--sfts-faint); text-align: center; }
+[class*="st-key-ord_"]:not([class*="st-key-ord_limits"]) > [data-testid="stElementContainer"]:nth-child(2) { flex: 1 1 auto !important; min-width: 0; width: auto !important; }
+[class*="st-key-ord_eff_"], [data-testid="stHorizontalBlock"][class*="st-key-ord_"] > [data-testid="stElementContainer"]:has(.sfts-ord-none) {
+  width: 112px !important; flex: 0 0 112px !important;
+}
+[class*="st-key-ord_limits"] [data-testid="stSelectbox"] { width: 96px; }
+[class*="st-key-ord_limits"] .sfts-row-label { white-space: nowrap; }
+
 /* ── Text bits ── */
 .sfts-muted { color: var(--sfts-muted); font-size: 12px; line-height: 20px; }
 .sfts-note { color: var(--sfts-muted); font-size: 13px; line-height: 20px; }
@@ -483,6 +520,9 @@ def _chrome_keys(theme: str, page: str, pane: str) -> str:
             _mask_icon('[class*="st-key-cancel_run"] button', "stop", "0", 14),
             _mask_icon('[class*="st-key-clear_picked"] button', "close", "0", 16),
             _mask_icon('[class*="st-key-gdel_"] button', "close", "0", 14),
+            _mask_icon('[class*="st-key-ord_up_"] button', "up"),
+            _mask_icon('[class*="st-key-ord_dn_"] button', "down"),
+            _mask_icon('[class*="st-key-svc_recheck_"] button', "retry"),
         ]
     )
     seg_file, seg_folder, seg_zip = (seg.format(key="source_type", n=n) for n in (1, 2, 3))
@@ -500,7 +540,7 @@ def _chrome_keys(theme: str, page: str, pane: str) -> str:
 }}
 [class*="st-key-topnav"] {{ gap: 24px !important; flex-wrap: nowrap !important; }}  /* tab, tab, theme: one even rhythm */
 /* Square icon buttons */
-[class*="st-key-theme_toggle"] button, [class*="st-key-swap_langs"] button,
+[class*="st-key-theme_toggle"] button, [class*="st-key-swap_langs"] button, [class*="st-key-ord_up_"] button, [class*="st-key-ord_dn_"] button,
 [class*="st-key-clear_picked"] button, [class*="st-key-gdel_"] button {{
   width: var(--h-ctrl) !important; min-width: var(--h-ctrl) !important; padding: 0 !important;
   background: transparent !important; border: 1px solid var(--sfts-line) !important; color: var(--sfts-muted) !important;
@@ -511,12 +551,14 @@ def _chrome_keys(theme: str, page: str, pane: str) -> str:
   border-radius: 7px !important;
 }}
 [class*="st-key-theme_toggle"] button:hover, [class*="st-key-swap_langs"] button:hover:not(:disabled),
+[class*="st-key-ord_up_"] button:hover:not(:disabled), [class*="st-key-ord_dn_"] button:hover:not(:disabled),
 [class*="st-key-clear_picked"] button:hover {{
   color: var(--sfts-accent-strong) !important; border-color: var(--sfts-accent) !important; background: var(--sfts-accent-soft) !important;
 }}
 [class*="st-key-gdel_"] button:hover {{ color: var(--sfts-err) !important; background: var(--sfts-err-soft) !important; }}
 /* icon-only: the label stays for screen readers (Streamlit renders aria-label="", so the text names it) */
 [class*="st-key-theme_toggle"] button > div, [class*="st-key-swap_langs"] button > div,
+[class*="st-key-ord_up_"] button > div, [class*="st-key-ord_dn_"] button > div,
 [class*="st-key-clear_picked"] button > div, [class*="st-key-gdel_"] button > div {{
   position: absolute !important; width: 1px !important; height: 1px !important; overflow: hidden !important;
   clip: rect(0 0 0 0) !important; white-space: nowrap !important;
@@ -557,11 +599,13 @@ def _chrome_keys(theme: str, page: str, pane: str) -> str:
 [class*="st-key-provider_chip_warn"] button {{ color: var(--sfts-accent-strong) !important; border-color: var(--sfts-accent) !important; background: var(--sfts-accent-soft) !important; }}
 
 /* Small buttons: 34 */
-[class*="st-key-cancel_run"] button, [class*="st-key-pane_"] button, [class*="st-key-update_settings"] button {{
+[class*="st-key-cancel_run"] button, [class*="st-key-pane_"] button, [class*="st-key-update_settings"] button,
+[class*="st-key-svc_recheck_"] button, [class*="st-key-svc_test_"] button, [class*="st-key-svc_replace_"] button,
+[class*="st-key-svc_remove_btn_"] button, [class*="st-key-svc_keep_"] button, [class*="st-key-svc_rm_"] button {{
   min-height: var(--h-small) !important; height: var(--h-small) !important;
 }}
-[class*="st-key-cancel_run"] button {{ padding: 0 12px !important; }}
-[class*="st-key-cancel_run"] button p {{ font-size: 13px !important; }}
+[class*="st-key-cancel_run"] button, [class*="st-key-svc_"] button {{ padding: 0 12px !important; }}
+[class*="st-key-cancel_run"] button p, [class*="st-key-svc_"] button p {{ font-size: 13px !important; }}
 
 /* Settings rail */
 [class*="st-key-pane_"] button, [class*="st-key-update_settings"] button {{

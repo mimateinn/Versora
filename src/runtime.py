@@ -223,6 +223,10 @@ class Runner:
                 except TranslationError as e:
                     last = e
                     break
+                except Exception as e:  # an engine bug or OS error: this translator is out, try the next
+                    last = ProviderError("spawn", f"{type(e).__name__}: {e}"[:240], link.id)
+                    note(link.id, "spawn")
+                    break
         raise last or TranslationError("No translator answered.")
 
 

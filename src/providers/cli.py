@@ -165,9 +165,11 @@ def run_cli(
 
 _SIGNS = (
     ("spawn", re.compile(r"\b(?:ENOENT|EACCES)\b|is not recognized as an internal or external command", re.I)),
-    ("limit", re.compile(r"^.*(?:hit your usage limit|usage limit reached|rate limit(?:ed)? |quota exceeded|too many requests).*$", re.I | re.M)),
+    ("limit", re.compile(r"^.*(?:hit your usage limit|usage limit reached|rate limit(?:ed)? |quota exceeded|too many requests|"
+                         r"insufficient(?: account)? balance|insufficient_balance|credit balance is too low).*$", re.I | re.M)),
     ("auth", re.compile(r"^.*(?:not logged in|please run .{0,20}login|log ?in to continue|oauth token (?:has )?expired|"
                         r"session (?:has )?expired|invalid api key|authentication_error|401 unauthorized|not authenticated).*$", re.I | re.M)),
+    ("refused", re.compile(r"^.*(?:safeguards flagged|usage polic(?:y|ies)|content policy).*$", re.I | re.M)),
 )
 # Only a short refusal-shaped reply counts: a long translation that quotes "I can't help" is a translation.
 _REFUSAL = re.compile(r"^\s*(?:I(?:'|’)m sorry|I(?:'|’)m unable|I (?:can(?:'|’)t|cannot|won(?:'|’)t) (?:help|assist|comply|do that)|"
@@ -379,7 +381,7 @@ def probe(pid: str, *, fresh: bool = False) -> CliStatus:
     if binary is not None:
         preset = PRESETS[pid]
         version, logged, models = "", None, ()
-        with tempfile.TemporaryDirectory(prefix="versora_probe_") as tmp:
+        with tempfile.TemporaryDirectory(prefix="versora_probe_", ignore_cleanup_errors=True) as tmp:
             env = child_env(preset.env_extra)
             try:
                 res = run_cli([str(binary), "--version"], cwd=tmp, env=env, timeout=PROBE_TIMEOUT)
@@ -424,7 +426,8 @@ class CLIEngine(Engine):
         prompt = f"{system}\n\n{user}"
         if len(prompt.encode("utf-8")) > OUTPUT_CAP:
             raise ProviderError("truncated", "prompt over 4 MB", self.id)
-        with tempfile.TemporaryDirectory(prefix="versora_cli_") as tmp:
+        # a CLI helper process may still hold the cwd when the CLI exits: leave the dir rather than fail
+        with tempfile.TemporaryDirectory(prefix="versora_cli_", ignore_cleanup_errors=True) as tmp:
             prompt_file = ""
             if not self.preset.stdin:
                 prompt_file = str(Path(tmp) / "prompt.txt")

@@ -96,6 +96,9 @@ def test_classify_cli_output() -> None:
     assert kind(1, err="Not logged in. Please run claude auth login") == "auth"
     assert kind(1, err="'codex' is not recognized as an internal or external command") == "spawn"
     assert kind(2, err="segfault") == "spawn"
+    # seen live 2026-10-04: grok out of credit, claude's model safeguards
+    assert kind(1, err='API error (status 403 Forbidden): INSUFFICIENT_BALANCE: Insufficient account balance') == "limit"
+    assert kind(1, out="API Error: Opus's safeguards flagged this session (https://www.anthropic.com/legal/aup).") == "refused"
     assert kind(0, out="I'm sorry, I can't help with that.") == "refused"
     assert kind(0, out="") == "empty"
     assert kind(0, out="1. Not logged in is quoted inside a real translation") == "ok"  # a success is never auth
@@ -223,3 +226,29 @@ def test_prompt_presets_versioned(tmp_path, monkeypatch) -> None:
     assert prompts.save_custom("Translate like a pirate. " * 5) == 1
     assert prompts.save_custom("Translate like a poet. " * 5) == 2
     assert prompts.load("custom")[0] == 2 and prompts.prompt_key("custom") == "custom@2/f1"
+
+
+def test_translators_pane_remove_is_two_step(tmp_path, monkeypatch) -> None:
+    """Settings → Translators: a saved key shows only its last 4; Remove asks once, then deletes it."""
+    import src.config as config
+    import src.security.secrets as secrets
+    import src.ui_prefs as ui_prefs
+    from streamlit.testing.v1 import AppTest
+
+    monkeypatch.setattr(ui_prefs, "prefs_path", lambda: tmp_path / ".sfts-ui.json")
+    monkeypatch.setattr(secrets, "_ROOT", tmp_path)
+    monkeypatch.setattr(cli, "probe", lambda pid, fresh=False: cli.CliStatus(pid, None))
+    monkeypatch.setattr(config, "_available_cache", None)
+    (tmp_path / ".env").write_text("OPENAI_API_KEY=sk-test-abcd1234wxyz\n", encoding="utf-8")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test-abcd1234wxyz")
+    app = str(Path(__file__).resolve().parents[1] / "app.py")
+    at = AppTest.from_file(app, default_timeout=60)
+    at.query_params["page"], at.query_params["pane"] = "settings", "keys"
+    at.run()
+    shown = " ".join(m.value for m in at.markdown)
+    assert "••••wxyz" in shown and "abcd1234" not in shown
+    at.button(key="svc_remove_btn_openai").click().run()
+    assert at.button(key="svc_rm_openai") and "OPENAI_API_KEY" in (tmp_path / ".env").read_text(encoding="utf-8")
+    at.button(key="svc_rm_openai").click().run()
+    assert "OPENAI_API_KEY" not in (tmp_path / ".env").read_text(encoding="utf-8")
+    assert not any(b.key == "svc_rm_openai" for b in at.button)
