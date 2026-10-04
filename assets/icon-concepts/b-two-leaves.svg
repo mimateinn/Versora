@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="20 16 120 120">
+  <title>Versora concept b-two-leaves</title>
+  <rect x="48" y="24" width="80" height="80" rx="12" fill="#B95233"/>
+  <rect x="32" y="40" width="80" height="82" rx="12" fill="#ECE7D4"/>
+  <path fill="#B95233" d="M44.6 40H49V125H32V52Q32 40 44.6 40Z"/>
+  <path data-part="cover-monogram" fill="#AA9E85" d="M67 80L83 80L83 82L79 82L84.6 101.5L91.2 82L87 82L87 80L99 80L99 82L94 82L84.9 111L82.5 111L72 82L67 82Z"/>
+  <path fill="#141415" d="M38.3 120H100Q112 120 112 109V120Q112 132 101 132H38.3Q32 132 32 126Q32 120 38.3 120Z"/>
+</svg>
