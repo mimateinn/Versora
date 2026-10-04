@@ -6,7 +6,8 @@ Start the app with the demo provider, slowed down so a run can be caught in prog
     python scripts/shoot.py --out <dir> [--url http://localhost:8511/] [--themes light dark]
 
 Writes <state>-<theme>.png at 1440x900, and runs check_alignment's measurements on each: idle, file-chosen, translating-file, file-done,
-file-error, translating-batch, batch-done, settings-appearance, settings-keys.
+file-error, translating-batch, batch-done, settings-translation, settings-keys, settings-appearance,
+settings-order (the Translators pane scrolled to its Order card).
 The provider must be Demo in prefs (Auto would pick a local CLI).
 """
 
@@ -65,9 +66,17 @@ def main() -> int:
                 page.locator(UPLOAD).set_input_files(str(path))
                 settle(page)
 
-            def start_and_catch_run(name: str, wait_ms: int) -> None:
+            def start(timeout: int = 30000) -> None:
+                """Click Translate; a click that lands mid-rerun can be dropped, so click once more."""
                 page.locator(".st-key-start_translate button").click()
-                page.wait_for_selector(".sfts-run", timeout=30000)
+                try:
+                    page.wait_for_selector(".sfts-run, .st-key-card_error", timeout=10000)
+                except Exception:
+                    page.locator(".st-key-start_translate button").click()
+                    page.wait_for_selector(".sfts-run, .st-key-card_error", timeout=timeout)
+
+            def start_and_catch_run(name: str, wait_ms: int) -> None:
+                start()
                 page.wait_for_timeout(wait_ms)
                 shot(name)
 
@@ -82,7 +91,7 @@ def main() -> int:
 
             fresh()
             pick(broken)
-            page.locator(".st-key-start_translate button").click()
+            start()
             page.wait_for_selector(".st-key-card_error", timeout=60000)
             settle(page)
             page.locator(".st-key-card_error [data-testid=stExpander] summary").click()
@@ -97,9 +106,12 @@ def main() -> int:
                 settle(page)
                 shot("batch-done")
 
-            for pane in ("appearance", "keys"):
+            for pane in ("translation", "appearance", "keys"):  # keys last: the Order shot scrolls it
                 fresh(f"page=settings&pane={pane}", mode=None)
                 shot(f"settings-{pane}")
+            page.locator(".st-key-card_order").scroll_into_view_if_needed()
+            page.wait_for_timeout(300)
+            shot("settings-order")
 
             fresh()  # leave the prefs on single-file mode
             page.close()
