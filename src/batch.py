@@ -42,9 +42,9 @@ SKIP_DIR_NAMES = {
 
 DEFAULT_MAX_FILES = 400
 DEFAULT_MAX_BYTES = 80_000_000
-DEFAULT_CONCURRENCY = 2
+DEFAULT_CONCURRENCY = 3  # files at once = the global call limit (runtime.GLOBAL_LIMIT)
 MIN_CONCURRENCY = 1
-MAX_CONCURRENCY = 8
+MAX_CONCURRENCY = 16
 
 
 def clamp_concurrency(value) -> int:
@@ -188,6 +188,7 @@ def _make_translator(
     model: str | None = None,
     cancel: threading.Event | None = None,
     on_chunk: Callable[[int, int], None] | None = None,
+    purpose: str = "general",
 ):
     def translate(strings: list[str]) -> list[str]:
         return translate_string_list(
@@ -197,6 +198,7 @@ def _make_translator(
             project=project,
             provider_choice=provider_choice,
             model=model,
+            purpose=purpose,
             cancel=cancel,
             on_chunk=on_chunk,
         )
@@ -271,6 +273,7 @@ def translate_tree(
     job_name: str = "batch",
     model: str | None = None,
     concurrency: int = DEFAULT_CONCURRENCY,
+    purpose: str = "general",
     report: BatchReport | None = None,
     on_progress: ProgressFn | None = None,
     cancel: threading.Event | None = None,
@@ -295,6 +298,7 @@ def translate_tree(
         project=project,
         provider_choice=provider_choice,
         model=model,
+        purpose=purpose,
         cancel=cancel,
     )
 
@@ -340,7 +344,7 @@ def translate_tree(
     def _run_one(src: Path, dest: Path, rel: str) -> tuple[str, BatchItem]:
         if cancel.is_set():
             return "failed", BatchItem(rel=rel, error=CANCELLED)
-        translate = _make_translator(target_lang, source_lang, project, provider_choice, model, cancel)
+        translate = _make_translator(target_lang, source_lang, project, provider_choice, model, cancel, purpose=purpose)
         suffix = src.suffix.lower()
         try:
             if suffix in SCRIPT_SUFFIXES:
@@ -400,6 +404,7 @@ def translate_single_file(
     game_mode: bool,
     model: str | None = None,
     concurrency: int = DEFAULT_CONCURRENCY,
+    purpose: str = "general",
     on_progress: ProgressFn | None = None,
 ) -> None:
     """``on_progress(done, total, None)`` fires per chunk sent to the provider."""
@@ -409,13 +414,14 @@ def translate_single_file(
         raise TranslationError("Refuses to overwrite the source file.")
     _ = clamp_concurrency(concurrency)
     on_chunk = (lambda done, total: on_progress(done, total, None)) if on_progress else None
-    translate = _make_translator(target_lang, source_lang, project, provider_choice, model, on_chunk=on_chunk)
+    translate = _make_translator(target_lang, source_lang, project, provider_choice, model, on_chunk=on_chunk, purpose=purpose)
     kw = dict(
         target_lang=target_lang,
         source_lang=source_lang,
         project=project,
         provider_choice=provider_choice,
         model=model,
+        purpose=purpose,
         on_chunk=on_chunk,
     )
     suffix = src.suffix.lower()

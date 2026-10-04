@@ -18,10 +18,33 @@ _PROVIDERS = {
     "anthropic",
     "gemini",
     "xai",
+    "claude_cli",
     "grok_cli",
     "codex_cli",
     "demo",
 }
+_PURPOSES = {"general", "technical", "ui", "subtitles", "game", "legal", "academic", "business", "custom"}
+_SAFE_ID = re.compile(r"^[A-Za-z0-9._:/-]{0,64}$")  # model / effort ids (they may reach a CLI's argv)
+
+
+def _clean_chain(rows: Any) -> list[dict[str, Any]]:
+    """The ordered translator chain: known ids once each, safe model / effort ids, an on/off flag."""
+    out, seen = [], set()
+    for row in rows if isinstance(rows, list) else []:
+        if not isinstance(row, dict):
+            continue
+        pid = str(row.get("id") or "")
+        if pid not in _PROVIDERS or pid in seen:
+            continue
+        model, effort = str(row.get("model") or "").strip(), str(row.get("effort") or "").strip()
+        seen.add(pid)
+        out.append({
+            "id": pid,
+            "model": model if _SAFE_ID.match(model) else "",
+            "effort": effort if effort in {"", "low", "medium", "high"} else "",
+            "enabled": bool(row.get("enabled", True)),
+        })
+    return out
 # Last-used translate choices. Codes are short tags ("en", "zh-Hant", "auto", "other");
 # the free-text "other" target is a language code or name typed by the user.
 _CHOICES = {
@@ -29,6 +52,13 @@ _CHOICES = {
     "content_mode": {"document", "game"},
 }
 _CODE_RE = re.compile(r"^[A-Za-z]{2,8}(-[A-Za-z0-9]{1,8})*$")
+
+
+def _clamp_per(value: Any) -> int:
+    try:
+        return max(1, min(8, int(value)))
+    except (TypeError, ValueError):
+        return 1
 
 
 def prefs_path() -> Path:
@@ -62,6 +92,12 @@ def load_prefs() -> dict[str, Any]:
             out["model_by_provider"] = cleaned
     if "concurrency" in data:
         out["concurrency"] = clamp_concurrency(data.get("concurrency"))
+    if "per_provider" in data:
+        out["per_provider"] = _clamp_per(data.get("per_provider"))
+    if "chain" in data:
+        out["chain"] = _clean_chain(data.get("chain"))
+    if data.get("purpose") in _PURPOSES:
+        out["purpose"] = data["purpose"]
     if "ui_lang_follow" in data:
         out["ui_lang_follow"] = bool(data.get("ui_lang_follow"))
     for key, allowed in _CHOICES.items():
@@ -95,6 +131,12 @@ def save_prefs(**values: Any) -> None:
         current["model_by_provider"] = {str(k): str(v) for k, v in models.items() if k and v}
     if values.get("concurrency") is not None:
         current["concurrency"] = clamp_concurrency(values["concurrency"])
+    if values.get("per_provider") is not None:
+        current["per_provider"] = _clamp_per(values["per_provider"])
+    if values.get("chain") is not None:
+        current["chain"] = _clean_chain(values["chain"])
+    if values.get("purpose") in _PURPOSES:
+        current["purpose"] = values["purpose"]
     for key, allowed in _CHOICES.items():
         if values.get(key) in allowed:
             current[key] = values[key]

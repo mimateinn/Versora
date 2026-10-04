@@ -6,18 +6,36 @@ import json
 import threading
 from pathlib import Path
 
+import re
+
 import src.batch as batch
-import src.translator as translator
+import src.config as config
+import src.runtime as runtime
 from src.batch import CANCELLED, BatchReport, translate_tree
+from src.providers.base import Engine, ProviderError
+
+AUTH_FAIL = "[auth] HTTP 401 invalid api key"
+
+
+class FakeEngine(Engine):
+    """Answers the runtime's numbered lines like a translator; any line holding a ``fail`` word is refused."""
+
+    id = "demo"
+    fail: set[str] = set()
+
+    def complete(self, system, user, *, cancel=None):
+        target = re.search(r"^Target language: (\S+)", user, re.M).group(1)
+        lines = re.findall(r"^(\d+)\. (.*)$", user, re.M)
+        if any(w in text for _n, text in lines for w in self.fail):
+            raise ProviderError("auth", "HTTP 401 invalid api key", self.id)
+        return "\n".join(f"{n}. [{target}] {text}" for n, text in lines)
 
 
 def _fake_provider(monkeypatch, fail: set[str] = frozenset()):
-    def fake(text, target_lang, **_kw):
-        if any(word in text for word in fail):
-            raise batch.TranslationError("HTTP 401 invalid api key")
-        return f"[{target_lang}] {text}"
-
-    monkeypatch.setattr(translator, "translate_text", fake)
+    FakeEngine.fail = set(fail)
+    monkeypatch.setattr(config, "_probe_available", lambda: ["demo"])
+    monkeypatch.setattr(config, "_available_cache", None)
+    monkeypatch.setattr(runtime, "make_engine", lambda link: FakeEngine())
 
 
 def test_batch_progress_cancel_retry(tmp_path, monkeypatch) -> None:
@@ -45,7 +63,7 @@ def test_batch_progress_cancel_retry(tmp_path, monkeypatch) -> None:
     assert shared.cancelled
     assert len(shared.written) < 6 and any(f.error == CANCELLED for f in shared.failed)
     assert len(shared.written) + len(shared.failed) == 7
-    assert all(f.error in {CANCELLED, "HTTP 401 invalid api key"} for f in shared.failed)
+    assert all(f.error in {CANCELLED, AUTH_FAIL} for f in shared.failed)
 
     # A callback that raises (Streamlit interrupting on a Cancel click) still cleans up.
     raised = BatchReport()

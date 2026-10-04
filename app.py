@@ -37,11 +37,8 @@ from src.game_text import SCRIPT_SUFFIXES
 from src.glossary import ensure_project, list_projects, load_glossary, save_glossary
 from src.i18n import FALLBACK_LANG, available_languages, detect_ui_language, language_display_name, t
 from src.models import default_model, models_for, resolve_model
-from src.providers.codex_cli import INSTALL_HINT as CODEX_HINT
-from src.providers.codex_cli import codex_cli_path_setting, probe_codex_cli
+from src.providers import cli as cli_engine
 from src.providers.demo import demo_enabled
-from src.providers.grok_cli import INSTALL_HINT as GROK_HINT
-from src.providers.grok_cli import grok_cli_path_setting, probe_grok_cli
 from src.security.secrets import load_secret, redact_secrets, save_secret_to_env
 from src.icons import ALERT, CHECK, DASH, FILE, GLOBE, wrap
 from src.theme import FX_JS, css_for
@@ -56,12 +53,12 @@ FORMATS_LINE = "\u00a0· ".join("txt md docx pdf json csv yaml po xliff xlsx htm
 TARGET_CODES = [
     "zh-Hant", "zh-Hans", "en", "ja", "ko", "es", "fr", "de", "pt", "vi", "th", "id", "other",
 ]
-PROVIDER_OPTIONS = ["auto", "openai", "anthropic", "gemini", "xai", "grok_cli", "codex_cli"] + (
+PROVIDER_OPTIONS = ["auto", "claude_cli", "codex_cli", "grok_cli", "openai", "anthropic", "gemini", "xai"] + (
     ["demo"] if demo_enabled() else []
 )
 PROVIDER_SHORT = {
     "openai": "OpenAI", "anthropic": "Claude", "gemini": "Gemini", "xai": "xAI",
-    "grok_cli": "Grok CLI", "codex_cli": "Codex CLI", "demo": "Demo",
+    "claude_cli": "Claude Code", "grok_cli": "Grok CLI", "codex_cli": "Codex CLI", "demo": "Demo",
 }
 SETTINGS_PANES = ("translation", "keys", "glossary", "appearance")
 KEY_ROWS = (
@@ -292,8 +289,8 @@ def _busy_icon_uri() -> str:
 
 
 @st.cache_data(ttl=60, show_spinner=False)
-def _probe(which: str):
-    return probe_grok_cli() if which == "grok" else probe_codex_cli()
+def _probe(pid: str):
+    return cli_engine.probe(pid)
 
 
 def _fmt_size(n: int) -> str:
@@ -531,6 +528,7 @@ def _key_label(fallback: str, locale_key: str) -> str:
 
 def _saved_key(env_name: str, value: str) -> None:
     save_secret_to_env(env_name, value)
+    cli_engine.forget_status()
     list_available_providers(fresh=True)
     _probe.clear()
     _toast(L("sidebar.save_key_ok"))
@@ -557,11 +555,11 @@ def _field_and_save(label: str, key: str, save_key: str, **field) -> str | None:
 
 
 def _cli_block(which: str, label: str, hint_url: str, path_setting: str, prefix: str) -> None:
-    status = _probe(which)
+    status = _probe(prefix)
     _key_head(label, status.usable, L("keys.connected_cli") if status.usable else L("keys.unset"))
     if not status.usable:
         st.markdown(
-            f'<div class="sfts-muted">{L(f"keys.{prefix}_login") if status.hint == "login" else L(f"keys.{prefix}_missing", url=hint_url)}</div>',
+            f'<div class="sfts-muted">{L(f"keys.{prefix}_login") if status.present else L(f"keys.{prefix}_missing", url=hint_url)}</div>',
             unsafe_allow_html=True,
         )
     saved = _field_and_save(
@@ -592,8 +590,9 @@ def render_keys_pane() -> None:
                     _saved_key(env_name, saved)
         st.markdown(f'<div class="sfts-muted">{L("keys.xai_hint")}</div>', unsafe_allow_html=True)
         st.markdown('<hr class="sfts-divider">', unsafe_allow_html=True)
-        _cli_block("grok", _key_label("Official Grok CLI", "keys.grok_cli"), GROK_HINT, grok_cli_path_setting(), "grok_cli")
-        _cli_block("codex", _key_label("Official Codex CLI", "keys.codex_cli"), CODEX_HINT, codex_cli_path_setting(), "codex_cli")
+        for pid in ("grok_cli", "codex_cli"):
+            pre = cli_engine.PRESETS[pid]
+            _cli_block(pid.split("_")[0], pre.name, pre.install_url, cli_engine.path_setting(pid), pid)
         st.markdown(
             f'<div class="sfts-muted">{L("keys.local_only")} {L("sidebar.connect_official_only")} '
             f'{L("sidebar.connect_no_websites")}</div>',
@@ -786,6 +785,7 @@ def _job_kwargs() -> dict:
         project=st.session_state.project,
         provider_choice=st.session_state.provider,
         game_mode=st.session_state.content_mode == "game",
+        purpose="game" if st.session_state.content_mode == "game" else "general",
         model=resolve_model(st.session_state.provider, st.session_state.get("model")),
         concurrency=clamp_concurrency(st.session_state.concurrency),
     )

@@ -1,19 +1,18 @@
-"""Offline demo provider. Only exists when SFTS_DEMO=1 (screenshots, trying the UI).
+"""Offline demo translator. Only exists when SFTS_DEMO=1 (screenshots, trying the UI).
 
-It does not translate: it tags each line with the target code, keeps every
-§SFTSn§ marker, and waits a little so progress is visible.
+It does not translate: it answers the runtime's numbered lines with each line tagged by the
+target code, and waits a little so progress is visible.
 """
 
 from __future__ import annotations
 
 import os
 import re
-import time
-from typing import Optional
 
-from .base import BaseProvider
+from .base import Cancelled, Engine
 
-_MARKER = re.compile(r"^§SFTS\d+§$")
+_LINE = re.compile(r"^(\d+)\.\s?(.*)$")
+_TARGET = re.compile(r"^Target language:\s*(\S+)", re.M)
 
 
 def demo_enabled() -> bool:
@@ -27,21 +26,26 @@ def _delay() -> float:
         return 0.3
 
 
-class DemoProvider(BaseProvider):
-    name = "demo"
+class DemoEngine(Engine):
+    id = "demo"
+    transport = "demo"
 
-    def __init__(self, model: str | None = None) -> None:
+    def __init__(self, model: str = "") -> None:
         self.model = model or "demo"
 
-    def translate(
-        self,
-        text: str,
-        target_lang: str,
-        source_lang: Optional[str] = None,
-        glossary_block: str = "",
-    ) -> str:
-        time.sleep(_delay())
-        return "\n".join(
-            line if not line.strip() or _MARKER.match(line.strip()) else f"[{target_lang}] {line}"
-            for line in text.split("\n")
-        )
+    def complete(self, system: str, user: str, *, cancel=None) -> str:
+        if cancel is not None and cancel.wait(_delay()):
+            raise Cancelled()
+        if cancel is None:
+            import time
+
+            time.sleep(_delay())
+        m = _TARGET.search(user)
+        target = m.group(1) if m else "xx"
+        out = []
+        for line in user.splitlines():
+            hit = _LINE.match(line)
+            if hit:
+                text = hit.group(2)
+                out.append(f"{hit.group(1)}. [{target}] {text}" if text.strip() else f"{hit.group(1)}. {text}")
+        return "\n".join(out)

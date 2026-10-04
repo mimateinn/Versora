@@ -1,43 +1,26 @@
-"""High-level translate pipeline: chunk → provider → join."""
+"""High-level translate calls used by the file handlers. All of them go through src.runtime."""
 
 from __future__ import annotations
 
-from typing import Callable, List, Optional, Tuple
+import re
+from typing import Callable, Optional, Tuple
 
 from .config import get_chunk_size
 from .glossary import glossary_to_prompt_block, load_glossary
-from .providers import translate_text
-from .providers.base import Cancelled, TranslationError
+from .prompts import DEFAULT, system_prompt
+from .providers.base import TranslationError
+from .runtime import Runner, apply_limits_from_prefs, resolve_chain, translate_units
+
+_PARA = re.compile(r"(\n[ \t]*\n+)")  # blank-line separators are kept as they are
 
 
-def _split_chunks(text: str, max_chars: int) -> List[str]:
-    if len(text) <= max_chars:
-        return [text]
-    chunks: List[str] = []
-    # Prefer paragraph boundaries
-    paragraphs = text.split("\n")
-    buf: List[str] = []
-    size = 0
-    for p in paragraphs:
-        plen = len(p) + 1
-        if size + plen > max_chars and buf:
-            chunks.append("\n".join(buf))
-            buf = [p]
-            size = plen
-        else:
-            buf.append(p)
-            size += plen
-    if buf:
-        chunks.append("\n".join(buf))
-    # Hard-split any still-too-large chunk
-    final: List[str] = []
-    for c in chunks:
-        if len(c) <= max_chars:
-            final.append(c)
-        else:
-            for i in range(0, len(c), max_chars):
-                final.append(c[i : i + max_chars])
-    return final
+def _translate(units, target_lang, source_lang, project, provider_choice, model, purpose, cancel, on_chunk):
+    pairs = load_glossary(project) if project else []
+    system = system_prompt(purpose or DEFAULT, target_lang, source_lang, glossary_to_prompt_block(pairs))
+    apply_limits_from_prefs()
+    runner = Runner(resolve_chain(provider_choice, model), cancel)
+    return translate_units(units, system=system, target_lang=target_lang, runner=runner,
+                           max_chars=get_chunk_size(), cancel=cancel, on_chunk=on_chunk)
 
 
 def translate_document(
@@ -47,42 +30,23 @@ def translate_document(
     project: Optional[str] = None,
     provider_choice: str = "auto",
     model: str | None = None,
+    purpose: str = DEFAULT,
     cancel=None,
     on_chunk: Optional[Callable[[int, int], None]] = None,
 ) -> Tuple[str, int]:
-    """
-    Returns (translated_full_text, number_of_chunks).
-    Raises TranslationError on failure, Cancelled once ``cancel`` (a threading.Event) is set.
-    ``on_chunk(done, total)`` runs after each chunk.
-    """
+    """Paragraphs are the units, so sentences keep their context. Returns (text, batches)."""
     if not text or not text.strip():
         raise TranslationError("Empty text; nothing to translate.")
+    seen = {"n": 0}
 
-    pairs = load_glossary(project) if project else []
-    glossary_block = glossary_to_prompt_block(pairs)
-    max_chars = get_chunk_size()
-    chunks = _split_chunks(text, max_chars)
-    results: List[str] = []
-    if on_chunk:
-        on_chunk(0, len(chunks))
-    for n, chunk in enumerate(chunks, 1):
-        if cancel is not None and cancel.is_set():
-            raise Cancelled()
-        out = translate_text(
-            text=chunk,
-            target_lang=target_lang,
-            source_lang=source_lang,
-            glossary_block=glossary_block,
-            provider_choice=provider_choice,
-            model=model,
-        )
-        results.append(out)
+    def count(done: int, total: int) -> None:
+        seen["n"] = total
         if on_chunk:
-            on_chunk(n, len(chunks))
-    return "\n".join(results), len(chunks)
+            on_chunk(done, total)
 
-
-_MARK = "§SFTS{i}§"
+    parts = _PARA.split(text)
+    out = _translate(parts, target_lang, source_lang, project, provider_choice, model, purpose, cancel, count)
+    return "".join(out), seen["n"]
 
 
 def translate_string_list(
@@ -92,77 +56,14 @@ def translate_string_list(
     project: Optional[str] = None,
     provider_choice: str = "auto",
     model: str | None = None,
+    purpose: str = DEFAULT,
     cancel=None,
     on_chunk: Optional[Callable[[int, int], None]] = None,
 ) -> list[str]:
-    """Translate player-facing strings. Identical inputs share one result.
-    ``cancel`` / ``on_chunk`` work as in translate_document."""
+    """Player-facing / cell strings. Identical inputs share one result."""
     if not strings:
         return []
-    unique: list[str] = []
-    index: list[int] = []
-    seen: dict[str, int] = {}
-    for s in strings:
-        if s not in seen:
-            seen[s] = len(unique)
-            unique.append(s)
-        index.append(seen[s])
-
-    pairs = load_glossary(project) if project else []
-    glossary_block = glossary_to_prompt_block(pairs)
-    extra = (
-        "Keep every §SFTSn§ marker exactly. Translate only the text between markers. "
-        "Do not merge blocks. Do not translate the markers."
-    )
-    if glossary_block:
-        glossary_block = glossary_block + "\n" + extra
-    else:
-        glossary_block = extra
-
-    translated_unique = [""] * len(unique)
-    max_chars = get_chunk_size()
-    batches: list[list[int]] = [[]]
-    size = 0
-    for i, s in enumerate(unique):
-        need = len(s) + 16
-        if batches[-1] and size + need > max_chars:
-            batches.append([])
-            size = 0
-        batches[-1].append(i)
-        size += need
-
-    def flush(batch: list[int]) -> None:
-        parts = []
-        for i in batch:
-            parts.append(_MARK.format(i=i))
-            parts.append(unique[i])
-        blob = "\n".join(parts)
-        out = translate_text(
-            text=blob,
-            target_lang=target_lang,
-            source_lang=source_lang,
-            glossary_block=glossary_block,
-            provider_choice=provider_choice,
-            model=model,
-        )
-        leftover = out
-        for n, i in enumerate(batch):
-            token = _MARK.format(i=i)
-            if token not in leftover:
-                translated_unique[i] = unique[i]
-                continue
-            _pre, rest = leftover.split(token, 1)
-            leftover = rest
-            nxt = _MARK.format(i=batch[n + 1]) if n + 1 < len(batch) else None
-            piece = leftover.split(nxt, 1)[0] if nxt and nxt in leftover else leftover
-            translated_unique[i] = piece.strip()
-
-    if on_chunk:
-        on_chunk(0, len(batches))
-    for n, batch in enumerate(batches, 1):
-        if cancel is not None and cancel.is_set():
-            raise Cancelled()
-        flush(batch)
-        if on_chunk:
-            on_chunk(n, len(batches))
-    return [translated_unique[i] for i in index]
+    unique = list(dict.fromkeys(strings))
+    done = _translate(unique, target_lang, source_lang, project, provider_choice, model, purpose, cancel, on_chunk)
+    mapping = dict(zip(unique, done))
+    return [mapping[s] for s in strings]

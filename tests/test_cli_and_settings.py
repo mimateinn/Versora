@@ -7,8 +7,7 @@ from pathlib import Path
 from src.batch import DEFAULT_CONCURRENCY, MAX_CONCURRENCY, MIN_CONCURRENCY, clamp_concurrency
 from src.i18n import detect_ui_language
 from src.models import models_for, resolve_model
-from src.providers.codex_cli import build_exec_argv, resolve_codex_binary
-from src.providers.grok_cli import build_print_argv, resolve_grok_binary
+from src.providers.cli import PRESETS, resolve_bin
 from src.security.hosts import is_official_api_host
 from src.updater.github_http import PIN_OWNER, PIN_REPO
 
@@ -33,80 +32,62 @@ def test_blocked_websites() -> None:
 
 
 def test_concurrency_range() -> None:
+    """Files at once = the runtime's global call limit (Litora: default 3, 1-16)."""
     assert clamp_concurrency(None) == DEFAULT_CONCURRENCY
     assert clamp_concurrency("nope") == DEFAULT_CONCURRENCY
     assert clamp_concurrency(0) == MIN_CONCURRENCY
     assert clamp_concurrency(99) == MAX_CONCURRENCY
     assert clamp_concurrency(2) == 2
-    assert DEFAULT_CONCURRENCY == 2
-    assert MIN_CONCURRENCY == 1
-    assert MAX_CONCURRENCY == 8
+    assert (DEFAULT_CONCURRENCY, MIN_CONCURRENCY, MAX_CONCURRENCY) == (3, 1, 16)
 
 
-def test_models_match_provider() -> None:
+def test_models_are_suggestions() -> None:
     assert models_for("auto") == []
     assert resolve_model("auto", "gpt-4o") is None
-    openai = models_for("openai")
-    assert "gpt-4o-mini" in openai
-    assert resolve_model("openai", "gpt-4o") == "gpt-4o"
-    assert "gpt-5.1-codex" in models_for("codex_cli")
-    assert "grok-3-mini" in models_for("grok_cli")
-    assert "gpt-5.1-codex" not in models_for("grok_cli")
-    assert "grok-3-mini" not in models_for("codex_cli")
+    assert "sonnet" in models_for("claude_cli") and "sonnet" not in models_for("grok_cli")
+    assert models_for("grok_cli", ("grok-9-test",))[0] == "grok-9-test"  # ids the CLI reported come first
+    assert resolve_model("openai", "my-finetune-2026") == "my-finetune-2026"  # custom ids are allowed
+    assert resolve_model("openai", "bad id; rm -rf") == resolve_model("openai", "")  # not an id: default
+    assert resolve_model("codex_cli", "") is None  # blank CLI model: the CLI's own default
 
 
-def test_grok_print_argv_isolation(tmp_path: Path | None = None) -> None:
-    import tempfile
+def _argv(pid: str, model: str = "m-1", effort: str = "low") -> list[str]:
+    return PRESETS[pid].args(model, effort, "/tmp/p/prompt.txt", "/tmp/p")
 
-    cwd = Path(tmp_path) if tmp_path else Path(tempfile.mkdtemp(prefix="sfts_t_"))
-    flags = {
-        "-p",
-        "--output-format",
-        "--no-auto-update",
-        "--permission-mode",
-        "--disable-web-search",
-        "--no-subagents",
-        "--sandbox",
-        "--cwd",
-        "--max-turns",
-        "--model",
-    }
-    argv = build_print_argv(Path("/usr/bin/grok"), "hi", cwd, flags, "grok-3-mini")
+
+def test_grok_argv_isolation() -> None:
+    argv = _argv("grok_cli")
+    assert argv[:2] == ["--prompt-file", "/tmp/p/prompt.txt"]  # the text goes in a file, never argv
+    for flag in ("--permission-mode", "--disable-web-search", "--no-subagents", "--no-plan", "--max-turns"):
+        assert flag in argv
+    assert "dontAsk" in argv and argv[argv.index("--max-turns") + 1] == "1"
+    assert ["-m", "m-1"] == argv[argv.index("-m"):argv.index("-m") + 2]
     joined = " ".join(argv)
-    assert argv[0].endswith("grok")
-    assert "-p" in argv
-    assert "--permission-mode" in argv and "dontAsk" in argv
-    assert "--disable-web-search" in argv
-    assert "--no-subagents" in argv
-    assert "--sandbox" in argv and "strict" in argv
-    assert "--cwd" in argv and str(cwd) in argv
-    assert "--max-turns" in argv and "1" in argv
-    assert "--always-approve" not in argv
-    assert "--yolo" not in argv
-    assert "--oauth" not in joined
+    assert not any(b in joined for b in PRESETS["grok_cli"].banned)
+    assert "-m" not in _argv("grok_cli", model="") and "--reasoning-effort" not in _argv("grok_cli", effort="")
 
 
-def test_codex_exec_argv_isolation(tmp_path: Path | None = None) -> None:
-    import tempfile
-
-    cwd = Path(tmp_path) if tmp_path else Path(tempfile.mkdtemp(prefix="sfts_t_"))
-    flags = {"--sandbox", "--cd", "--model", "--skip-git-repo-check", "--ask-for-approval"}
-    argv = build_exec_argv(Path("/usr/bin/codex"), cwd, flags, "gpt-5.1-codex")
+def test_codex_argv_isolation() -> None:
+    argv = _argv("codex_cli")
+    assert argv[0] == "exec" and argv[-1] == "-"  # prompt on stdin
+    assert argv[argv.index("--sandbox") + 1] == "read-only"
+    assert argv[argv.index("--cd") + 1] == "/tmp/p"
+    assert "model_reasoning_effort=low" in argv
     joined = " ".join(argv)
-    assert argv[:2] == [str(Path("/usr/bin/codex")), "exec"]
-    assert argv[-1] == "-"
-    assert "--sandbox" in argv and "read-only" in argv
-    assert "--cd" in argv and str(cwd) in argv
-    assert "--full-auto" not in argv
-    assert "--yolo" not in argv
-    assert "--dangerously-bypass-approvals-and-sandbox" not in argv
-    assert "danger-full-access" not in joined
-    assert "workspace-write" not in joined
+    assert not any(b in joined for b in PRESETS["codex_cli"].banned)
+    assert _argv("claude_cli") == ["-p", "--model", "m-1", "--effort", "low"]
+    assert _argv("claude_cli", "", "") == ["-p"]
 
 
-def test_cli_binary_names_only() -> None:
-    assert resolve_grok_binary("/tmp/not-grok") is None
-    assert resolve_codex_binary("/tmp/not-codex") is None
+def test_cli_binary_names(tmp_path: Path) -> None:
+    for name in ("codex.CMD", "codex.exe", "claude.cmd", "grok"):
+        (tmp_path / name).write_text("", encoding="utf-8")
+    (tmp_path / "not-grok.exe").write_text("", encoding="utf-8")
+    assert resolve_bin("codex_cli", str(tmp_path / "codex.CMD")) is not None  # npm shim on Windows
+    assert resolve_bin("claude_cli", str(tmp_path / "claude.cmd")) is not None
+    assert resolve_bin("grok_cli", str(tmp_path / "grok")) is not None
+    assert resolve_bin("grok_cli", str(tmp_path / "not-grok.exe")) is None
+    assert resolve_bin("codex_cli", str(tmp_path / "missing.exe")) is None
 
 
 def test_sources_never_read_auth_files() -> None:
@@ -116,12 +97,9 @@ def test_sources_never_read_auth_files() -> None:
         "Path.home() / \".codex\" / \"auth.json\"",
         "~/.grok/auth.json",
         "~/.codex/auth.json",
+        ".claude/.credentials",
     )
-    for rel in (
-        "src/providers/grok_cli.py",
-        "src/providers/codex_cli.py",
-        "app.py",
-    ):
+    for rel in ("src/providers/cli.py", "src/providers/api.py", "app.py"):
         text = (root / rel).read_text(encoding="utf-8")
         for needle in banned_reads:
             assert needle not in text
@@ -184,18 +162,3 @@ def test_locales_hide_subscription_copy() -> None:
         assert "keys.connect_sub" not in text
         assert "keys.sub_wait" not in text
         assert "等候安全審查" not in text
-
-
-if __name__ == "__main__":
-    test_overlay_pin()
-    test_blocked_websites()
-    test_concurrency_range()
-    test_models_match_provider()
-    test_grok_print_argv_isolation()
-    test_codex_exec_argv_isolation()
-    test_cli_binary_names_only()
-    test_sources_never_read_auth_files()
-    test_detect_language()
-    test_v2_chrome_contract()
-    test_locales_hide_subscription_copy()
-    print("ok")

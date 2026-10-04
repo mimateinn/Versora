@@ -1,6 +1,12 @@
-"""Provider-matched model catalogs. Local lists only — no website login."""
+"""Model suggestions per translator. Suggestions only: any id the provider accepts can be typed in.
+
+Lists date quickly, so none of them is a default for a CLI: a blank model drops the flag and the
+CLI's own configured default is used. API defaults come from the *_MODEL env settings.
+"""
 
 from __future__ import annotations
+
+import re
 
 from .config import (
     get_anthropic_config,
@@ -9,31 +15,18 @@ from .config import (
     get_xai_config,
 )
 
-# Official API / CLI model ids shown in Settings. Keep each list on its provider.
-_MODELS: dict[str, list[str]] = {
-    "openai": ["gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "gpt-4.1"],
-    "anthropic": [
-        "claude-3-5-haiku-20241022",
-        "claude-3-5-sonnet-20241022",
-        "claude-sonnet-4-20250514",
-    ],
-    "gemini": ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash"],
-    "xai": ["grok-3-mini", "grok-3", "grok-2-latest"],
-    "grok_cli": ["grok-3-mini", "grok-3", "grok-4", "grok-2-latest"],
-    "codex_cli": ["gpt-5.1-codex", "gpt-5", "gpt-5-mini", "o4-mini", "o3"],
+MODEL_ID = re.compile(r"^[A-Za-z0-9._:/-]{1,64}$")
+
+_SUGGEST: dict[str, list[str]] = {
+    "openai": ["gpt-4.1-mini", "gpt-4.1", "gpt-4o-mini", "gpt-4o"],
+    "anthropic": ["claude-sonnet-4-5", "claude-haiku-4-5", "claude-opus-4-1"],
+    "gemini": ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"],
+    "xai": ["grok-4", "grok-3-mini", "grok-3"],
+    "claude_cli": ["sonnet", "opus", "haiku"],
+    "codex_cli": ["gpt-5-codex", "gpt-5", "gpt-5-mini"],
+    "grok_cli": ["grok-4", "grok-code-fast-1", "grok-3-mini"],
     "demo": ["demo"],
 }
-
-
-def models_for(provider: str) -> list[str]:
-    choice = (provider or "auto").lower().strip()
-    if choice == "auto":
-        return []
-    names = list(_MODELS.get(choice) or [])
-    env_default = default_model(choice)
-    if env_default and env_default not in names:
-        names.insert(0, env_default)
-    return names
 
 
 def default_model(provider: str) -> str:
@@ -46,16 +39,24 @@ def default_model(provider: str) -> str:
         return get_gemini_config().model
     if choice == "xai":
         return get_xai_config().model
-    catalog = _MODELS.get(choice) or []
-    return catalog[0] if catalog else ""
+    return ""  # CLIs: their own default
+
+
+def models_for(provider: str, extra: tuple[str, ...] = ()) -> list[str]:
+    """Suggestions: the env default first, then ids the CLI reported (``extra``), then our list."""
+    choice = (provider or "auto").lower().strip()
+    if choice == "auto":
+        return []
+    names = [default_model(choice), *extra, *(_SUGGEST.get(choice) or [])]
+    return [n for n in dict.fromkeys(names) if n]
 
 
 def resolve_model(provider: str, chosen: str | None) -> str | None:
+    """A typed custom id is kept when it is a plausible id; otherwise the provider default."""
     choice = (provider or "auto").lower().strip()
     if choice == "auto":
         return None
-    allowed = models_for(choice)
     name = (chosen or "").strip()
-    if name and name in allowed:
+    if name and MODEL_ID.match(name):
         return name
     return default_model(choice) or None

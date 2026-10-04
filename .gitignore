@@ -230,3 +230,4 @@ sfts-live-*.png
 # Translation output (local, per user)
 data/outputs/*
 !data/outputs/.gitkeep
+data/prompts/
