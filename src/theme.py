@@ -430,7 +430,7 @@ div[class*="st-key-card_run"] { animation-delay: 24ms; }
 .sfts-pill-on .sfts-ico svg, .sfts-pill-off .sfts-ico svg { width: 12px; height: 12px; }
 .sfts-footer { color: var(--sfts-faint); font-size: 11px; line-height: 20px; margin: 0; font-family: var(--f-mono); letter-spacing: .06em; }
 [data-testid="stExpander"] details { border: 1px solid var(--sfts-line) !important; border-radius: 10px !important; background: transparent !important; }
-[data-testid="stExpander"] summary { color: var(--sfts-muted) !important; min-height: 34px; padding: 0 12px !important; }
+[data-testid="stExpander"] summary { color: var(--sfts-muted) !important; background: transparent !important; min-height: 34px; padding: 0 12px !important; }
 [data-testid="stExpander"] summary p { font-family: var(--f-mono); font-size: 11px !important; letter-spacing: .14em; text-transform: uppercase; }
 hr { border-color: var(--sfts-line) !important; margin: 0 !important; }
 
