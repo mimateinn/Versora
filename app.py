@@ -992,8 +992,11 @@ def render_batch_result() -> None:
                     _open_folder(report.output_root)
         with b3:
             if n_fail and job:
-                if st.button(L("batch.retry", n=n_fail), key="retry_failed", use_container_width=True):
-                    _run_batch(job, only={f.rel for f in report.failed})
+                # runs at page level on the next pass, not inside this narrow column
+                st.button(
+                    L("batch.retry", n=n_fail), key="retry_failed", use_container_width=True,
+                    on_click=lambda: st.session_state.update(retry_pending=True),
+                )
 
         def rows(items, state: str, note) -> str:
             return '<div class="sfts-files">' + "".join(
@@ -1124,6 +1127,9 @@ def render_translate() -> None:
             _run_batch({"kind": "folder", "path": str(root)})
     elif go:
         st.rerun()
+
+    if st.session_state.pop("retry_pending", False) and st.session_state.batch_report and st.session_state.batch_job:
+        _run_batch(st.session_state.batch_job, only={f.rel for f in st.session_state.batch_report.failed})
 
     if kind == "file" and st.session_state.result:
         render_single_result()

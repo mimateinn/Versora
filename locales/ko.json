@@ -174,5 +174,11 @@
   "glossary.delete": "이 용어 삭제",
   "sidebar.provider_demo": "데모 (오프라인, 실제 번역 아님)",
   "update.checking": "공식 업데이트 확인 중…",
-  "quick.translator": "번역 서비스"
+  "quick.translator": "번역 서비스",
+  "keys.save": "저장",
+  "main.no_translator": "아직 번역 서비스가 없습니다. 설정 → 키에서 API 키를 추가하세요.",
+  "main.try_again": "다시 시도",
+  "main.failed_title": "번역하지 못함",
+  "main.details": "자세히",
+  "err.generic": "이 파일을 처리하는 중 문제가 생겼습니다."
 }

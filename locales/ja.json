@@ -174,5 +174,11 @@
   "glossary.delete": "この用語を削除",
   "sidebar.provider_demo": "デモ（オフライン、実際の翻訳ではありません）",
   "update.checking": "公式アップデートを確認中…",
-  "quick.translator": "翻訳サービス"
+  "quick.translator": "翻訳サービス",
+  "keys.save": "保存",
+  "main.no_translator": "翻訳サービスが未設定です。設定 → キーで API キーを追加してください。",
+  "main.try_again": "もう一度試す",
+  "main.failed_title": "翻訳できませんでした",
+  "main.details": "詳細",
+  "err.generic": "このファイルの処理中に問題が起きました。"
 }

@@ -174,5 +174,11 @@
   "glossary.delete": "Diesen Begriff löschen",
   "sidebar.provider_demo": "Demo (offline, keine echte Übersetzung)",
   "update.checking": "Suche nach offiziellen Updates…",
-  "quick.translator": "Übersetzer"
+  "quick.translator": "Übersetzer",
+  "keys.save": "Speichern",
+  "main.no_translator": "Noch kein Übersetzer eingerichtet. Füge in Einstellungen → Schlüssel einen API-Schlüssel hinzu.",
+  "main.try_again": "Erneut versuchen",
+  "main.failed_title": "Nicht übersetzt",
+  "main.details": "Details",
+  "err.generic": "Bei dieser Datei ist etwas schiefgelaufen."
 }

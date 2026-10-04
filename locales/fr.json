@@ -174,5 +174,11 @@
   "glossary.delete": "Supprimer ce terme",
   "sidebar.provider_demo": "Démo (hors ligne, pas de vraie traduction)",
   "update.checking": "Recherche de mises à jour officielles…",
-  "quick.translator": "Traducteur"
+  "quick.translator": "Traducteur",
+  "keys.save": "Enregistrer",
+  "main.no_translator": "Aucun traducteur configuré. Ajoutez une clé d’API dans Réglages → Clés.",
+  "main.try_again": "Réessayer",
+  "main.failed_title": "Non traduit",
+  "main.details": "Détails",
+  "err.generic": "Un problème est survenu avec ce fichier."
 }

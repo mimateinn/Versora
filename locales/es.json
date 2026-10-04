@@ -174,5 +174,11 @@
   "glossary.delete": "Eliminar este término",
   "sidebar.provider_demo": "Demo (sin conexión, no traduce de verdad)",
   "update.checking": "Buscando actualizaciones oficiales…",
-  "quick.translator": "Traductor"
+  "quick.translator": "Traductor",
+  "keys.save": "Guardar",
+  "main.no_translator": "Aún no hay traductor. Añade una clave de API en Ajustes → Claves.",
+  "main.try_again": "Reintentar",
+  "main.failed_title": "No se tradujo",
+  "main.details": "Detalles",
+  "err.generic": "Algo salió mal con este archivo."
 }

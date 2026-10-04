@@ -98,7 +98,7 @@
   "main.source_zip": "A zip file",
   "main.seg_file": "One file",
   "main.seg_folder": "Folder",
-  "main.seg_zip": "zip",
+  "main.seg_zip": "Zip",
   "main.seg_doc": "Normal files",
   "main.seg_game": "Game text",
   "main.folder_path": "Folder path",
@@ -208,5 +208,11 @@
   "glossary.delete": "Delete this term",
   "sidebar.provider_demo": "Demo (offline, no real translation)",
   "update.checking": "Checking for official updates…",
-  "quick.translator": "Translator"
+  "quick.translator": "Translator",
+  "keys.save": "Save",
+  "main.no_translator": "No translator set up yet. Add an API key in Settings, Keys.",
+  "main.try_again": "Try again",
+  "main.failed_title": "Not translated",
+  "main.details": "Details",
+  "err.generic": "Something went wrong with this file."
 }

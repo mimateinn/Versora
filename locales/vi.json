@@ -174,5 +174,11 @@
   "glossary.delete": "Xóa thuật ngữ này",
   "sidebar.provider_demo": "Demo (ngoại tuyến, không dịch thật)",
   "update.checking": "Đang kiểm tra bản cập nhật chính thức…",
-  "quick.translator": "Dịch vụ dịch"
+  "quick.translator": "Dịch vụ dịch",
+  "keys.save": "Lưu",
+  "main.no_translator": "Chưa có dịch vụ dịch. Thêm khóa API trong Cài đặt → Khóa.",
+  "main.try_again": "Thử lại",
+  "main.failed_title": "Chưa dịch được",
+  "main.details": "Chi tiết",
+  "err.generic": "Có lỗi khi xử lý tệp này."
 }

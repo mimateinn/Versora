@@ -98,7 +98,7 @@
   "main.source_zip": "一個 zip",
   "main.seg_file": "一個檔案",
   "main.seg_folder": "本機資料夾",
-  "main.seg_zip": "zip",
+  "main.seg_zip": "Zip",
   "main.seg_doc": "一般檔案",
   "main.seg_game": "遊戲文字",
   "main.folder_path": "資料夾路徑",
@@ -208,5 +208,11 @@
   "glossary.delete": "刪除這個用語",
   "sidebar.provider_demo": "示範（離線，不是真翻譯）",
   "update.checking": "正在檢查官方更新…",
-  "quick.translator": "翻譯服務"
+  "quick.translator": "翻譯服務",
+  "keys.save": "儲存",
+  "main.no_translator": "還沒有設定翻譯服務。請到「設定 → 金鑰」加入 API 金鑰。",
+  "main.try_again": "再試一次",
+  "main.failed_title": "未能翻譯",
+  "main.details": "詳細",
+  "err.generic": "這個檔案處理時出了問題。"
 }

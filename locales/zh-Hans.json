@@ -174,5 +174,11 @@
   "glossary.delete": "删除这个术语",
   "sidebar.provider_demo": "演示（离线，不是真翻译）",
   "update.checking": "正在检查官方更新…",
-  "quick.translator": "翻译服务"
+  "quick.translator": "翻译服务",
+  "keys.save": "保存",
+  "main.no_translator": "还没有设置翻译服务。请到“设置 → 密钥”加入 API 密钥。",
+  "main.try_again": "再试一次",
+  "main.failed_title": "未能翻译",
+  "main.details": "详细",
+  "err.generic": "这个文件处理时出了问题。"
 }

@@ -174,5 +174,11 @@
   "glossary.delete": "ลบคำนี้",
   "sidebar.provider_demo": "เดโม (ออฟไลน์ ไม่ได้แปลจริง)",
   "update.checking": "กำลังตรวจหาอัปเดตอย่างเป็นทางการ…",
-  "quick.translator": "บริการแปล"
+  "quick.translator": "บริการแปล",
+  "keys.save": "บันทึก",
+  "main.no_translator": "ยังไม่ได้ตั้งค่าบริการแปล เพิ่มคีย์ API ที่ การตั้งค่า → คีย์",
+  "main.try_again": "ลองอีกครั้ง",
+  "main.failed_title": "แปลไม่สำเร็จ",
+  "main.details": "รายละเอียด",
+  "err.generic": "เกิดปัญหากับไฟล์นี้"
 }

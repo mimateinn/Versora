@@ -174,5 +174,11 @@
   "glossary.delete": "Hapus istilah ini",
   "sidebar.provider_demo": "Demo (offline, bukan terjemahan sungguhan)",
   "update.checking": "Memeriksa pembaruan resmi…",
-  "quick.translator": "Penerjemah"
+  "quick.translator": "Penerjemah",
+  "keys.save": "Simpan",
+  "main.no_translator": "Belum ada penerjemah. Tambahkan kunci API di Pengaturan → Kunci.",
+  "main.try_again": "Coba lagi",
+  "main.failed_title": "Tidak diterjemahkan",
+  "main.details": "Detail",
+  "err.generic": "Ada masalah dengan file ini."
 }
