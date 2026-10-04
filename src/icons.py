@@ -12,11 +12,12 @@ Animation contract -- inject ``ICON_CSS`` once (e.g. in theme.py). Every icon ro
 
 Hover (any ancestor that is ``button``, ``a``, ``label``, ``[role=button]`` or ``.vi-host``, on
 ``:hover`` / ``:focus-visible`` / ``.is-hover``):
-  SUN rays turn 45deg; MOON tilts; DOWNLOAD arrow drops; UPLOAD arrow lifts; RETRY turns once;
+  SUN rays turn 30deg; MOON tilts; DOWNLOAD arrow drops; UPLOAD arrow lifts; RETRY turns once;
   SETTINGS knobs slide along their rails; SWAP arrows part; FOLDER_OPEN flap opens.
-Press: every icon dips to .86 while its host is ``:active``. For a full click pop, add ``.is-press``
-  to the host (or svg) once per click from JS and remove it on ``animationend`` -- this is Litora's
-  nav-pop keyframes and timing verbatim (440 ms, cubic-bezier(.3,.7,.3,1)).
+Press: every icon dips to .86 while its host is ``:active``. For a full click motion, add ``.is-press``
+  to the host (or svg) once per click from JS and remove it on ``animationend``; this is Litora's press
+  set verbatim (cubic-bezier(.3,.7,.3,1)): pop by default, drop (download/upload/folder), lean
+  (settings/book/key), spin 560 ms (retry/swap/globe), open (folder_open/file/zip).
   ``.vi-drag`` on an ancestor (drop zone during drag-over) lifts UPLOAD and keeps it lifted.
 One-shot on appear (put the class on the svg or any ancestor; replays whenever the node is
 re-created, so add it only where a fresh appearance is meaningful):
@@ -25,7 +26,8 @@ re-created, so add it only where a fresh appearance is meaningful):
   ``.vi-anim-in``     any icon fades and scales in
 On action (add ``.vi-play`` for one frame-pair, e.g. after a click; remove it to re-arm):
   SWAP flips 180deg; SUN rays spin in; MOON swings in.
-Always running while present: SPINNER rotates; DOT pulses a ring (progress / busy dot).
+Always running while present: SPINNER rotates; DOT pulses a ring (progress / busy dot). Under reduced
+motion these two keep a slow opacity fade so a busy state is still visible.
 """
 
 from __future__ import annotations
@@ -65,14 +67,14 @@ _RING = "M12 4.4a7.6 7.6 0 1 0 0 15.2 7.6 7.6 0 0 0 0-15.2"
 
 # ---- redrawn originals -------------------------------------------------------------------
 _MONITOR = _p(
-    "M5.6 5.2h12.8a1.5 1.5 0 0 1 1.5 1.5v7.4a1.5 1.5 0 0 1-1.5 1.5H5.6a1.5 1.5 0 0 1-1.5-1.5V6.7"
-    "a1.5 1.5 0 0 1 1.5-1.5zM9.2 18.8h5.6M12 15.6v3.2"
+    "M6 5.2h12a1.5 1.5 0 0 1 1.5 1.5v7.4a1.5 1.5 0 0 1-1.5 1.5H6a1.5 1.5 0 0 1-1.5-1.5V6.7A1.5 1.5 0 0 1 6 5.2z"
+    "M9.2 18.8h5.6M12 15.6v3.2"
 )
 _GLOBE = _p(
-    f"{_RING}M4.6 9.6h14.8M4.6 14.4h14.8M12 4.4c1.9 2.1 3 4.7 3 7.6s-1.1 5.5-3 7.6"
-    "c-1.9-2.1-3-4.7-3-7.6s1.1-5.5 3-7.6"
+    f"{_RING}M4.8 9.6h14.4M4.8 14.4h14.4M12 4.4c1.6 2.1 2.6 4.7 2.6 7.6s-1 5.5-2.6 7.6"
+    "c-1.6-2.1-2.6-4.7-2.6-7.6s1-5.5 2.6-7.6"
 )
-_KEY = _p("M8.6 7.8a4.2 4.2 0 1 0 0 8.4 4.2 4.2 0 0 0 0-8.4M12.8 12h6.8M16.4 12v3.2M19.6 12v2.4")
+_KEY = _p("M8.8 7.4a4.6 4.6 0 1 0 0 9.2 4.6 4.6 0 0 0 0-9.2M13.4 12h6.2M16.4 12v3.6M19.6 12v2.8")
 _BOOK = _p(
     "M12 6.8C10.1 5.5 7.9 4.9 5.4 5a.8.8 0 0 0-.8.8v10.8a.8.8 0 0 0 .8.8c2.5-.1 4.7.5 6.6 1.8"
     " 1.9-1.3 4.1-1.9 6.6-1.8a.8.8 0 0 0 .8-.8V5.8a.8.8 0 0 0-.8-.8c-2.5-.1-4.7.5-6.6 1.8zM12 6.8v12.4"
@@ -96,7 +98,7 @@ _BUBBLE = _p(
 _GAME = _p(
     "M9.4 6.8h5.2a5.2 5.2 0 0 1 0 10.4H9.4a5.2 5.2 0 0 1 0-10.4zM8.6 9.8v4.4M6.4 12h4.4M15.2 10.8h.01M17.2 13.2h.01"
 )
-_SUN = _p("M12 8.6a3.4 3.4 0 1 0 0 6.8 3.4 3.4 0 0 0 0-6.8") + _p(
+_SUN = _p("M12 8.8a3.2 3.2 0 1 0 0 6.4 3.2 3.2 0 0 0 0-6.4") + _p(
     "M12 4.2v1.6M12 18.2v1.6M4.2 12h1.6M18.2 12h1.6M6.5 6.5l1.1 1.1M16.4 16.4l1.1 1.1"
     "M6.5 17.5l1.1-1.1M16.4 7.6l1.1-1.1",
     "vi-rays",
@@ -118,15 +120,15 @@ _SWAP = (
     + _p("M18.6 15.4H5.4M9.2 11.6l-3.8 3.8 3.8 3.8", "vi-swap-b")
     + "</g>"
 )
-_RETRY = _p("M18.6 12a6.6 6.6 0 1 1-1.9-4.65M18.6 5.2v3h-3", "vi-retry-arrow")
+_RETRY = _p("M19.2 12a7.2 7.2 0 1 1-2.1-5.1M19.2 4.4v3h-3", "vi-retry-arrow")
 _STOP = _p(
     "M7.1 5.6h9.8a1.5 1.5 0 0 1 1.5 1.5v9.8a1.5 1.5 0 0 1-1.5 1.5H7.1a1.5 1.5 0 0 1-1.5-1.5V7.1a1.5 1.5 0 0 1 1.5-1.5z"
 )
-_ALERT = _p(_RING) + _p("M12 8v4.6M12 15.8h.01", "vi-mark")
+_ALERT = _p(_RING, "vi-ring") + _p("M12 8v4.6M12 15.8h.01", "vi-mark")
 # sliders: each rail is one line whose gap is a dash pattern, so the gap travels with its knob
 _SETTINGS = (
-    _p("M5.4 8h13.2", "vi-rail-a", ' stroke-dasharray="6.1 4.6 30"')
-    + _p("M5.4 16h13.2", "vi-rail-b", ' stroke-dasharray="2.5 4.6 30"')
+    _p("M5.4 8h13.2", "vi-rail-a", ' stroke-dasharray="5.6 5.6 30"')
+    + _p("M5.4 16h13.2", "vi-rail-b", ' stroke-dasharray="2 5.6 30"')
     + _p("M13.8 5.8v4.4", "vi-knob-a")
     + _p("M10.2 13.8v4.4", "vi-knob-b")
 )
@@ -205,7 +207,6 @@ ICON_CSS = f"""
 .vi-rays, .vi-moon-body, .vi-lift, .vi-drop, .vi-swap-a, .vi-swap-b, .vi-flap, .vi-knob-a, .vi-knob-b {{
   transition: transform 300ms var(--vi-ease);
 }}
-.vi-retry-arrow {{ transition: transform 380ms var(--vi-ease); }}
 .vi {{ transition: transform 140ms var(--vi-ease); }}
 .vi-rail-a, .vi-rail-b {{ transition: stroke-dashoffset 300ms var(--vi-ease); }}
 .vi-knob-b, .vi-rail-b {{ transition-delay: 50ms; }}
@@ -216,17 +217,23 @@ ICON_CSS = f"""
 {_HOST} .vi-swap-a {{ transform: translateX(2.4px); }}
 {_HOST} .vi-swap-b {{ transform: translateX(-2.4px); }}
 {_HOST} .vi-flap {{ transform: translateY(-1.6px) skewX(-10deg); }}
-{_HOST} .vi-knob-a {{ transform: translateX(1.2px); }}
-{_HOST} .vi-rail-a {{ stroke-dashoffset: -1.2; }}
-{_HOST} .vi-knob-b {{ transform: translateX(-1.2px); }}
-{_HOST} .vi-rail-b {{ stroke-dashoffset: 1.2; }}
-{_HOST} .vi-retry-arrow {{ transform: rotate(360deg); }}
-:is(.vi-host, button, a, label, [role="button"]):active > .vi,
-:is(.vi-host, button, a, label, [role="button"]):active .sfts-ico > .vi {{ transform: scale(.86); }}
+{_HOST} .vi-knob-a {{ transform: translateX(1.4px); }}
+{_HOST} .vi-rail-a {{ stroke-dashoffset: -1.4; }}
+{_HOST} .vi-knob-b {{ transform: translateX(-1.4px); }}
+{_HOST} .vi-rail-b {{ stroke-dashoffset: 1.4; }}
+{_HOST} .vi-retry-arrow {{ animation: vi-turn 380ms var(--vi-ease) 1; }}
+:is(.vi-host, button, a, label, [role="button"]):active:not(.is-press) > .vi,
+:is(.vi-host, button, a, label, [role="button"]):active:not(.is-press) .sfts-ico > .vi {{ transform: scale(.86); }}
+/* Litora's press set, verbatim: each object moves its own way */
 .is-press .vi, .vi.is-press {{ animation: vi-pop 440ms cubic-bezier(.3, .7, .3, 1) 1; }}
+:is(.is-press .vi, .vi.is-press):is(.vi-download, .vi-upload, .vi-folder) {{ animation-name: vi-drop-press; }}
+:is(.is-press .vi, .vi.is-press):is(.vi-settings, .vi-book, .vi-key) {{ animation-name: vi-lean; transform-origin: 50% 85%; }}
+:is(.is-press .vi, .vi.is-press):is(.vi-retry, .vi-swap, .vi-globe) {{ animation-name: vi-spin-press; animation-duration: 560ms; }}
+:is(.is-press .vi, .vi.is-press):is(.vi-folder-open, .vi-file, .vi-zip) {{ animation-name: vi-open; }}
 
 .vi-anim-check .vi-ring {{ animation: vi-settle 240ms var(--vi-ease) both; }}
 .vi-anim-check .vi-tick {{ animation: vi-draw 300ms var(--vi-ease) 60ms both; }}
+.vi-anim-alert .vi-ring {{ animation: vi-settle 240ms var(--vi-ease) both; }}
 .vi-anim-alert .vi-mark {{ animation: vi-alert 320ms var(--vi-ease) 1; transform-origin: 12px 16px; }}
 .vi-anim-in.vi, .vi-anim-in .vi {{ animation: vi-in 280ms var(--vi-ease) both; }}
 .vi-play .vi-swap-g {{ animation: vi-flip 380ms var(--vi-ease) 1; }}
@@ -244,6 +251,11 @@ ICON_CSS = f"""
 @keyframes vi-alert {{ from {{ transform: scaleY(.6); opacity: 0; }} to {{ transform: none; opacity: 1; }} }}
 /* Litora's nav-pop, verbatim (fired once per click via .is-press, as Litora's popNavIcon does) */
 @keyframes vi-pop {{ 0% {{ transform: scale(1); }} 30% {{ transform: scale(.78); }} 62% {{ transform: scale(1.14); }} 100% {{ transform: scale(1); }} }}
+@keyframes vi-drop-press {{ 0% {{ transform: translateY(0); }} 30% {{ transform: translateY(-4px) scale(.94); }} 60% {{ transform: translateY(2px) scale(1.06); }} 100% {{ transform: none; }} }}
+@keyframes vi-lean {{ 0% {{ transform: rotate(0); }} 30% {{ transform: rotate(-14deg) scale(.92); }} 64% {{ transform: rotate(6deg) scale(1.06); }} 100% {{ transform: none; }} }}
+@keyframes vi-spin-press {{ 0% {{ transform: rotate(0) scale(1); }} 40% {{ transform: rotate(200deg) scale(.9); }} 100% {{ transform: rotate(360deg) scale(1); }} }}
+@keyframes vi-open {{ 0% {{ transform: scaleX(1); }} 35% {{ transform: scaleX(.72); }} 70% {{ transform: scaleX(1.12); }} 100% {{ transform: none; }} }}
+@keyframes vi-fade {{ from {{ opacity: 1; }} to {{ opacity: .35; }} }}
 @keyframes vi-in {{ from {{ opacity: 0; transform: scale(.78); }} to {{ opacity: 1; transform: none; }} }}
 @keyframes vi-flip {{ from {{ transform: rotate(0); }} to {{ transform: rotate(180deg); }} }}
 @keyframes vi-rays-in {{ from {{ opacity: 0; transform: rotate(-60deg) scale(.7); }} to {{ opacity: 1; transform: none; }} }}
@@ -256,6 +268,8 @@ ICON_CSS = f"""
   .vi, .vi * {{ animation: none !important; transition: none !important; transform: none !important; }}
   .vi .vi-rail-a, .vi .vi-rail-b {{ stroke-dashoffset: 0 !important; }}
   .vi .vi-pulse-ring {{ opacity: 0; }}
+  /* busy icons keep a non-moving cue: a slow fade instead of rotation / ripple */
+  .vi.vi-spinner .vi-arc, .vi.vi-dot .vi-dot-core {{ animation: vi-fade 1.2s ease-in-out infinite alternate !important; }}
 }}
 """
 

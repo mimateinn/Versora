@@ -41,7 +41,7 @@ _ANIM_CSS = """<style>
     84.4% { transform: translateY(5px); animation-timing-function: cubic-bezier(.22, 1, .36, 1); }
     87.5%, 100% { transform: none; }
   }
-  @keyframes read { 0%, 79% { opacity: 1; } 83%, 88% { opacity: .4; } 93%, 100% { opacity: 1; } }
+  @keyframes read { 0%, 77% { opacity: 1; } 81%, 88% { opacity: .4; } 93%, 100% { opacity: 1; } }
   @media (prefers-reduced-motion: reduce) { .badge-top, .source { animation: none; } }
 </style>"""
 

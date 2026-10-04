@@ -9,7 +9,7 @@
     84.4% { transform: translateY(5px); animation-timing-function: cubic-bezier(.22, 1, .36, 1); }
     87.5%, 100% { transform: none; }
   }
-  @keyframes read { 0%, 79% { opacity: 1; } 83%, 88% { opacity: .4; } 93%, 100% { opacity: 1; } }
+  @keyframes read { 0%, 77% { opacity: 1; } 81%, 88% { opacity: .4; } 93%, 100% { opacity: 1; } }
   @media (prefers-reduced-motion: reduce) { .badge-top, .source { animation: none; } }
 </style>
   <path data-part="slab" fill="#141415" d="M46 40H84L106 62V116Q106 130 92 130H46Q32 130 32 116V54Q32 40 46 40Z"/>
