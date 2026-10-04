@@ -66,7 +66,7 @@
   "target.th": "Tailandés",
   "target.id": "Indonesio",
   "target.other": "Otro (escribir código)",
-  "about.footer": "Versora · Funciona en este equipo · Sin secretos en el repositorio",
+  "about.footer": "Versora · Funciona en este equipo",
   "sidebar.provider_gemini": "Gemini API",
   "sidebar.connect_how": "How to use AI",
   "sidebar.connect_official_only": "Official developer APIs only (OpenAI Platform, Anthropic Console, Gemini API, Groq, DeepSeek, xAI, OpenRouter, Azure OpenAI).",
@@ -180,5 +180,13 @@
   "main.try_again": "Reintentar",
   "main.failed_title": "No se tradujo",
   "main.details": "Detalles",
-  "err.generic": "Algo salió mal con este archivo."
+  "err.generic": "Algo salió mal con este archivo.",
+  "main.translate_again": "Traducir de nuevo",
+  "main.choose_another": "Elegir otro archivo",
+  "main.saves_as": "Se guarda como {name}",
+  "err.damaged": "Este archivo {ext} parece dañado o vacío ({size}).",
+  "toast.batch_done": "Guardado en la carpeta de salida.",
+  "toast.batch_failed": "Terminado. Algunos necesitan otro intento.",
+  "quick.demo_chip": "Demo · muestra sin conexión",
+  "quick.change_short": "Cambiar"
 }

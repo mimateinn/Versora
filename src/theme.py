@@ -39,20 +39,20 @@ MASKS = {
 _TOKENS = {
     "light": {
         "bg": "#FAF8F5", "card": "#FFFFFF", "sunken": "#F5F0E6", "raised": "#FEFDFB",
-        "text": "#1A1A1A", "muted": "#6B6B6B", "faint": "#8C8880",
+        "text": "#1A1A1A", "muted": "#6B6B6B", "faint": "#6E6A63",
         "line": "rgba(15,15,15,.08)", "line-strong": "rgba(15,15,15,.15)",
         **ACCENTS["light"],
         "ok": "#2B7A52", "err": "#A81830", "wait": "#C9C4BA",
         "ok-soft": "rgba(43,122,82,.08)", "err-soft": "rgba(168,24,48,.06)",
-        "wm-ink": "rgba(26,26,26,.06)",
+        "wm-ink": "rgba(26,26,26,.04)",
         "shadow": "0 8px 22px rgba(15,15,15,.08), 0 2px 6px rgba(15,15,15,.05)",
         "shadow-sm": "0 2px 6px rgba(15,15,15,.05), 0 1px 2px rgba(15,15,15,.04)",
-        "toast-bg": "#1A1A1A", "toast-ink": "#FAF8F5",
+        "toast-bg": "#1A1A1A", "toast-ink": "#FAF8F5", "toast-line": "transparent", "seg-on": "#FFFFFF",
         "art-fill": "rgba(26,26,26,.04)", "art-line": "rgba(26,26,26,.40)",
     },
     "dark": {
         "bg": "#0E1320", "card": "#161D2E", "sunken": "#1F2940", "raised": "#1A2234",
-        "text": "#F2F5FB", "muted": "#8F9DB8", "faint": "#6F7C96",
+        "text": "#F2F5FB", "muted": "#8F9DB8", "faint": "#8A98B4",
         "line": "rgba(242,245,251,.08)", "line-strong": "rgba(242,245,251,.16)",
         **ACCENTS["dark"],
         "ok": "#5CB287", "err": "#E07A8C", "wait": "#4A5470",
@@ -60,7 +60,7 @@ _TOKENS = {
         "wm-ink": "rgba(242,245,251,.03)",
         "shadow": "0 8px 22px rgba(0,0,0,.30), 0 2px 6px rgba(0,0,0,.22)",
         "shadow-sm": "0 2px 6px rgba(0,0,0,.22), 0 1px 2px rgba(0,0,0,.16)",
-        "toast-bg": "#F2F5FB", "toast-ink": "#0E1320",
+        "toast-bg": "#1F2940", "toast-ink": "#F2F5FB", "toast-line": "rgba(242,245,251,.16)", "seg-on": "#2A3552",
         "art-fill": "rgba(242,245,251,.04)", "art-line": "rgba(242,245,251,.45)",
     },
 }
@@ -102,7 +102,7 @@ def _vars(theme: str) -> str:
     )
 
 
-def _mask_icon(selector: str, name: str, margin: str = "0 8px 0 0", size: int = 16) -> str:
+def _mask_icon(selector: str, name: str, margin: str = "0", size: int = 16) -> str:
     uri = MASKS[name]
     return f"""
 {selector}::before {{
@@ -130,7 +130,7 @@ html, body, .stApp { background: var(--sfts-bg) !important; color: var(--sfts-te
 [data-testid="stAppViewContainer"], [data-testid="stMain"], .main, section.main,
 [data-testid="stBottom"] > div { background: transparent !important; }
 .block-container, [data-testid="stMainBlockContainer"] {
-  padding: 16px 24px 40px !important; max-width: 912px !important;
+  padding: 16px 24px 96px !important; max-width: 912px !important;
 }
 [data-testid="stMarkdownContainer"] p { color: inherit; margin-bottom: 0; }
 /* Streamlit pulls markdown up by -16px; our blocks size themselves, so their box must be their content */
@@ -206,7 +206,8 @@ div[class*="st-key-card_run"] { animation-delay: 24ms; }
               border-color var(--d-fast) var(--e-out), box-shadow var(--d-fast) var(--e-out),
               transform var(--d-fast) var(--e-out) !important;
 }
-[data-testid^="stBaseButton"] > div { flex: 0 1 auto !important; }  /* icon + label centre together */
+[data-testid^="stBaseButton"] { gap: 8px !important; }
+[data-testid^="stBaseButton"] > div { flex: 0 0 auto !important; width: auto !important; min-width: 0; }  /* icon + label centre together */
 [data-testid^="stBaseButton"] p { font-weight: inherit !important; line-height: 20px !important; }
 [data-testid^="stBaseButton"]:active:not(:disabled) {
   transform: translateY(1px) scale(.985) !important; transition-duration: var(--d-press) !important;
@@ -236,12 +237,13 @@ div[class*="st-key-card_run"] { animation-delay: 24ms; }
 }
 [data-testid="stTextArea"] textarea {
   background: var(--sfts-sunken) !important; border: 1px solid var(--sfts-line) !important; border-radius: 10px !important;
-  font-family: var(--f-mono) !important; font-size: 12px !important; line-height: 20px !important;
+  font-family: var(--f-ui) !important; font-size: 13px !important; line-height: 20px !important;
   color: var(--sfts-text) !important; -webkit-text-fill-color: var(--sfts-text) !important; opacity: 1 !important;
   cursor: text !important; padding: 12px !important;
 }
 [data-testid="stTextArea"] > div, [data-testid="stTextArea"] [data-baseweb="textarea"] { border: 0 !important; background: transparent !important; }
 [data-testid="stSelectbox"] [role="group"]:hover, [data-testid="stTextInputRootElement"]:hover { border-color: var(--sfts-faint) !important; }
+[data-testid="stSelectbox"] input:focus-visible, [data-testid="stTextInput"] input:focus-visible { outline: none !important; }
 [data-testid="stSelectbox"] [role="group"]:focus-within, [data-testid="stTextInputRootElement"]:focus-within {
   border-color: var(--sfts-accent) !important; box-shadow: 0 0 0 3px var(--sfts-accent-soft) !important;
 }
@@ -266,6 +268,7 @@ div[class*="st-key-card_run"] { animation-delay: 24ms; }
   box-sizing: border-box !important; display: inline-flex !important; flex-wrap: nowrap !important;
 }
 [data-testid="stButtonGroup"] button {
+  gap: 6px !important;
   background: transparent !important; border: none !important; box-shadow: none !important;
   border-radius: 7px !important; color: var(--sfts-muted) !important; font-weight: 500 !important;
   height: var(--h-small) !important; min-height: var(--h-small) !important; padding: 0 12px !important;
@@ -275,7 +278,7 @@ div[class*="st-key-card_run"] { animation-delay: 24ms; }
 }
 [data-testid="stButtonGroup"] button:hover { color: var(--sfts-text) !important; }
 [data-testid="stButtonGroup"] button[aria-checked="true"] {
-  background: var(--sfts-card) !important; color: var(--sfts-text) !important;
+  background: var(--sfts-seg-on) !important; color: var(--sfts-text) !important;
   box-shadow: 0 1px 2px rgba(15,15,15,.06), inset 0 0 0 1px var(--sfts-line) !important;
 }
 [data-testid="stButtonGroup"] button[aria-checked="true"]::before { color: var(--sfts-accent); }
@@ -289,51 +292,58 @@ div[class*="st-key-card_run"] { animation-delay: 24ms; }
 [data-testid="stFileUploader"] > [data-testid="stWidgetLabel"] { display: none !important; }
 [data-testid="stFileUploaderDropzone"] {
   display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: center !important;
-  gap: 12px !important; min-height: 264px !important; padding: 24px !important;
-  background: transparent !important; border: 1px dashed var(--sfts-line-strong) !important;
+  gap: 12px !important; min-height: 0 !important; padding: 16px 24px 20px !important;
+  background: transparent !important; border: 1px solid transparent !important;
   border-radius: 10px !important; cursor: pointer;
   transition: border-color var(--d-fast) var(--e-out), background-color var(--d-fast) var(--e-out);
 }
-[data-testid="stFileUploaderDropzone"]:hover { border-color: var(--sfts-accent) !important; background: var(--sfts-accent-soft) !important; }
+[data-testid="stFileUploaderDropzone"].is-drag { border: 1px dashed var(--sfts-accent) !important; background: var(--sfts-accent-soft) !important; }
 [data-testid="stFileUploaderDropzone"]::before {
-  content: var(--sfts-drop-title); display: block; order: -1; padding-top: 108px; min-width: 168px; text-align: center;
-  background: var(--sfts-art) top center / 168px 96px no-repeat;
+  content: var(--sfts-drop-title); display: block; order: -1; padding-top: 137px; min-width: 218px; text-align: center;
+  background: var(--sfts-art) top center / 218px 125px no-repeat;
   font-size: 15px; line-height: 20px; font-weight: 600; color: var(--sfts-text);
 }
 [data-testid="stFileUploaderDropzone"] > span { order: 1; }
-[data-testid="stFileUploaderDropzone"] button { min-width: 144px; }
+[data-testid="stFileUploaderDropzone"] button {
+  min-width: 144px; background: var(--sfts-accent) !important; color: var(--sfts-accent-ink) !important; border: 1px solid var(--sfts-accent) !important;
+}
+[data-testid="stFileUploaderDropzone"] button:hover { background: var(--sfts-accent-strong) !important; border-color: var(--sfts-accent-strong) !important; }
 [data-testid="stFileUploaderDropzone"] button [data-testid="stIconMaterial"] { font-size: 0 !important; width: 16px; height: 16px; display: inline-block;
   background-color: currentColor; -webkit-mask: var(--sfts-upload) center / contain no-repeat; mask: var(--sfts-upload) center / contain no-repeat;
   transition: transform 300ms var(--e-out); }
-[data-testid="stFileUploaderDropzone"]:hover button [data-testid="stIconMaterial"] { transform: translateY(-2.4px); }
+[data-testid="stFileUploaderDropzone"]:is(:hover, .is-drag) button [data-testid="stIconMaterial"] { transform: translateY(-2.4px); }
 [data-testid="stFileUploaderDropzone"] button [data-testid="stMarkdownContainer"] p { font-size: 0 !important; }
 [data-testid="stFileUploaderDropzone"] button [data-testid="stMarkdownContainer"] p::after { content: var(--sfts-drop-browse); font-size: 14px; }
 [data-testid="stFileUploaderDropzoneInstructions"] { order: 2; }
 [data-testid="stFileUploaderDropzoneInstructions"] span, [data-testid="stFileUploaderDropzoneInstructions"] div { font-size: 0 !important; }
 [data-testid="stFileUploaderDropzoneInstructions"]::after {
-  content: var(--sfts-drop-formats); display: block; text-align: center; max-width: 480px;
+  content: var(--sfts-drop-formats); display: block; text-align: center; max-width: 640px; text-wrap: balance;
   font-family: var(--f-mono); font-size: 11px; line-height: 16px; letter-spacing: .12em; text-transform: uppercase; color: var(--sfts-faint);
 }
 [data-testid="stFileUploaderFile"], [data-testid="stFileUploaderFileData"], [data-testid="stFileUploader"] small { display: none !important; }
 
-/* ── Picked file row: the keyed container is the chip; its 34 remove button sits 3px inside the right edge ── */
-[class*="st-key-filechip"] {
-  height: var(--h-ctrl) !important; min-height: var(--h-ctrl) !important; box-sizing: border-box !important;
-  flex-wrap: nowrap !important; align-items: center !important; gap: 8px !important;
-  background: var(--sfts-sunken) !important; border: 1px solid var(--sfts-line) !important; border-radius: 10px !important;
-  padding: 0 3px 0 12px !important;
-  animation: sfts-enter 240ms var(--e-out) both;
+/* ── Picked file: a panel in the drop zone's place; remove sits top-right ── */
+[class*="st-key-filepanel"] {
+  position: relative; min-height: 232px; justify-content: center !important; gap: 12px !important;
+  padding: 20px 24px !important; animation: sfts-enter 240ms var(--e-out) both;
 }
-[class*="st-key-filechip"] > [data-testid="stElementContainer"]:first-child { flex: 1 1 auto !important; min-width: 0; width: auto !important; }
-.sfts-filechip { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.sfts-filechip .sfts-ico { color: var(--sfts-accent); margin: 0; }
-.sfts-filechip-name { font-weight: 600; color: var(--sfts-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sfts-filechip-size { color: var(--sfts-muted); font-family: var(--f-mono); font-size: 11px; margin-left: auto; }
+[class*="st-key-filepanel"] [class*="st-key-clear_picked"] { position: absolute !important; top: 8px; right: 8px; z-index: 1; }
+[class*="st-key-filepanel"] > * { align-self: center !important; width: auto !important; }
+[class*="st-key-filepanel"] [class*="st-key-start_"] { align-items: center !important; }
+.sfts-fp { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; max-width: 560px; }
+.sfts-fp > .sfts-ico { width: 40px; height: 40px; margin: 0 0 8px; color: var(--sfts-accent); }
+.sfts-fp > .sfts-ico svg { width: 40px; height: 40px; }
+.sfts-fp-name { font-size: 15px; line-height: 20px; font-weight: 600; color: var(--sfts-text); word-break: break-all; }
+.sfts-fp-meta { font-size: 13px; line-height: 20px; color: var(--sfts-muted); font-variant-numeric: tabular-nums; }
+.sfts-fp-out { font-size: 13px; line-height: 20px; color: var(--sfts-muted); }
+.sfts-fp-out code { font-family: var(--f-mono); font-size: 12px; background: none; color: var(--sfts-text); padding: 0; }
+[class*="st-key-folder_row"] { flex-wrap: nowrap !important; }
+[class*="st-key-folder_row"] > [data-testid="stElementContainer"]:first-child { flex: 1 1 auto !important; min-width: 0; }
 
 /* ── Running ── */
 .sfts-run { display: flex; align-items: center; gap: 8px; height: 20px; font-weight: 600; color: var(--sfts-text); }
 .sfts-run img { width: 20px; height: 20px; display: block; }
-.sfts-run span { color: var(--sfts-muted); font-weight: 400; font-family: var(--f-mono); font-size: 12px; margin-left: auto; }
+.sfts-run span { color: var(--sfts-muted); font-weight: 400; font-size: 13px; font-variant-numeric: tabular-nums; margin-left: auto; }
 @keyframes sfts-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .35; transform: scale(.8); } }
 /* 1.65: an (empty) label row, then track > fill; the fill moves by transform */
 [data-testid="stProgress"] > div:not([role="progressbar"]) { display: none !important; }
@@ -346,7 +356,7 @@ div[class*="st-key-card_run"] { animation-delay: 24ms; }
 [data-testid="stProgress"] [role="progressbar"] > div > div::after {
   content: ""; position: absolute; inset: 0; width: 40%;
   background: linear-gradient(90deg, transparent, rgba(255,255,255,.45), transparent);
-  animation: sfts-shimmer 1.4s var(--e-out) infinite;
+  animation: sfts-shimmer 1.4s linear infinite;
 }
 /* one file has no fraction to show: a 30% band slides along the track */
 .sfts-bar { height: 3px; border-radius: 3px; background: var(--sfts-sunken); position: relative; overflow: hidden; }
@@ -361,21 +371,27 @@ div[class*="st-key-card_run"] { animation-delay: 24ms; }
 /* ── Per-file rows: 3px left bar = state ── */
 .sfts-files { display: flex; flex-direction: column; gap: 4px; max-height: 324px; overflow: auto; }
 .sfts-file {
-  display: flex; align-items: center; gap: 12px; height: 34px; box-sizing: border-box; padding: 0 12px; border-radius: 6px;
-  background: var(--sfts-raised); box-shadow: inset 3px 0 0 var(--sfts-wait); font-size: 13px;
-  transition: box-shadow var(--d-norm) var(--e-out), background-color var(--d-norm) var(--e-out);
+  position: relative; display: flex; align-items: center; gap: 12px; height: 34px; box-sizing: border-box; padding: 0 12px 0 16px; border-radius: 6px;
+  background: var(--sfts-raised); font-size: 13px; transition: background-color var(--d-norm) var(--e-out);
 }
-.sfts-file b { font-weight: 500; font-family: var(--f-mono); font-size: 12px; color: var(--sfts-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.sfts-file::before {  /* state bar: inset, rounded, never a crescent */
+  content: ""; position: absolute; left: 4px; top: 7px; bottom: 7px; width: 3px; border-radius: 2px;
+  background: var(--sfts-wait); transition: background-color var(--d-norm) var(--e-out);
+}
+.sfts-file b { font-weight: 500; font-size: 13px; color: var(--sfts-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .sfts-file span { color: var(--sfts-muted); margin-left: auto; white-space: nowrap; font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
-.sfts-file[data-s="run"] { box-shadow: inset 3px 0 0 var(--sfts-accent); }
-.sfts-file[data-s="run"] span { color: var(--sfts-accent); }
-.sfts-file[data-s="done"] { box-shadow: inset 3px 0 0 var(--sfts-ok); }
-.sfts-file[data-s="fail"] { box-shadow: inset 3px 0 0 var(--sfts-err); background: var(--sfts-err-soft); }
+.sfts-file[data-s="run"]::before { background: var(--sfts-accent); }
+.sfts-file[data-s="run"] span { color: var(--sfts-accent-strong); }
+.sfts-file[data-s="done"]::before { background: var(--sfts-ok); }
+.sfts-file[data-s="fail"]::before { background: var(--sfts-err); }
+.sfts-file[data-s="fail"] { background: var(--sfts-err-soft); }
 .sfts-file[data-s="fail"] span { color: var(--sfts-err); }
 .sfts-file[data-s="skip"] span { color: var(--sfts-faint); }
 
 /* ── Done: a drawn tick, no badge ── */
 .sfts-done { display: flex; align-items: flex-start; gap: 12px; }
+[class*="st-key-result_head"] { flex-wrap: nowrap !important; }
+[class*="st-key-result_head"] > [data-testid="stElementContainer"]:first-child { flex: 1 1 auto !important; min-width: 0; width: auto !important; }
 .sfts-done > .sfts-ico { flex: 0 0 20px; width: 20px; height: 20px; margin: 0; color: var(--sfts-ok); --vi-accent: var(--sfts-ok); }
 .sfts-done > .sfts-ico svg { width: 20px; height: 20px; }
 .sfts-done[data-tone="warn"] > .sfts-ico { color: var(--sfts-accent); --vi-accent: var(--sfts-accent); }
@@ -388,19 +404,23 @@ div[class*="st-key-card_run"] { animation-delay: 24ms; }
 .sfts-done-sub { color: var(--sfts-muted); font-size: 13px; line-height: 20px; margin-top: 4px; }
 .sfts-path { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; }
 .sfts-done > div { min-width: 0; flex: 1 1 auto; }
-.sfts-done-sub code { font-family: var(--f-mono); font-size: 11px; background: none; color: var(--sfts-faint); padding: 0; word-break: break-all; }
+.sfts-done-sub code { font-family: var(--f-mono); font-size: 12px; background: none; color: var(--sfts-faint); padding: 0; word-break: break-all; }
+/* error Details: a hairline-topped block, not a box */
+[class*="st-key-card_error"] [data-testid="stExpander"] details { border: 0 !important; border-top: 1px solid var(--sfts-line) !important; border-radius: 0 !important; }
+[class*="st-key-card_error"] [data-testid="stExpander"] summary { padding: 0 !important; }
+[class*="st-key-card_error"] [data-testid="stExpanderDetails"] { padding: 8px 0 4px !important; }
 @keyframes sfts-draw { to { stroke-dashoffset: 0; } }
 
 /* ── Toast: bottom centre ink pill (Litora) ── */
 [data-testid="stToastContainer"] {
-  left: 50% !important; right: auto !important; bottom: 24px !important; top: auto !important;
-  transform: translateX(-50%) !important; align-items: center !important;
+  left: 0 !important; right: 0 !important; margin: 0 auto !important; width: fit-content !important;
+  bottom: 24px !important; top: auto !important; transform: none !important; align-items: center !important;
 }
 [data-testid="stToast"] {
   background: var(--sfts-toast-bg) !important; color: var(--sfts-toast-ink) !important;
   border-radius: 999px !important; padding: 8px 20px !important; box-shadow: var(--sfts-shadow) !important;
-  border: none !important; width: auto !important; max-width: min(70vw, 640px) !important; min-width: 0 !important;
-  font-size: 13px !important; animation: sfts-toast-in 180ms var(--e-out);
+  border: 1px solid var(--sfts-toast-line) !important; width: auto !important; max-width: min(70vw, 640px) !important; min-width: 0 !important;
+  font-size: 13px !important; animation: sfts-toast-in 180ms var(--e-out), sfts-toast-out 220ms ease-in 3780ms forwards;
 }
 [data-testid="stToast"] * { color: var(--sfts-toast-ink) !important; font-size: 13px !important; }
 [data-testid="stToast"] [data-testid="stIconMaterial"] { color: var(--sfts-accent) !important; font-size: 18px !important; }
@@ -408,6 +428,7 @@ div[class*="st-key-card_run"] { animation-delay: 24ms; }
 [data-testid="stToast"] > div, [data-testid="stToast"] [data-testid="stToastIcon"] { align-items: center !important; }
 [data-testid="stToast"] p { margin: 0 !important; line-height: 20px !important; }
 @keyframes sfts-toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes sfts-toast-out { to { opacity: 0; transform: translateY(8px); } }
 
 /* ── Text bits ── */
 .sfts-muted { color: var(--sfts-muted); font-size: 12px; line-height: 20px; }
@@ -422,13 +443,13 @@ div[class*="st-key-card_run"] { animation-delay: 24ms; }
 .sfts-lang-count { color: var(--sfts-accent-strong); font-size: 12px; line-height: 20px; }
 .sfts-pill-on, .sfts-pill-off {
   display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 8px; border-radius: 4px;
-  font-family: var(--f-mono); font-size: 11px; font-weight: 500; letter-spacing: .04em;
+  font-size: 12px; font-weight: 500;
 }
 .sfts-pill-on { background: var(--sfts-ok-soft); color: var(--sfts-ok); }
 .sfts-pill-off { background: var(--sfts-sunken); color: var(--sfts-muted); }
 .sfts-pill-on .sfts-ico, .sfts-pill-off .sfts-ico { margin-right: 0; width: 12px; height: 12px; }
 .sfts-pill-on .sfts-ico svg, .sfts-pill-off .sfts-ico svg { width: 12px; height: 12px; }
-.sfts-footer { color: var(--sfts-faint); font-size: 11px; line-height: 20px; margin: 0; font-family: var(--f-mono); letter-spacing: .06em; }
+.sfts-footer { color: var(--sfts-faint); font-size: 12px; line-height: 20px; margin: 0; }
 [data-testid="stExpander"] details { border: 1px solid var(--sfts-line) !important; border-radius: 10px !important; background: transparent !important; }
 [data-testid="stExpander"] summary { color: var(--sfts-muted) !important; background: transparent !important; min-height: 34px; padding: 0 12px !important; }
 [data-testid="stExpander"] summary p { font-family: var(--f-mono); font-size: 11px !important; letter-spacing: .14em; text-transform: uppercase; }
@@ -452,18 +473,18 @@ def _chrome_keys(theme: str, page: str, pane: str) -> str:
             _mask_icon('[class*="st-key-pane_translation"] button', "globe"),
             _mask_icon('[class*="st-key-pane_keys"] button', "key"),
             _mask_icon('[class*="st-key-pane_glossary"] button', "book"),
-            _mask_icon(seg.format(key="source_type", n=1), "file", "0 6px 0 0"),
-            _mask_icon(seg.format(key="source_type", n=2), "folder", "0 6px 0 0"),
-            _mask_icon(seg.format(key="source_type", n=3), "zip", "0 6px 0 0"),
-            _mask_icon(seg.format(key="content_mode", n=1), "bubble", "0 6px 0 0"),
-            _mask_icon(seg.format(key="content_mode", n=2), "game", "0 6px 0 0"),
+            _mask_icon(seg.format(key="source_type", n=1), "file"),
+            _mask_icon(seg.format(key="source_type", n=2), "folder"),
+            _mask_icon(seg.format(key="source_type", n=3), "zip"),
+            _mask_icon(seg.format(key="content_mode", n=1), "bubble"),
+            _mask_icon(seg.format(key="content_mode", n=2), "game"),
             _mask_icon('[class*="st-key-swap_langs"] button', "swap", "0"),
             _mask_icon('[class*="st-key-theme_toggle"] button', "moon" if theme == "light" else "sun", "0"),
             _mask_icon('[class*="st-key-dl_"] button', "download"),
             _mask_icon('[class*="st-key-open_out"] button', "folder_open"),
             _mask_icon('[class*="st-key-retry_"] button', "retry"),
-            _mask_icon('[class*="st-key-cancel_run"] button', "stop", "0 6px 0 0", 12),
-            _mask_icon('[class*="st-key-clear_picked"] button', "close", "0", 14),
+            _mask_icon('[class*="st-key-cancel_run"] button', "stop", "0", 14),
+            _mask_icon('[class*="st-key-clear_picked"] button', "close", "0", 16),
             _mask_icon('[class*="st-key-gdel_"] button', "close", "0", 14),
         ]
     )
@@ -473,14 +494,14 @@ def _chrome_keys(theme: str, page: str, pane: str) -> str:
 /* Top tabs: plain text + accent underline, 42 tall */
 [class*="st-key-nav_translate"] button, [class*="st-key-nav_settings"] button {{
   background: transparent !important; border: none !important; box-shadow: none !important;
-  border-radius: 0 !important; padding: 0 4px !important; color: var(--sfts-muted) !important;
+  border-radius: 0 !important; padding: 0 !important; color: var(--sfts-muted) !important;
   border-bottom: 2px solid transparent !important;
 }}
 [class*="st-key-nav_translate"] button:hover, [class*="st-key-nav_settings"] button:hover {{ color: var(--sfts-text) !important; }}
 [class*="st-key-{active_tab}"] button {{
   color: var(--sfts-text) !important; font-weight: 600 !important; border-bottom-color: var(--sfts-accent) !important;
 }}
-[class*="st-key-nav_"] {{ display: flex; justify-content: flex-end; }}
+[class*="st-key-topnav"] {{ gap: 24px !important; flex-wrap: nowrap !important; }}  /* tab, tab, theme: one even rhythm */
 /* Square icon buttons */
 [class*="st-key-theme_toggle"] button, [class*="st-key-swap_langs"] button,
 [class*="st-key-clear_picked"] button, [class*="st-key-gdel_"] button {{
@@ -497,9 +518,12 @@ def _chrome_keys(theme: str, page: str, pane: str) -> str:
   color: var(--sfts-accent-strong) !important; border-color: var(--sfts-accent) !important; background: var(--sfts-accent-soft) !important;
 }}
 [class*="st-key-gdel_"] button:hover {{ color: var(--sfts-err) !important; background: var(--sfts-err-soft) !important; }}
+/* icon-only: the label stays for screen readers (Streamlit renders aria-label="", so the text names it) */
 [class*="st-key-theme_toggle"] button > div, [class*="st-key-swap_langs"] button > div,
-[class*="st-key-clear_picked"] button > div, [class*="st-key-gdel_"] button > div {{ display: none !important; }}
-[class*="st-key-theme_toggle"] {{ display: flex; justify-content: flex-end; }}
+[class*="st-key-clear_picked"] button > div, [class*="st-key-gdel_"] button > div {{
+  position: absolute !important; width: 1px !important; height: 1px !important; overflow: hidden !important;
+  clip: rect(0 0 0 0) !important; white-space: nowrap !important;
+}}
 /* Click motion (FX_JS): .is-press once per click, Litora's press set; .vi-play on swap and on a theme change */
 .stApp button.is-press::before {{ animation: vi-pop 440ms cubic-bezier(.3, .7, .3, 1) 1; }}
 [class*="st-key-dl_"] button.is-press::before, {seg_folder}.is-press::before,
@@ -516,6 +540,14 @@ def _chrome_keys(theme: str, page: str, pane: str) -> str:
 [class*="st-key-swap_langs"] button.vi-play::before {{ animation: vi-flip 380ms var(--e-out) 1; }}
 [class*="st-key-theme_toggle"] button.vi-play::before {{ animation: {theme_in} 380ms var(--e-out) 1; }}
 
+/* Start button: disabled + pulsing dot while its job runs */
+[class*="st-key-start_busy"] button:disabled {{ opacity: .72 !important; cursor: progress !important; }}
+[class*="st-key-start_busy"] button::before {{
+  content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: 0 0 6px;
+  animation: sfts-pulse 1.2s ease-in-out infinite;
+}}
+[class*="st-key-cancel_run"], [class*="st-key-theme_seg"] {{ align-self: flex-end !important; }}
+
 /* Translator field: a button dressed as a select */
 [class*="st-key-provider_chip"] button {{
   width: 100% !important; justify-content: space-between !important; padding: 0 12px !important;
@@ -523,7 +555,7 @@ def _chrome_keys(theme: str, page: str, pane: str) -> str:
 }}
 [class*="st-key-provider_chip"] button > div {{ flex: 1 1 auto !important; justify-content: flex-start !important; text-align: left !important; min-width: 0; }}
 [class*="st-key-provider_chip"] button p {{ overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
-[class*="st-key-provider_chip"] button::after {{ content: "›"; color: var(--sfts-muted); font-size: 18px; line-height: 1; margin-left: 8px; }}
+[class*="st-key-provider_chip"] button::after {{ content: var(--sfts-chip-change); color: var(--sfts-accent-strong); font-size: 13px; font-weight: 500; flex: 0 0 auto; }}
 [class*="st-key-provider_chip"] button:hover {{ border-color: var(--sfts-accent) !important; }}
 [class*="st-key-provider_chip_warn"] button {{ color: var(--sfts-accent-strong) !important; border-color: var(--sfts-accent) !important; background: var(--sfts-accent-soft) !important; }}
 
@@ -542,22 +574,50 @@ def _chrome_keys(theme: str, page: str, pane: str) -> str:
 [class*="st-key-pane_"] button > div, [class*="st-key-update_settings"] button > div {{ flex: 1 1 auto !important; justify-content: flex-start !important; text-align: left !important; }}
 [class*="st-key-pane_"] button:hover {{ background: var(--sfts-sunken) !important; color: var(--sfts-text) !important; }}
 [class*="st-key-pane_"] button p {{ overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; }}
+[class*="st-key-pane_"] button {{ position: relative; }}
 [class*="st-key-{active_pane}"] button {{
-  background: var(--sfts-accent-soft) !important; box-shadow: inset 3px 0 0 var(--sfts-accent) !important;
-  color: var(--sfts-accent-strong) !important; font-weight: 600 !important;
+  background: var(--sfts-accent-soft) !important; color: var(--sfts-accent-strong) !important; font-weight: 600 !important;
 }}
-[class*="st-key-update_settings"] button p {{ font-size: 12px !important; text-decoration: underline dotted; text-underline-offset: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
-[class*="st-key-update_settings"] button:hover {{ color: var(--sfts-accent-strong) !important; }}
+[class*="st-key-{active_pane}"] button::after {{  /* clean inset bar, not a crescent */
+  content: ""; position: absolute; left: 4px; top: 8px; bottom: 8px; width: 3px; border-radius: 2px; background: var(--sfts-accent);
+}}
+/* "Check for official updates": a link like the others */
+[class*="st-key-update_settings"] button {{ color: var(--sfts-accent-strong) !important; }}
+[class*="st-key-update_settings"] button p {{ font-size: 13px !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
+[class*="st-key-update_settings"] button:hover p {{ text-decoration: underline; text-underline-offset: 3px; }}
 {icons}
 """
 
 
-# Icon click motion (ICON_CSS contract). st.html runs this in the page itself; the flag keeps one
-# set of listeners per tab across reruns. Reduced motion binds nothing (the CSS stops it too).
+# Page behaviour Streamlit has no hook for. st.html runs this in the page itself; the flag keeps one
+# set of listeners per tab across reruns.
+#   - drag-over: the drop zone gets .is-drag (its dashed outline) while a file hovers it;
+#   - batch rows: the first running row stays scrolled into view inside its list;
+#   - icon click motion (ICON_CSS contract): skipped entirely under reduced motion.
 FX_JS = """<script>
 (() => {
-  if (window.__versoraFx || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  if (window.__versoraFx) return;
   window.__versoraFx = true;
+  const ZONE = '[data-testid="stFileUploaderDropzone"]';
+  let dragT = 0;
+  const undrag = () => document.querySelectorAll(ZONE + '.is-drag').forEach((z) => z.classList.remove('is-drag'));
+  document.addEventListener('dragover', (e) => {
+    const zone = e.target.closest && e.target.closest(ZONE);
+    undrag();
+    if (zone) zone.classList.add('is-drag');
+    clearTimeout(dragT); dragT = setTimeout(undrag, 160);  // no dragleave bookkeeping: hover lapses on its own
+  }, true);
+  document.addEventListener('drop', undrag, true);
+  const follow = () => {
+    for (const box of document.querySelectorAll('.sfts-files')) {
+      const row = box.querySelector('[data-s="run"]');
+      if (!row) continue;
+      const top = row.offsetTop - box.offsetTop, bottom = top + row.offsetHeight;
+      if (top < box.scrollTop || bottom > box.scrollTop + box.clientHeight) box.scrollTop = Math.max(0, top - 4);
+    }
+  };
+  new MutationObserver(follow).observe(document.body, { childList: true, subtree: true });
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   const replay = (el, cls) => {
     clearTimeout(el.__fxT);
     el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls);

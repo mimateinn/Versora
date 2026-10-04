@@ -376,15 +376,16 @@ def translate_tree(
             if cancel.is_set():
                 break
     finally:
-        # Cancelled, or the caller's callback raised: drop queued work, let running
-        # files stop at their next chunk, and record what never finished.
+        # Cancelled, or the caller's callback raised: drop queued work, stop running
+        # files (a CLI child is killed, an API call ends at its timeout), record what
+        # never finished, and only then return, so "Stopped" is true when it shows.
         if len(finished) < total:
             cancel.set()
             report.cancelled = True
             for rel in report.planned:
                 if rel not in finished:
                     report.failed.append(BatchItem(rel=rel, error=CANCELLED))
-        pool.shutdown(wait=False, cancel_futures=True)
+        pool.shutdown(wait=True, cancel_futures=True)
     return report
 
 

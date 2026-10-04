@@ -66,7 +66,7 @@
   "target.th": "태국어",
   "target.id": "인도네시아어",
   "target.other": "기타 (코드 입력)",
-  "about.footer": "Versora · 이 컴퓨터에서 실행 · 저장소에 비밀 정보 없음",
+  "about.footer": "Versora · 이 컴퓨터에서 실행",
   "sidebar.provider_gemini": "Gemini API",
   "sidebar.connect_how": "How to use AI",
   "sidebar.connect_official_only": "Official developer APIs only (OpenAI Platform, Anthropic Console, Gemini API, Groq, DeepSeek, xAI, OpenRouter, Azure OpenAI).",
@@ -180,5 +180,13 @@
   "main.try_again": "다시 시도",
   "main.failed_title": "번역하지 못함",
   "main.details": "자세히",
-  "err.generic": "이 파일을 처리하는 중 문제가 생겼습니다."
+  "err.generic": "이 파일을 처리하는 중 문제가 생겼습니다.",
+  "main.translate_again": "다시 번역",
+  "main.choose_another": "다른 파일 선택",
+  "main.saves_as": "{name}(으)로 저장",
+  "err.damaged": "이 {ext} 파일이 손상되었거나 비어 있는 것 같습니다({size}).",
+  "toast.batch_done": "출력 폴더에 저장했습니다.",
+  "toast.batch_failed": "완료했습니다. 일부는 다시 시도해야 합니다.",
+  "quick.demo_chip": "데모 · 오프라인 예시",
+  "quick.change_short": "변경"
 }

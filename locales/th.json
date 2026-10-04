@@ -66,7 +66,7 @@
   "target.th": "ไทย",
   "target.id": "อินโดนีเซีย",
   "target.other": "อื่นๆ (พิมพ์รหัส)",
-  "about.footer": "Versora · ทำงานบนเครื่องนี้ · ไม่มีความลับในรีโป",
+  "about.footer": "Versora · ทำงานบนเครื่องนี้",
   "sidebar.provider_gemini": "Gemini API",
   "sidebar.connect_how": "How to use AI",
   "sidebar.connect_official_only": "Official developer APIs only (OpenAI Platform, Anthropic Console, Gemini API, Groq, DeepSeek, xAI, OpenRouter, Azure OpenAI).",
@@ -180,5 +180,13 @@
   "main.try_again": "ลองอีกครั้ง",
   "main.failed_title": "แปลไม่สำเร็จ",
   "main.details": "รายละเอียด",
-  "err.generic": "เกิดปัญหากับไฟล์นี้"
+  "err.generic": "เกิดปัญหากับไฟล์นี้",
+  "main.translate_again": "แปลอีกครั้ง",
+  "main.choose_another": "เลือกไฟล์อื่น",
+  "main.saves_as": "บันทึกเป็น {name}",
+  "err.damaged": "ไฟล์ {ext} นี้ดูเหมือนเสียหายหรือว่างเปล่า ({size})",
+  "toast.batch_done": "บันทึกลงโฟลเดอร์ผลลัพธ์แล้ว",
+  "toast.batch_failed": "เสร็จแล้ว บางรายการต้องลองใหม่",
+  "quick.demo_chip": "เดโม · ตัวอย่างออฟไลน์",
+  "quick.change_short": "เปลี่ยน"
 }

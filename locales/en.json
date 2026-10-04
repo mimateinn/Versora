@@ -69,7 +69,7 @@
   "target.th": "Thai",
   "target.id": "Indonesian",
   "target.other": "Other (type code)",
-  "about.footer": "Versora · Runs on this computer · No secrets in the repo",
+  "about.footer": "Versora · Runs on this computer",
   "sidebar.provider_gemini": "Gemini API",
   "sidebar.provider_xai": "Grok / xAI (API key)",
   "sidebar.provider_grok_cli": "Official Grok CLI (already logged in on this machine)",
@@ -214,5 +214,13 @@
   "main.try_again": "Try again",
   "main.failed_title": "Not translated",
   "main.details": "Details",
-  "err.generic": "Something went wrong with this file."
+  "err.generic": "Something went wrong with this file.",
+  "main.translate_again": "Translate again",
+  "main.choose_another": "Choose another file",
+  "main.saves_as": "Saves as {name}",
+  "err.damaged": "This {ext} file looks damaged or empty ({size}).",
+  "toast.batch_done": "Saved to the output folder.",
+  "toast.batch_failed": "Finished. Some need another try.",
+  "quick.demo_chip": "Demo · offline sample",
+  "quick.change_short": "Change"
 }

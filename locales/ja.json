@@ -66,7 +66,7 @@
   "target.th": "タイ語",
   "target.id": "インドネシア語",
   "target.other": "その他（コード入力）",
-  "about.footer": "Versora · このパソコンで動作 · リポジトリに秘密情報なし",
+  "about.footer": "Versora · このパソコンで動作",
   "sidebar.provider_gemini": "Gemini API",
   "sidebar.connect_how": "How to use AI",
   "sidebar.connect_official_only": "Official developer APIs only (OpenAI Platform, Anthropic Console, Gemini API, Groq, DeepSeek, xAI, OpenRouter, Azure OpenAI).",
@@ -180,5 +180,13 @@
   "main.try_again": "もう一度試す",
   "main.failed_title": "翻訳できませんでした",
   "main.details": "詳細",
-  "err.generic": "このファイルの処理中に問題が起きました。"
+  "err.generic": "このファイルの処理中に問題が起きました。",
+  "main.translate_again": "もう一度翻訳",
+  "main.choose_another": "別のファイルを選ぶ",
+  "main.saves_as": "{name} として保存",
+  "err.damaged": "この {ext} ファイルは壊れているか空のようです（{size}）。",
+  "toast.batch_done": "出力フォルダーに保存しました。",
+  "toast.batch_failed": "完了しました。一部はやり直しが必要です。",
+  "quick.demo_chip": "デモ · オフライン見本",
+  "quick.change_short": "変更"
 }

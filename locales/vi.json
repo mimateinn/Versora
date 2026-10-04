@@ -66,7 +66,7 @@
   "target.th": "Tiếng Thái",
   "target.id": "Tiếng Indonesia",
   "target.other": "Khác (nhập mã)",
-  "about.footer": "Versora · Chạy trên máy này · Kho mã không chứa bí mật",
+  "about.footer": "Versora · Chạy trên máy này",
   "sidebar.provider_gemini": "Gemini API",
   "sidebar.connect_how": "How to use AI",
   "sidebar.connect_official_only": "Official developer APIs only (OpenAI Platform, Anthropic Console, Gemini API, Groq, DeepSeek, xAI, OpenRouter, Azure OpenAI).",
@@ -180,5 +180,13 @@
   "main.try_again": "Thử lại",
   "main.failed_title": "Chưa dịch được",
   "main.details": "Chi tiết",
-  "err.generic": "Có lỗi khi xử lý tệp này."
+  "err.generic": "Có lỗi khi xử lý tệp này.",
+  "main.translate_again": "Dịch lại",
+  "main.choose_another": "Chọn tệp khác",
+  "main.saves_as": "Lưu thành {name}",
+  "err.damaged": "Tệp {ext} này có vẻ bị hỏng hoặc trống ({size}).",
+  "toast.batch_done": "Đã lưu vào thư mục đầu ra.",
+  "toast.batch_failed": "Xong. Một số cần thử lại.",
+  "quick.demo_chip": "Demo · mẫu ngoại tuyến",
+  "quick.change_short": "Đổi"
 }

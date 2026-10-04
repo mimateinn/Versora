@@ -69,7 +69,7 @@
   "target.th": "泰文",
   "target.id": "印尼文",
   "target.other": "其他（輸入代碼）",
-  "about.footer": "Versora · 在這台電腦執行 · 倉庫不含密鑰",
+  "about.footer": "Versora · 在這台電腦執行",
   "sidebar.provider_gemini": "Gemini API",
   "sidebar.provider_xai": "Grok / xAI（API 金鑰）",
   "sidebar.provider_grok_cli": "官方 Grok CLI（這台電腦已登入）",
@@ -214,5 +214,13 @@
   "main.try_again": "再試一次",
   "main.failed_title": "未能翻譯",
   "main.details": "詳細",
-  "err.generic": "這個檔案處理時出了問題。"
+  "err.generic": "這個檔案處理時出了問題。",
+  "main.translate_again": "再翻譯一次",
+  "main.choose_another": "改選其他檔案",
+  "main.saves_as": "存成 {name}",
+  "err.damaged": "這個 {ext} 檔案好像已損壞或是空的（{size}）。",
+  "toast.batch_done": "已存到輸出資料夾。",
+  "toast.batch_failed": "完成了，有些需要再試。",
+  "quick.demo_chip": "示範 · 離線樣本",
+  "quick.change_short": "更改"
 }

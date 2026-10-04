@@ -66,7 +66,7 @@
   "target.th": "Thai",
   "target.id": "Indonesia",
   "target.other": "Lainnya (ketik kode)",
-  "about.footer": "Versora · Berjalan di komputer ini · Tanpa rahasia di repo",
+  "about.footer": "Versora · Berjalan di komputer ini",
   "sidebar.provider_gemini": "Gemini API",
   "sidebar.connect_how": "How to use AI",
   "sidebar.connect_official_only": "Official developer APIs only (OpenAI Platform, Anthropic Console, Gemini API, Groq, DeepSeek, xAI, OpenRouter, Azure OpenAI).",
@@ -180,5 +180,13 @@
   "main.try_again": "Coba lagi",
   "main.failed_title": "Tidak diterjemahkan",
   "main.details": "Detail",
-  "err.generic": "Ada masalah dengan file ini."
+  "err.generic": "Ada masalah dengan file ini.",
+  "main.translate_again": "Terjemahkan lagi",
+  "main.choose_another": "Pilih berkas lain",
+  "main.saves_as": "Disimpan sebagai {name}",
+  "err.damaged": "Berkas {ext} ini tampaknya rusak atau kosong ({size}).",
+  "toast.batch_done": "Tersimpan di folder keluaran.",
+  "toast.batch_failed": "Selesai. Sebagian perlu dicoba lagi.",
+  "quick.demo_chip": "Demo · contoh luring",
+  "quick.change_short": "Ubah"
 }

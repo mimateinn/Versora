@@ -66,7 +66,7 @@
   "target.th": "Thailändisch",
   "target.id": "Indonesisch",
   "target.other": "Andere (Code eingeben)",
-  "about.footer": "Versora · Läuft auf diesem Computer · Keine Geheimnisse im Repo",
+  "about.footer": "Versora · Läuft auf diesem Computer",
   "sidebar.provider_gemini": "Gemini API",
   "sidebar.connect_how": "How to use AI",
   "sidebar.connect_official_only": "Official developer APIs only (OpenAI Platform, Anthropic Console, Gemini API, Groq, DeepSeek, xAI, OpenRouter, Azure OpenAI).",
@@ -180,5 +180,13 @@
   "main.try_again": "Erneut versuchen",
   "main.failed_title": "Nicht übersetzt",
   "main.details": "Details",
-  "err.generic": "Bei dieser Datei ist etwas schiefgelaufen."
+  "err.generic": "Bei dieser Datei ist etwas schiefgelaufen.",
+  "main.translate_again": "Erneut übersetzen",
+  "main.choose_another": "Andere Datei wählen",
+  "main.saves_as": "Wird gespeichert als {name}",
+  "err.damaged": "Diese {ext}-Datei scheint beschädigt oder leer zu sein ({size}).",
+  "toast.batch_done": "Im Ausgabeordner gespeichert.",
+  "toast.batch_failed": "Fertig. Einige brauchen einen neuen Versuch.",
+  "quick.demo_chip": "Demo · Offline-Beispiel",
+  "quick.change_short": "Ändern"
 }

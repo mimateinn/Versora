@@ -10,6 +10,7 @@ import base64
 import html
 import io
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -50,7 +51,8 @@ from src.ui_prefs import load_prefs, save_prefs
 ROOT = Path(__file__).resolve().parent
 ICON_PATH = ROOT / "icon.png"
 UPLOAD_TYPES = sorted({s.lstrip(".") for s in SUPPORTED_SUFFIXES} | {"zip", "markdown", "htm"})
-FORMATS_LINE = "txt · md · docx · pdf · json · csv · yaml · po · xliff · xlsx · html · srt · vtt"
+# no-break space before each dot: a wrapped line can end with "·" but never start with one
+FORMATS_LINE = "\u00a0· ".join("txt md docx pdf json csv yaml po xliff xlsx html srt vtt".split())
 TARGET_CODES = [
     "zh-Hant", "zh-Hans", "en", "ja", "ko", "es", "fr", "de", "pt", "vi", "th", "id", "other",
 ]
@@ -61,7 +63,7 @@ PROVIDER_SHORT = {
     "openai": "OpenAI", "anthropic": "Claude", "gemini": "Gemini", "xai": "xAI",
     "grok_cli": "Grok CLI", "codex_cli": "Codex CLI", "demo": "Demo",
 }
-SETTINGS_PANES = ("appearance", "translation", "keys", "glossary")
+SETTINGS_PANES = ("translation", "keys", "glossary", "appearance")
 KEY_ROWS = (
     ("OpenAI", "OPENAI_API_KEY", "keys.openai"),
     ("Anthropic", "ANTHROPIC_API_KEY", "keys.anthropic"),
@@ -113,7 +115,7 @@ def _init_state() -> None:
         "picked_size": 0,
         "picked_bytes": None,
         "page": "translate",
-        "settings_pane": "appearance",
+        "settings_pane": "translation",
         "provider": saved_provider,
         "model_by_provider": dict(saved_models),
         "model": saved_models.get(saved_provider) or default_model(saved_provider),
@@ -166,6 +168,7 @@ st.markdown(
             "drop-title": L("drop.zip_title") if st.session_state.source_type == "zip" else L("drop.title"),
             "drop-browse": L("drop.browse"),
             "drop-formats": "zip" if st.session_state.source_type == "zip" else FORMATS_LINE,
+            "chip-change": L("quick.change_short"),
         },
     ),
     unsafe_allow_html=True,
@@ -274,8 +277,10 @@ def _set_lang(lang: str, *, follow: bool = False) -> None:
 
 @st.cache_data(show_spinner=False)
 def _icon_data_uri() -> str:
-    raw = ICON_PATH.read_bytes() if ICON_PATH.is_file() else b""
-    return "data:image/png;base64," + base64.b64encode(raw).decode("ascii") if raw else ""
+    """The vector mark: a 24px PNG downscale of the 512 icon reads soft."""
+    path = ROOT / "assets" / "icon.svg"
+    raw = path.read_bytes() if path.is_file() else b""
+    return "data:image/svg+xml;base64," + base64.b64encode(raw).decode("ascii") if raw else ""
 
 
 @st.cache_data(show_spinner=False)
@@ -385,19 +390,17 @@ def _human(msg: str, hints=_ERROR_HINTS) -> str:
 
 
 def render_chrome() -> None:
-    brand, tab_t, tab_s, theme = st.columns([5.2, 1.1, 1.1, 0.5], vertical_alignment="center", gap="small")
+    brand, nav = st.columns([1, 1], vertical_alignment="center", gap="small")
     with brand:
         uri = _icon_data_uri()
         img = f'<img src="{uri}" alt="">' if uri else ""
         st.markdown(f'<div class="sfts-brand">{img}<b>{L("app.title")}</b></div>', unsafe_allow_html=True)
-    with tab_t:
+    dark = st.session_state.theme == "dark"
+    with nav, st.container(key="topnav", horizontal=True, horizontal_alignment="right", vertical_alignment="center"):
         if st.button(L("nav.translate"), key="nav_translate"):
             _go("translate")
-    with tab_s:
         if st.button(L("nav.settings"), key="nav_settings"):
             _go("settings")
-    dark = st.session_state.theme == "dark"
-    with theme:
         if st.button(
             L("theme.light") if dark else L("theme.dark"),
             key="theme_toggle",
@@ -437,13 +440,18 @@ def render_appearance_pane() -> None:
         current = "__system__" if st.session_state.get("ui_lang_follow") else (
             st.session_state.ui_lang if st.session_state.ui_lang in langs else "__system__"
         )
-        chosen = st.selectbox(
-            L("sidebar.language"),
-            options=options,
-            index=options.index(current) if current in options else 0,
-            format_func={**lang_labels, "__system__": L("lang.follow_system", name=now_name)}.get,
-            key="ui_lang_select",
-        )
+        lab, ctl = st.columns([1.1, 2.2], vertical_alignment="center")
+        with lab:
+            st.markdown(f'<div class="sfts-row-label">{L("sidebar.language")}</div>', unsafe_allow_html=True)
+        with ctl:
+            chosen = st.selectbox(
+                L("sidebar.language"),
+                options=options,
+                index=options.index(current) if current in options else 0,
+                format_func={**lang_labels, "__system__": L("lang.follow_system", name=now_name)}.get,
+                key="ui_lang_select",
+                label_visibility="collapsed",
+            )
         if chosen == "__system__":
             if not st.session_state.get("ui_lang_follow") or st.session_state.ui_lang != detected:
                 _set_lang(detected, follow=True)
@@ -672,7 +680,6 @@ def render_settings() -> None:
         "glossary": L("card.glossary"),
     }
     with rail:
-        st.markdown('<div style="height:40px"></div>', unsafe_allow_html=True)  # title 28 + gap 16 - rail gap 4: rail meets card top
         for pane_id in SETTINGS_PANES:
             if st.button(labels[pane_id], use_container_width=True, key=f"pane_{pane_id}"):
                 _go("settings", pane_id)
@@ -721,6 +728,8 @@ def _chip_text(available: list[str]) -> tuple[str, bool]:
     provider = st.session_state.provider
     if not available:
         return L("quick.no_translator"), True
+    if provider == "demo" or (provider == "auto" and available[0] == "demo"):
+        return L("quick.demo_chip"), False
     if provider == "auto":
         return f'{L("quick.auto")} · {PROVIDER_SHORT.get(available[0], available[0])}', False
     if provider not in available:
@@ -790,11 +799,25 @@ def _ready() -> bool:
 
 
 def _cancel_clicked() -> None:
+    # The interrupted run unwinds first (batch waits for its workers), so this shows once work stopped.
     _toast(L("run.cancelled"), "warn")
 
 
+def _start_job() -> None:
+    st.session_state.job_pending = True
+
+
+def _remove_pick() -> None:
+    _forget_pick()
+    _clear_results()
+
+
+def _out_name(name: str) -> str:
+    return Path(name).stem + f".{_target_lang()}" + Path(name).suffix.lower()
+
+
 def _unique_out(name: str, suffix: str) -> Path:
-    out = outputs_dir() / (Path(name).stem + f".{_target_lang()}" + suffix)
+    out = outputs_dir() / _out_name(name)
     if out.exists():
         out = out.with_name(out.stem + time.strftime(".%Y%m%d-%H%M%S") + out.suffix)
     return out
@@ -813,7 +836,7 @@ def _run_header(indeterminate: bool = False):
     with line:
         head = st.empty()
     with stop:
-        st.button(L("run.cancel"), key="cancel_run", on_click=_cancel_clicked, use_container_width=True)
+        st.button(L("run.cancel"), key="cancel_run", on_click=_cancel_clicked)
     if indeterminate:
         st.markdown('<div class="sfts-bar" role="progressbar" aria-busy="true"></div>', unsafe_allow_html=True)
         return head, None
@@ -825,6 +848,25 @@ def _run_line(head, text: str, right: str = "") -> None:
         f'<div class="sfts-run"><img src="{_busy_icon_uri()}" alt="">{html.escape(text)}<span>{html.escape(right)}</span></div>',
         unsafe_allow_html=True,
     )
+
+
+# Parsers' words for a file that is not what its name says (docx/xlsx are zips, pdf has a trailer).
+_DAMAGED = ("package not found", "not a zip file", "badzipfile", "eof marker", "pdfreaderror", "invalid pdf", "no /root")
+_TEMP_SRC = re.compile(r"(?:[A-Za-z]:)?[\\/][^'\"\n]*?versora_[^'\"\n\\/]*[\\/]source\.\w+")
+_ABS_PATH = re.compile(r"(?:[A-Za-z]:\\|/(?:tmp|var|home|Users|private)/)[^'\"\s]*")
+
+
+def _file_reason(msg: str, name: str, size: int) -> str:
+    low = (msg or "").lower()
+    if any(n in low for n in _DAMAGED):
+        return L("err.damaged", ext=(Path(name).suffix.lstrip(".").upper() or "?"), size=_fmt_size(size))
+    return _hint(msg) or L("err.generic")
+
+
+def _detail_text(msg: str, name: str) -> str:
+    """Raw error for Details: secrets redacted, our temp copy shown as the user's file name, other paths cut."""
+    text = _TEMP_SRC.sub(name, redact_secrets(msg or ""))
+    return _ABS_PATH.sub("…", text).strip()
 
 
 def _run_single() -> None:
@@ -845,7 +887,7 @@ def _run_single() -> None:
                 src.write_bytes(raw)
                 translate_single_file(src, out_path, on_progress=progress, **_job_kwargs())
         except Exception as e:
-            st.session_state.single_error = {"name": name, "msg": str(e)}
+            st.session_state.single_error = {"name": name, "size": len(raw), "msg": str(e)}
             st.rerun()
     binary = out_path.suffix.lower() in {".docx", ".pdf", ".xlsx"}
     st.session_state.result = {
@@ -857,6 +899,10 @@ def _run_single() -> None:
     st.rerun()
 
 
+def _file_row(rel: str, state: str, note: str) -> str:
+    return f'<div class="sfts-file" data-s="{state}"><b>{html.escape(rel)}</b><span>{html.escape(note)}</span></div>'
+
+
 def _files_html(report: BatchReport, workers: int) -> str:
     done = {i.rel for i in report.written}
     failed = {i.rel: i for i in report.failed}
@@ -865,14 +911,13 @@ def _files_html(report: BatchReport, workers: int) -> str:
     rows = []
     for rel in report.planned:
         if rel in done:
-            s, note = "done", L("state.done")
+            rows.append(_file_row(rel, "done", L("state.done")))
         elif rel in failed:
-            s, note = "fail", _human(failed[rel].error)
+            rows.append(_file_row(rel, "fail", _human(failed[rel].error)))
         elif rel in running:
-            s, note = "run", L("state.running")
+            rows.append(_file_row(rel, "run", L("state.running")))
         else:
-            s, note = "wait", L("state.waiting")
-        rows.append(f'<div class="sfts-file" data-s="{s}"><b>{html.escape(rel)}</b><span>{html.escape(note)}</span></div>')
+            rows.append(_file_row(rel, "wait", L("state.waiting")))
     return '<div class="sfts-files">' + "".join(rows) + "</div>"
 
 
@@ -889,11 +934,15 @@ def _run_batch(job: dict, only: set[str] | None = None) -> None:
         head, bar = _run_header()
         _run_line(head, L("run.preparing"))
         rows = st.empty()
+        shown = {"rows": ""}
 
         def progress(done: int, total: int, _item) -> None:
             _run_line(head, L("run.batch", total=total), L("run.files", done=done, total=total))
             bar.progress(min(1.0, done / total) if total else 0.0)
-            rows.markdown(_files_html(report, workers), unsafe_allow_html=True)
+            now = _files_html(report, workers)
+            if now != shown["rows"]:  # same states: leave the rows' DOM (and its scroll) alone
+                shown["rows"] = now
+                rows.markdown(now, unsafe_allow_html=True)
 
         try:
             kw = dict(_job_kwargs(), report=report, on_progress=progress, only=only)
@@ -916,11 +965,8 @@ def _run_batch(job: dict, only: set[str] | None = None) -> None:
         previous.cancelled = report.cancelled
         report = previous
         st.session_state.batch_report = report
-    n_ok, n_fail = len(report.written), len(report.failed)
-    _toast(
-        L("main.batch_done", n=n_ok, k=len(report.skipped)) if not n_fail else L("done.batch_failed", n=n_ok, f=n_fail),
-        "ok" if not n_fail else "warn",
-    )
+    if not report.cancelled:
+        _toast(L("toast.batch_failed") if report.failed else L("toast.batch_done"), "warn" if report.failed else "ok")
     st.rerun()
 
 
@@ -945,27 +991,28 @@ def _done_header(title: str, sub: str, warn: bool = False, tone: str | None = No
     )
 
 
+def _result_head(title: str, sub: str, actions, warn: bool = False, tone: str | None = None) -> None:
+    """Card header: what happened on the left, one action bar on the right (secondaries, then the primary)."""
+    with st.container(key="result_head", horizontal=True, vertical_alignment="center", gap="small"):
+        _done_header(title, sub, warn, tone)
+        actions()
+
+
 def render_single_result() -> None:
     res = st.session_state.result
     path = Path(res["path"])
+
+    def actions() -> None:
+        if path.parent.is_dir() and st.button(L("batch.open_folder"), key="open_out_single"):
+            _open_folder(str(path.parent))
+        if path.is_file():
+            st.download_button(
+                L("main.download"), data=path.read_bytes(), file_name=path.name,
+                mime="application/octet-stream", key="dl_single", type="primary",
+            )
+
     with st.container(border=True, key="card_result"):
-        top, folder, act = st.columns([2.6, 1.3, 1.1], vertical_alignment="center")
-        with top:
-            _done_header(L("done.file"), f'<code class="sfts-path">{html.escape(str(path))}</code>')
-        with folder:
-            if path.parent.is_dir() and st.button(L("batch.open_folder"), key="open_out_single", use_container_width=True):
-                _open_folder(str(path.parent))
-        with act:
-            if path.is_file():
-                st.download_button(
-                    L("main.download"),
-                    data=path.read_bytes(),
-                    file_name=path.name,
-                    mime="application/octet-stream",
-                    key="dl_single",
-                    type="primary",
-                    use_container_width=True,
-                )
+        _result_head(L("done.file"), f'<code class="sfts-path">{html.escape(str(path))}</code>', actions)
         c1, c2 = st.columns(2)
         with c1:
             st.markdown(f'<div class="sfts-panel-title">{L("main.preview_src")}</div>', unsafe_allow_html=True)
@@ -977,18 +1024,16 @@ def render_single_result() -> None:
 
 def render_single_error() -> None:
     err = st.session_state.single_error
+
+    def actions() -> None:
+        st.button(L("main.choose_another"), key="choose_another", on_click=_remove_pick)
+        st.button(L("main.try_again"), key="retry_single", type="primary", on_click=_start_job)
+
     with st.container(border=True, key="card_error"):
-        top, act = st.columns([4, 1.1], vertical_alignment="center")
-        with top:
-            line = _hint(err["msg"]) or L("err.generic")
-            _done_header(L("main.failed_title"), f'{html.escape(err["name"])} · {html.escape(line)}', warn=True, tone="err")
-        with act:
-            st.button(
-                L("main.try_again"), key="retry_single", type="primary", use_container_width=True,
-                on_click=lambda: st.session_state.update(retry_single_pending=True),
-            )
-        detail = redact_secrets(err["msg"] or "").strip()
-        if detail:
+        reason = _file_reason(err["msg"], err["name"], int(err.get("size") or 0))
+        _result_head(reason, html.escape(err["name"]), actions, warn=True, tone="err")
+        detail = _detail_text(err["msg"], err["name"])
+        if detail and detail != reason:
             with st.expander(L("main.details")):
                 st.markdown(f'<code class="sfts-detail">{html.escape(detail)}</code>', unsafe_allow_html=True)
 
@@ -997,55 +1042,45 @@ def render_batch_result() -> None:
     report: BatchReport = st.session_state.batch_report
     job = st.session_state.batch_job
     n_ok, n_fail, n_skip = len(report.written), len(report.failed), len(report.skipped)
-    with st.container(border=True, key="card_result"):
-        parts = [L("done.n_saved", n=n_ok)]
-        if n_fail:
-            parts.append(L("done.n_failed", n=n_fail))
-        if n_skip:
-            parts.append(L("done.n_skipped", n=n_skip))
-        title = L("run.cancelled") if report.cancelled else (L("done.batch") if not n_fail else L("done.batch_some"))
-        _done_header(title, " · ".join(parts) + f'<br><code class="sfts-path">{html.escape(report.output_root)}</code>', warn=bool(n_fail))
-        b1, b2, b3 = st.columns(3)
-        with b1:
-            if n_ok:
-                if st.session_state.batch_zip is None:
-                    st.session_state.batch_zip = _zip_outputs(report)
-                st.download_button(
-                    L("batch.download_all"),
-                    data=st.session_state.batch_zip,
-                    file_name=Path(report.output_root).name + ".zip",
-                    mime="application/zip",
-                    key="dl_all",
-                    type="primary",
-                    use_container_width=True,
-                )
-        with b2:
-            if report.output_root and Path(report.output_root).is_dir():
-                if st.button(L("batch.open_folder"), key="open_out", use_container_width=True):
-                    _open_folder(report.output_root)
-        with b3:
-            if n_fail and job:
-                # runs at page level on the next pass, not inside this narrow column
-                st.button(
-                    L("batch.retry", n=n_fail), key="retry_failed", use_container_width=True,
-                    on_click=lambda: st.session_state.update(retry_pending=True),
-                )
+    parts = [L("done.n_saved", n=n_ok)]
+    if n_fail:
+        parts.append(L("done.n_failed", n=n_fail))
+    if n_skip:
+        parts.append(L("done.n_skipped", n=n_skip))
+    title = L("run.cancelled") if report.cancelled else (L("done.batch") if not n_fail else L("done.batch_some"))
 
-        def rows(items, state: str, note) -> str:
-            return '<div class="sfts-files">' + "".join(
-                f'<div class="sfts-file" data-s="{state}"><b>{html.escape(i.rel)}</b><span>{html.escape(note(i))}</span></div>'
-                for i in items
-            ) + "</div>"
-
-        if n_fail:
-            st.markdown(f'<div class="sfts-panel-title sfts-section">{L("batch.failed")} · {n_fail}</div>', unsafe_allow_html=True)
-            st.markdown(rows(report.failed, "fail", lambda i: _human(i.error)), unsafe_allow_html=True)
+    def actions() -> None:
+        if n_fail and job:  # runs at page level on the next pass
+            st.button(L("batch.retry", n=n_fail), key="retry_failed", on_click=lambda: st.session_state.update(retry_pending=True))
+        if report.output_root and Path(report.output_root).is_dir():
+            if st.button(L("batch.open_folder"), key="open_out"):
+                _open_folder(report.output_root)
         if n_ok:
-            st.markdown(f'<div class="sfts-panel-title sfts-section">{L("batch.saved")} · {n_ok}</div>', unsafe_allow_html=True)
-            st.markdown(rows(sorted(report.written, key=lambda i: i.rel), "done", lambda i: L("state.done")), unsafe_allow_html=True)
+            if st.session_state.batch_zip is None:
+                st.session_state.batch_zip = _zip_outputs(report)
+            st.download_button(
+                L("batch.download_all"), data=st.session_state.batch_zip,
+                file_name=Path(report.output_root).name + ".zip", mime="application/zip", key="dl_all", type="primary",
+            )
+
+    def group(label: str, items, state: str, note) -> None:
+        st.markdown(f'<div class="sfts-panel-title">{label} · {len(items)}</div>', unsafe_allow_html=True)
+        st.markdown('<div class="sfts-files">' + "".join(_file_row(i.rel, state, note(i)) for i in items) + "</div>", unsafe_allow_html=True)
+
+    with st.container(border=True, key="card_result"):
+        sub = " · ".join(parts) + f'<br><code class="sfts-path">{html.escape(report.output_root)}</code>'
+        _result_head(title, sub, actions, warn=bool(n_fail))
+        if n_fail:
+            group(L("batch.failed"), report.failed, "fail", lambda i: _human(i.error))
         if n_skip:
-            with st.expander(f'{L("batch.skipped")} · {n_skip}'):
-                st.markdown(rows(report.skipped, "skip", lambda i: _human(i.skipped or i.error, _SKIP_HINTS)), unsafe_allow_html=True)
+            group(L("batch.skipped"), report.skipped, "skip", lambda i: _human(i.skipped or i.error, _SKIP_HINTS))
+        if n_ok:
+            saved = sorted(report.written, key=lambda i: i.rel)
+            if n_ok > 8:  # a long list of identical "Saved" rows is noise: fold it
+                with st.expander(f'{L("batch.saved")} · {n_ok}'):
+                    st.markdown('<div class="sfts-files">' + "".join(_file_row(i.rel, "done", L("state.done")) for i in saved) + "</div>", unsafe_allow_html=True)
+            else:
+                group(L("batch.saved"), saved, "done", lambda i: L("state.done"))
 
 
 def _has_result() -> bool:
@@ -1055,35 +1090,47 @@ def _has_result() -> bool:
     return st.session_state.batch_report is not None
 
 
-def _show_file_chip() -> bool:
-    """Picked file row: name, size, remove, and the start button. Returns True on start."""
+def _translate_button(disabled: bool = False) -> None:
+    """The page's one start button: filled until a result exists, then outlined "Translate again";
+    disabled with a pulse while its job runs (the job starts after the card is drawn)."""
+    busy = bool(st.session_state.get("job_pending"))
+    again = _has_result() and not busy
+    label = L("state.running") if busy else (L("main.translate_again") if again else L("main.translate_btn"))
+    with st.container(key="start_busy" if busy else "start_idle"):
+        st.button(
+            label, key="start_translate", type="secondary" if again else "primary",
+            disabled=disabled or busy, on_click=_start_job,
+        )
+
+
+_TYPE_NAMES = {".md": "Markdown", ".markdown": "Markdown", ".docx": "Word", ".xlsx": "Excel", ".htm": "HTML", ".yml": "YAML"}
+
+
+def _show_file_panel() -> None:
+    """The picked file keeps the drop zone's place: name, size, type, the output name, then Translate."""
     name = st.session_state.picked_name
-    chip, start = st.columns([7.5, 2], vertical_alignment="center")
-    with chip, st.container(key="filechip", horizontal=True, vertical_alignment="center", gap=None):
+    size = int(st.session_state.picked_size or 0)
+    suffix = Path(name).suffix.lower()
+    kind = st.session_state.source_type
+    problem = None
+    if kind == "file" and suffix == ".zip":
+        problem = L("main.zip_use_zip_mode")
+    elif kind == "file" and not is_supported(name) and suffix not in SCRIPT_SUFFIXES:
+        problem = L("error.unsupported_format")
+    type_name = _TYPE_NAMES.get(suffix, suffix.lstrip(".").upper())
+    out = f"archive_{Path(name).stem}/" if kind == "zip" else _out_name(name)
+    before, _, after = (html.escape(s) for s in L("main.saves_as", name="\x00").partition("\x00"))
+    with st.container(key="filepanel", horizontal_alignment="center"):
+        st.button(L("main.clear"), key="clear_picked", help=L("main.clear"), on_click=_remove_pick)  # CLOSE glyph: theme.py mask
         st.markdown(
-            f'<div class="sfts-filechip">{wrap(FILE)}'
-            f'<span class="sfts-filechip-name">{html.escape(name)}</span>'
-            f'<span class="sfts-filechip-size">{_fmt_size(int(st.session_state.picked_size or 0))}</span></div>',
+            f'<div class="sfts-fp">{wrap(FILE)}<div class="sfts-fp-name">{html.escape(name)}</div>'
+            f'<div class="sfts-fp-meta">{_fmt_size(size)} · {html.escape(type_name)}</div>'
+            f'<div class="sfts-fp-out">{before}<code>{html.escape(out)}</code>{after}</div></div>',
             unsafe_allow_html=True,
         )
-        if st.button(L("main.clear"), key="clear_picked", help=L("main.clear")):  # CLOSE glyph: theme.py mask
-            _forget_pick()
-            _clear_results()
-            st.rerun()
-    suffix = Path(name).suffix.lower()
-    problem = None
-    if st.session_state.source_type == "file" and suffix == ".zip":
-        problem = L("main.zip_use_zip_mode")
-    elif st.session_state.source_type == "file" and not is_supported(name) and suffix not in SCRIPT_SUFFIXES:
-        problem = L("error.unsupported_format")
-    with start:
-        go = st.button(
-            L("main.translate_btn"), type="secondary" if _has_result() else "primary",
-            use_container_width=True, key="start_translate", disabled=bool(problem),
-        )
-    if problem:
-        st.markdown(f'<div class="sfts-warn">{problem}</div>', unsafe_allow_html=True)
-    return go
+        if problem:
+            st.markdown(f'<div class="sfts-warn">{problem}</div>', unsafe_allow_html=True)
+        _translate_button(bool(problem))
 
 
 def _pick_upload(kind: str) -> None:
@@ -1128,7 +1175,6 @@ def render_translate() -> None:
                 **_bound("content_mode_seg", "content_mode"),
             )
         kind = st.session_state.source_type
-        go = False
         with st.container(key="sourcebody"):
             if kind in {"file", "zip"}:
                 name = st.session_state.picked_name
@@ -1138,25 +1184,21 @@ def render_translate() -> None:
                 if not name:
                     _pick_upload(kind)
                 else:
-                    go = _show_file_chip()
+                    _show_file_panel()
             else:
                 st.markdown(f'<div class="sfts-note">{L("main.folder_hint")}</div>', unsafe_allow_html=True)
-                path_col, start = st.columns([7.5, 2], vertical_alignment="center")
-                with path_col:
+                with st.container(key="folder_row", horizontal=True, vertical_alignment="center", gap="small"):
                     folder = st.text_input(
                         L("main.folder_path"),
                         label_visibility="collapsed",
                         placeholder=L("main.folder_placeholder"),
                         **_bound("folder_path_in", "folder_path"),
                     )
-                with start:
-                    go = st.button(
-                        L("main.translate_btn"), type="secondary" if _has_result() else "primary",
-                        use_container_width=True, key="start_translate", disabled=not folder.strip(),
-                    )
+                    _translate_button(not folder.strip())
 
-    retry = st.session_state.pop("retry_single_pending", False)
-    go = go or (retry and kind == "file" and bool(st.session_state.picked_name))
+    go = st.session_state.pop("job_pending", False)
+    if go and kind in {"file", "zip"} and not st.session_state.picked_name:
+        go = False
     if go and _ready():
         _clear_results()
         if kind == "file":

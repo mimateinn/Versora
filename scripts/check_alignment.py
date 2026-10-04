@@ -36,7 +36,7 @@ MEASURE = """() => {
   const blocks = [...main.children].filter(el => vis(el) && getComputedStyle(el).position !== 'absolute')
     .map(inner).map(el => ({name: (el.className.match(/st-key-[\\w-]+/) || [el.dataset.testid || el.tagName])[0], ...box(el)}));
   const ctrlSel = ['[data-testid^="stBaseButton"]', '[data-testid="stSelectbox"] [role="group"]',
-    '[data-testid="stTextInputRootElement"]', '[data-testid="stButtonGroup"] [role="radiogroup"]', '.st-key-filechip'];
+    '[data-testid="stTextInputRootElement"]', '[data-testid="stButtonGroup"] [role="radiogroup"]'];
   const controls = [];
   for (const sel of ctrlSel) for (const el of document.querySelectorAll(sel)) {
     if (!vis(el) || el.closest('[data-testid="stToast"]')) continue;

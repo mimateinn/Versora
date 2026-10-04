@@ -66,7 +66,7 @@
   "target.th": "泰文",
   "target.id": "印尼文",
   "target.other": "其他（输入代码）",
-  "about.footer": "Versora · 在这台电脑运行 · 仓库不含密钥",
+  "about.footer": "Versora · 在这台电脑运行",
   "sidebar.provider_gemini": "Gemini API",
   "sidebar.connect_how": "How to use AI",
   "sidebar.connect_official_only": "Official developer APIs only (OpenAI Platform, Anthropic Console, Gemini API, Groq, DeepSeek, xAI, OpenRouter, Azure OpenAI).",
@@ -180,5 +180,13 @@
   "main.try_again": "再试一次",
   "main.failed_title": "未能翻译",
   "main.details": "详细",
-  "err.generic": "这个文件处理时出了问题。"
+  "err.generic": "这个文件处理时出了问题。",
+  "main.translate_again": "再翻译一次",
+  "main.choose_another": "改选其他文件",
+  "main.saves_as": "保存为 {name}",
+  "err.damaged": "这个 {ext} 文件好像已损坏或是空的（{size}）。",
+  "toast.batch_done": "已保存到输出文件夹。",
+  "toast.batch_failed": "完成了，有些需要再试。",
+  "quick.demo_chip": "演示 · 离线样本",
+  "quick.change_short": "更改"
 }

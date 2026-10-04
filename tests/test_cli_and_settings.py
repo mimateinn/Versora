@@ -153,7 +153,7 @@ def test_v2_chrome_contract() -> None:
     for theme_name in ("light", "dark"):
         css = css_for(theme_name, "settings", "appearance")
         assert "data:image/svg+xml" in css
-        assert "inset 3px 0 0 var(--sfts-accent)" in css
+        assert "width: 3px; border-radius: 2px; background: var(--sfts-accent)" in css  # inset bar, not a crescent (r2)
         assert "st-key-source_type" in css and "min-width: max-content" in css
         assert f"--sfts-accent: {ACCENTS[theme_name]['accent']};" in css
     accent_hexes = {v.lower() for pal in ACCENTS.values() for v in pal.values() if v.startswith("#") and v.lower() not in {"#ffffff", "#0e1320"}}
@@ -163,8 +163,8 @@ def test_v2_chrome_contract() -> None:
     for hexv in accent_hexes | {"#14b8a6", "#b95233"}:
         assert hexv not in app.lower()
     assert theme.lower().count(ACCENTS["light"]["accent"].lower()) == 1  # set once
-    assert "sfts-filechip" in app
-    assert 'SETTINGS_PANES = ("appearance", "translation", "keys", "glossary")' in app
+    assert "sfts-fp" in app  # picked file panel (r2; was the 42px chip)
+    assert 'SETTINGS_PANES = ("translation", "keys", "glossary", "appearance")' in app  # owner order, round 2
     assert "status.info" not in app and "st.info(" not in app and "st.success(" not in app
     assert "L(\"main.status_ready\")" not in app
     maker = (root / "scripts" / "make_icon.py").read_text(encoding="utf-8")

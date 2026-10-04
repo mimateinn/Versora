@@ -66,7 +66,7 @@
   "target.th": "Thaï",
   "target.id": "Indonésien",
   "target.other": "Autre (saisir le code)",
-  "about.footer": "Versora · Fonctionne sur cet ordinateur · Aucun secret dans le dépôt",
+  "about.footer": "Versora · Fonctionne sur cet ordinateur",
   "sidebar.provider_gemini": "Gemini API",
   "sidebar.connect_how": "How to use AI",
   "sidebar.connect_official_only": "Official developer APIs only (OpenAI Platform, Anthropic Console, Gemini API, Groq, DeepSeek, xAI, OpenRouter, Azure OpenAI).",
@@ -180,5 +180,13 @@
   "main.try_again": "Réessayer",
   "main.failed_title": "Non traduit",
   "main.details": "Détails",
-  "err.generic": "Un problème est survenu avec ce fichier."
+  "err.generic": "Un problème est survenu avec ce fichier.",
+  "main.translate_again": "Traduire à nouveau",
+  "main.choose_another": "Choisir un autre fichier",
+  "main.saves_as": "Enregistré sous {name}",
+  "err.damaged": "Ce fichier {ext} semble endommagé ou vide ({size}).",
+  "toast.batch_done": "Enregistré dans le dossier de sortie.",
+  "toast.batch_failed": "Terminé. Certains sont à relancer.",
+  "quick.demo_chip": "Démo · exemple hors ligne",
+  "quick.change_short": "Modifier"
 }
