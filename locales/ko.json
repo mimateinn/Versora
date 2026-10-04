@@ -278,5 +278,11 @@
   "about.version": "Versora {v}",
   "order.not_set_up": "설정 안 됨",
   "order.set_up": "설정하기",
-  "quick.manage": "관리"
+  "quick.manage": "관리",
+  "done.stopped": "중지됨",
+  "done.n_unfinished": "{n}개 미완료",
+  "batch.unfinished": "미완료",
+  "batch.retry_remaining": "파일 {n}개 다시 시도",
+  "err.damaged_short": "이 {ext} 파일은 손상되었거나 비어 있는 것 같습니다.",
+  "run.stopped": "중지되었습니다."
 }

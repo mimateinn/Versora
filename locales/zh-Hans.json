@@ -278,5 +278,11 @@
   "about.version": "Versora {v}",
   "order.not_set_up": "未设置",
   "order.set_up": "去设置",
-  "quick.manage": "管理"
+  "quick.manage": "管理",
+  "done.stopped": "已停止",
+  "done.n_unfinished": "{n} 个未完成",
+  "batch.unfinished": "未完成",
+  "batch.retry_remaining": "重试 {n} 个文件",
+  "err.damaged_short": "这个 {ext} 文件似乎已损坏或没有内容。",
+  "run.stopped": "已停止。"
 }

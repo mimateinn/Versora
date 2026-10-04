@@ -278,5 +278,11 @@
   "about.version": "Versora {v}",
   "order.not_set_up": "未設定",
   "order.set_up": "設定する",
-  "quick.manage": "管理"
+  "quick.manage": "管理",
+  "done.stopped": "停止",
+  "done.n_unfinished": "{n} 件未完了",
+  "batch.unfinished": "未完了",
+  "batch.retry_remaining": "{n} 件のファイルを再試行",
+  "err.damaged_short": "この {ext} ファイルは破損しているか、空のようです。",
+  "run.stopped": "停止しました。"
 }

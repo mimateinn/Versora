@@ -148,6 +148,7 @@ html, body, .stApp { background: var(--sfts-bg) !important; color: var(--sfts-te
 [data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"],
 [data-testid="stMainBlockContainer"] > div > [data-testid="stVerticalBlock"] { gap: 24px !important; }  /* one section gap */
 a { color: var(--sfts-accent-strong); }
+[data-testid="stMarkdownContainer"] a { color: var(--sfts-accent-strong) !important; }
 :focus-visible { outline: 2px solid var(--sfts-accent) !important; outline-offset: 3px !important; }
 /* Zero-height helper blocks (style, watermark) must not add gaps */
 [data-testid="stElementContainer"]:has(> div > div > style),
@@ -274,6 +275,10 @@ div[class*="st-key-card_"].is-new { animation: sfts-enter 320ms var(--e-out) bot
 [role="listbox"] [role="option"]:hover, [role="listbox"] [role="option"][data-focused="true"] { background: var(--sfts-sunken) !important; }
 [role="listbox"] [role="option"][aria-selected="true"] { color: var(--sfts-accent-strong) !important; font-weight: 600; }
 [data-testid="stSlider"] [role="slider"] { background: var(--sfts-accent) !important; box-shadow: none !important; }
+/* React-aria disabled switches: retain a visible neutral track in both themes, not a floating knob. */
+.stApp label[data-disabled="true"]:has(input[role="switch"]) > div:not([data-testid]) {
+  background: var(--sfts-line-strong) !important; outline: 1px solid var(--sfts-line-strong); outline-offset: -1px;
+}
 [data-testid="stCaptionContainer"], [data-testid="stCaptionContainer"] p { color: var(--sfts-muted) !important; font-size: 12px !important; }
 
 /* ── Segmented controls as quiet tabs: 42 track, 34 segments ── */
@@ -412,6 +417,7 @@ div[class*="st-key-card_"].is-new { animation: sfts-enter 320ms var(--e-out) bot
 .sfts-done > .sfts-ico svg { width: 20px; height: 20px; }
 .sfts-done[data-tone="warn"] > .sfts-ico { color: var(--sfts-accent); --vi-accent: var(--sfts-accent); }
 .sfts-done[data-tone="err"] > .sfts-ico { color: var(--sfts-err); --vi-accent: var(--sfts-err); }
+.sfts-done[data-tone="off"] > .sfts-ico { color: var(--sfts-muted); --vi-accent: var(--sfts-muted); }
 .sfts-detail {
   display: block; font-family: var(--f-mono); font-size: 12px; line-height: 16px; color: var(--sfts-muted);
   background: none; padding: 0; white-space: pre-wrap; word-break: break-word;
@@ -422,6 +428,10 @@ div[class*="st-key-card_"].is-new { animation: sfts-enter 320ms var(--e-out) bot
 .sfts-done-sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sfts-copy { margin-left: 8px; padding: 0; border: 0; background: none; color: var(--sfts-accent-strong); font: 500 12px/20px var(--f-ui); cursor: pointer; }
 .sfts-copy:hover { text-decoration: underline; text-underline-offset: 3px; }
+/* Batch paths sit below the action header, on its title edge; Copy path must never be clipped. */
+.sfts-result-path { margin-left: 32px; color: var(--sfts-muted); font-size: 13px; line-height: 20px; overflow-wrap: anywhere; }
+.sfts-result-path code { white-space: normal; word-break: break-word; }
+.sfts-result-path .sfts-copy { display: inline-block; white-space: nowrap; }
 .sfts-pre { margin: 8px 0 0; padding: 0; background: none; border: 0; font: 13px/20px var(--f-ui); color: var(--sfts-text);
   white-space: pre-wrap; word-break: break-word; max-height: 320px; overflow: auto; }
 .sfts-pre-col { border-left: 1px solid var(--sfts-line); padding-left: 16px; margin-left: -17px; }
@@ -527,8 +537,9 @@ hr { border-color: var(--sfts-line) !important; margin: 0 !important; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; }
   .sfts-wm-a, .sfts-wm-b { animation: none !important; }
-  /* busy cues stay drawn and still: a partial band mid-track (not a fake full bar), no shimmer */
-  .sfts-bar::after { animation: none !important; left: 35%; transform: none; }
+  /* No frozen percentage: the indeterminate track stays muted, the static icon and text say busy. */
+  .sfts-bar { background: var(--sfts-accent-soft); }
+  .sfts-bar::after { animation: none !important; display: none; }
   [data-testid="stProgress"] [role="progressbar"] > div > div::after { animation: none !important; display: none; }
   [class*="st-key-start_busy"] button::before { animation: none !important; }
 }

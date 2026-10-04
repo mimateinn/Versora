@@ -5,6 +5,10 @@ showSidebarNavigation = false
 [browser]
 gatherUsageStats = false
 
+[runner]
+# The next render must wait for cancellation cleanup and the in-place BatchReport harvest.
+fastReruns = false
+
 [theme]
 primaryColor = "#4677B5"  # mirrors src/theme.py ACCENTS["light"]; tests/test_cli_and_settings.py checks they match
 backgroundColor = "#FAF8F5"

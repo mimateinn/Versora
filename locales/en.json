@@ -312,5 +312,11 @@
   "about.version": "Versora {v}",
   "order.not_set_up": "Not set up",
   "order.set_up": "Set up",
-  "quick.manage": "Manage"
+  "quick.manage": "Manage",
+  "done.stopped": "Stopped",
+  "done.n_unfinished": "{n} not finished",
+  "batch.unfinished": "Not finished",
+  "batch.retry_remaining": "Retry {n} files",
+  "err.damaged_short": "This {ext} file looks damaged or empty.",
+  "run.stopped": "Stopped."
 }

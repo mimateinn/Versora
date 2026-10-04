@@ -312,5 +312,11 @@
   "about.version": "Versora {v}",
   "order.not_set_up": "未設定",
   "order.set_up": "去設定",
-  "quick.manage": "管理"
+  "quick.manage": "管理",
+  "done.stopped": "已停止",
+  "done.n_unfinished": "{n} 個未完成",
+  "batch.unfinished": "未完成",
+  "batch.retry_remaining": "重試 {n} 個檔案",
+  "err.damaged_short": "這個 {ext} 檔案似乎已損毀或沒有內容。",
+  "run.stopped": "已停止。"
 }

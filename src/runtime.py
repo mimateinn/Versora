@@ -336,9 +336,14 @@ def _strip_number(reply: str) -> str:
     return "\n".join(lines)
 
 
-def translate_batch(runner: Runner, system: str, header: str, items: list[str]) -> list[str]:
+_REASK = ("\nThe previous answer broke a one-line item: return exactly one numbered item on one physical "
+          "line, with no added line breaks. Keep all literal line-break marks.")
+
+
+def translate_batch(runner: Runner, system: str, header: str, items: list[str], *, reask: bool = True) -> list[str]:
     """One numbered batch; on a reply that does not parse (or is cut off) split in half and retry.
-    Only each item's trimmed lines are sent; its layout is restored from the source (``Shape``)."""
+    Only each item's trimmed lines are sent; its layout is restored from the source (``Shape``).
+    A lone one-line item whose answer gained a line break is asked once more (``reask``), then fails."""
     shapes = [Shape.of(t) for t in items]
     texts = [s.text for s in shapes]
     mark = _mark(texts)
@@ -354,7 +359,7 @@ def translate_batch(runner: Runner, system: str, header: str, items: list[str]) 
             raw = _items(reply, len(items))
         return [s.apply(_lines(t, mark)) for s, t in zip(shapes, raw)]
     except (ParseError, ProviderError) as e:
-        if len(items) == 1 and isinstance(e, ParseError) and "\n" in items[0]:
+        if len(items) == 1 and isinstance(e, ParseError) and len(shapes[0].edges) > 1:
             # A model may reflow a wrapped paragraph. Retry its source lines as separate numbered
             # units, retaining their layout, instead of flattening it or failing the whole file.
             lines = items[0].split("\n")
@@ -365,6 +370,10 @@ def translate_batch(runner: Runner, system: str, header: str, items: list[str]) 
             for i, text in zip(todo, translated):
                 lines[i] = text
             return ["\n".join(lines)]
+        if len(items) == 1 and isinstance(e, ParseError) and reask:
+            # A model may break a one-line item. Ask once more, parsed just as strictly; a second broken
+            # answer fails closed rather than being joined or flattened into one line.
+            return translate_batch(runner, system, header + _REASK, items, reask=False)
         if isinstance(e, ProviderError) and e.kind != "truncated" or len(items) == 1:
             raise
         mid = len(items) // 2

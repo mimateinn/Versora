@@ -278,5 +278,11 @@
   "about.version": "Versora {v}",
   "order.not_set_up": "Não configurado",
   "order.set_up": "Configurar",
-  "quick.manage": "Gerenciar"
+  "quick.manage": "Gerenciar",
+  "done.stopped": "Parado",
+  "done.n_unfinished": "{n} por terminar",
+  "batch.unfinished": "Por terminar",
+  "batch.retry_remaining": "Tentar novamente {n} arquivos",
+  "err.damaged_short": "Este arquivo {ext} parece danificado ou vazio.",
+  "run.stopped": "Parado."
 }

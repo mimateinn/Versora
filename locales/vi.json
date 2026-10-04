@@ -278,5 +278,11 @@
   "about.version": "Versora {v}",
   "order.not_set_up": "Chưa thiết lập",
   "order.set_up": "Thiết lập",
-  "quick.manage": "Quản lý"
+  "quick.manage": "Quản lý",
+  "done.stopped": "Đã dừng",
+  "done.n_unfinished": "{n} chưa hoàn tất",
+  "batch.unfinished": "Chưa hoàn tất",
+  "batch.retry_remaining": "Thử lại {n} tệp",
+  "err.damaged_short": "Tệp {ext} này có vẻ bị hỏng hoặc trống.",
+  "run.stopped": "Đã dừng."
 }

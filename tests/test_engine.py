@@ -8,6 +8,7 @@ import re
 import sys
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -20,6 +21,13 @@ from src.runtime import (Link, ParseError, Runner, backoff, decode, encode, numb
                          translate_units)
 
 PY = sys.executable
+
+
+@pytest.fixture(autouse=True)
+def _isolated_cli_status(monkeypatch):
+    # Successful complete() calls now leave proof, so canned probes must not inherit another test's proof.
+    for name in ("_status", "_proofs", "_probing"):
+        monkeypatch.setattr(cli, name, {})
 
 
 def test_child_env_scrubs_secrets(monkeypatch) -> None:
@@ -232,6 +240,47 @@ def test_literal_marks_are_text() -> None:
     every = ["all ⏎ ␤ ↵ marks\n  here"]  # no free mark: ⏎ is escaped as ⏎⏎ and still comes back as text
     assert _units(every, Upper()) == [every[0].upper()]
 
+
+class ReflowOneLine(Upper):
+    def __init__(self, repeat=False):
+        super().__init__(sloppy=True)
+        self.repeat = repeat
+
+    def complete(self, system, user, *, cancel=None):
+        reply = super().complete(system, user, cancel=cancel)
+        return reply.replace("1. ", "1. extra\n", 1) if self.repeat or len(self.calls) == 1 else reply
+
+
+def test_one_line_structure_reask_preserves_layout_fences_and_literal_marks() -> None:
+    source = "\n\t  literal ⏎ ␤ ↵ ``` a\u2028b\u0085c  \r\n"
+    engine = ReflowOneLine()
+    assert _units([source], engine) == [source.upper()]
+    assert engine.calls == [1, 1]  # the source has outer newlines, but just one content line
+    assert engine.users[0].split("\n\n", 1)[1] == engine.users[1].split("\n\n", 1)[1]
+    assert "one physical line" in engine.users[1] and "one physical line" not in engine.users[0]
+
+
+def test_one_line_repeated_bad_structure_fails_after_exactly_two_calls() -> None:
+    engine = ReflowOneLine(repeat=True)
+    with pytest.raises(ParseError, match="line-break structure"):
+        _units(["\n  cell  \n"], engine)
+    assert engine.calls == [1, 1]  # no flattening, third ask, or source-line recursion
+
+
+@pytest.mark.parametrize("error", [ProviderError("auth", "signed out"), ProviderError("truncated", "cut off"), Cancelled()])
+def test_one_line_reask_does_not_change_provider_error_or_cancel_handling(error) -> None:
+    class Fails(Engine):
+        id = "fake"
+        calls = 0
+
+        def complete(self, system, user, *, cancel=None):
+            self.calls += 1
+            raise error
+
+    engine = Fails()
+    with pytest.raises(type(error)) as raised:
+        _units(["cell"], engine)
+    assert raised.value is error and engine.calls == 1
 
 def test_single_item_unnumbered_fallback() -> None:
     runner = Runner([Link("fake")], factory=lambda link: Upper(bare=True))
@@ -502,16 +551,216 @@ def test_add_online_translator_save_and_test(tmp_path, monkeypatch) -> None:
     assert "Works · " in shown and "••••1111" in shown
 
 
-def test_explicit_success_verifies_unknown_cli_without_inventing_login(monkeypatch) -> None:
+def test_explicit_success_verifies_unknown_cli_without_inventing_login(monkeypatch, tmp_path) -> None:
     clock = [100.0]
     monkeypatch.setattr(cli.time, "monotonic", lambda: clock[0])
-    monkeypatch.setattr(cli, "_status", {"claude_cli": cli.CliStatus("claude_cli", "claude.exe", "2.1", None, checked_at=100, version_ok=True)})
-    assert not cli._status["claude_cli"].usable
-    cli.confirm_call("claude_cli")
-    status = cli._status["claude_cli"]
-    assert status.usable and status.logged_in is None  # transport works; sign-in remains unknown
-    clock[0] += cli.STATUS_TTL + 1
+    status, calls = _probe(monkeypatch, tmp_path, "claude_cli", cli.CliResult(0, "2.1", ""),
+                           cli.CliResult(0, "unknown status", ""))
     assert not status.usable
-    cli._status["claude_cli"] = cli.CliStatus("claude_cli", "claude.exe", version_ok=False)
+    clock[0] += cli.STATUS_TTL - 1  # a passing Test just before the old probe expires
     cli.confirm_call("claude_cli")
-    assert not cli._status["claude_cli"].usable
+    proof_at = clock[0]
+    clock[0] += 2
+    status = cli.probe("claude_cli")
+    assert status.usable and status.logged_in is None  # transport works; sign-in remains unknown
+    assert status.checked_at == status.call_verified_at == proof_at
+    assert len(calls) == 2  # this crossed the old checked_at deadline without another probe
+    clock[0] = proof_at + cli.STATUS_TTL
+    assert not status.usable  # the successful-call proof has its own exact TTL boundary
+    expired = cli.probe("claude_cli")
+    assert len(calls) == 4 and expired.checked_at == clock[0]
+    assert expired.logged_in is None and not expired.usable
+
+
+def test_fresh_probe_retains_recent_success_proof(monkeypatch, tmp_path) -> None:
+    clock = [100.0]
+    monkeypatch.setattr(cli.time, "monotonic", lambda: clock[0])
+    _, calls = _probe(monkeypatch, tmp_path, "claude_cli", cli.CliResult(0, "2.1", ""),
+                      cli.CliResult(0, "unknown status", ""))
+    clock[0] = 200.0
+    cli.confirm_call("claude_cli")
+    clock[0] += 1
+    status = cli.probe("claude_cli", fresh=True)
+    assert len(calls) == 4 and status.checked_at == 201.0  # fresh really checks the CLI again
+    assert status.usable and status.logged_in is None and status.call_verified_at == 200.0
+    clock[0] = 200.0 + cli.STATUS_TTL
+    assert not cli.probe("claude_cli").usable and len(calls) == 4  # Re-check did not invent new call proof
+    cli.forget_status("claude_cli")
+    assert "claude_cli" not in cli._status and "claude_cli" not in cli._proofs
+    assert not cli.probe("claude_cli").usable and len(calls) == 6
+
+
+@pytest.mark.parametrize("negative", ["version", "login"])
+def test_negative_probe_is_not_overridden_or_renewed_by_success(monkeypatch, tmp_path, negative) -> None:
+    clock = [100.0]
+    monkeypatch.setattr(cli.time, "monotonic", lambda: clock[0])
+    _probe(monkeypatch, tmp_path, "claude_cli", cli.CliResult(0, "2.1", ""), cli.CliResult(0, "unknown", ""))
+    cli.confirm_call("claude_cli")
+    calls = []
+
+    def fake_run(argv, **kw):
+        calls.append(argv[1:])
+        if argv[1:] == ["--version"]:
+            return cli.CliResult(1 if negative == "version" else 0, "2.1", "")
+        return cli.CliResult(0, '{"loggedIn": false}', "")
+
+    monkeypatch.setattr(cli, "run_cli", fake_run)
+    clock[0] = 101.0
+    status = cli.probe("claude_cli", fresh=True)
+    assert not status.usable and status.call_verified_at == 100.0
+    assert (status.version_ok, status.logged_in) == ((False, None) if negative == "version" else (True, False))
+    assert len(calls) == (1 if negative == "version" else 2)
+    clock[0] = 102.0
+    cli.confirm_call("claude_cli")
+    status = cli.probe("claude_cli")
+    assert not status.usable and status.checked_at == 101.0 and status.call_verified_at == 102.0
+
+
+@pytest.mark.parametrize("pid", ["claude_cli", "codex_cli", "grok_cli"])
+def test_successful_complete_renews_cli_proof_through_long_batch(monkeypatch, tmp_path, pid) -> None:
+    clock = [100.0]
+    monkeypatch.setattr(cli.time, "monotonic", lambda: clock[0])
+    cli._status[pid] = cli.CliStatus(pid, cli.PRESETS[pid].bin, checked_at=100.0, version_ok=True)
+    monkeypatch.setattr(cli, "resolve_bin", lambda p, override=None: tmp_path / cli.PRESETS[p].bin)
+    calls = []
+
+    def fake_run(argv, **kw):
+        calls.append(argv)
+        text = '{"type":"text","data":"1. done"}\n{"type":"end","stopReason":"end_turn"}' if pid == "grok_cli" else "1. done"
+        return cli.CliResult(0, text, "")
+
+    monkeypatch.setattr(cli, "run_cli", fake_run)
+    engine = cli.CLIEngine(pid)
+    for at in (399.0, 699.0):  # actual calls span more than the original probe's TTL
+        clock[0] = at
+        assert engine.complete("system", "1. source") == "1. done"
+        status = cli.probe(pid)
+        assert status.usable and status.logged_in is None
+        assert status.checked_at == status.call_verified_at == cli._proofs[pid] == at
+    assert len(calls) == 2 and all("--version" not in argv for argv in calls)
+
+
+@pytest.mark.parametrize("pid,result,kind", [
+    ("claude_cli", cli.CliResult(1, "", "Not logged in"), "auth"),
+    ("claude_cli", cli.CliResult(1, "", "child failed"), "spawn"),
+    ("claude_cli", cli.CliResult(0, " \n ", ""), "empty"),
+    ("claude_cli", cli.CliResult(0, "I'm sorry, I can't help with that.", ""), "refused"),
+    ("claude_cli", cli.CliResult(None, "partial", "", timed_out=True), "timeout"),
+    ("claude_cli", ProviderError("truncated", "output over cap"), "truncated"),
+    ("claude_cli", Cancelled(), None),
+    ("grok_cli", cli.CliResult(0, '{"type":"text","data":"partial"}', ""), "truncated"),
+    ("grok_cli", cli.CliResult(0, '{"type":"refusal","message":"declined"}', ""), "refused"),
+])
+def test_failed_complete_does_not_refresh_cli_proof(monkeypatch, tmp_path, pid, result, kind) -> None:
+    clock = [399.0]
+    monkeypatch.setattr(cli.time, "monotonic", lambda: clock[0])
+    original = cli.CliStatus(pid, cli.PRESETS[pid].bin, checked_at=100.0, version_ok=True, call_verified_at=100.0)
+    cli._status[pid], cli._proofs[pid] = original, 100.0
+    monkeypatch.setattr(cli, "resolve_bin", lambda p, override=None: tmp_path / cli.PRESETS[p].bin)
+
+    def fake_run(argv, **kw):
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+    monkeypatch.setattr(cli, "run_cli", fake_run)
+    with pytest.raises(Cancelled if kind is None else ProviderError) as error:
+        cli.CLIEngine(pid).complete("system", "1. source")
+    if kind is not None:
+        assert error.value.kind == kind
+    assert cli._status[pid] is original and cli._proofs[pid] == 100.0
+    clock[0] += 1
+    assert not original.usable
+
+
+@pytest.mark.parametrize("fresh", [False, True])
+def test_concurrent_expired_probes_are_single_flight(monkeypatch, tmp_path, fresh) -> None:
+    clock = [401.0]
+    monkeypatch.setattr(cli.time, "monotonic", lambda: clock[0])
+    pid, workers = "claude_cli", 4
+    cli._status[pid] = cli.CliStatus(pid, "claude", checked_at=100.0, version_ok=True)
+    arrived, entered, release = threading.Event(), threading.Event(), threading.Event()
+    guard, arrivals, calls = threading.Lock(), [], []
+
+    class ObservedGate:
+        def __init__(self):
+            self.lock = threading.Lock()
+
+        def acquire(self, blocking=True):
+            if not blocking:
+                with guard:
+                    arrivals.append(1)
+                    if len(arrivals) == workers:
+                        arrived.set()  # every caller requested a probe while the first was still in flight
+            return self.lock.acquire(blocking)
+
+        def release(self):
+            self.lock.release()
+
+    cli._probing[pid] = ObservedGate()
+    monkeypatch.setattr(cli, "resolve_bin", lambda p, override=None: tmp_path / "claude")
+
+    def fake_run(argv, **kw):
+        calls.append(argv[1:])
+        if argv[1:] == ["--version"]:
+            entered.set()
+            assert release.wait(5)
+            return cli.CliResult(0, "2.1", "")
+        return cli.CliResult(0, "unknown", "")
+
+    monkeypatch.setattr(cli, "run_cli", fake_run)
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = [pool.submit(cli.probe, pid, fresh=fresh) for _ in range(workers)]
+        try:
+            assert entered.wait(5) and arrived.wait(5)
+        finally:
+            release.set()
+        statuses = [future.result(timeout=5) for future in futures]
+    assert calls == [["--version"], ["auth", "status"]]
+    assert all(status is statuses[0] for status in statuses) and statuses[0].checked_at == clock[0]
+
+
+def test_probes_for_different_clis_are_not_globally_serialized(monkeypatch, tmp_path) -> None:
+    together = threading.Barrier(2)
+    monkeypatch.setattr(cli, "resolve_bin", lambda p, override=None: tmp_path / cli.PRESETS[p].bin)
+
+    def fake_run(argv, **kw):
+        if argv[1:] == ["--version"]:
+            together.wait(timeout=5)  # both providers must reach their child run at the same time
+            return cli.CliResult(0, "2.1", "")
+        return cli.CliResult(0, '{"loggedIn": true}' if argv[1] == "auth" else "Logged in", "")
+
+    monkeypatch.setattr(cli, "run_cli", fake_run)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = [pool.submit(cli.probe, pid) for pid in ("claude_cli", "codex_cli")]
+        assert all(future.result(timeout=5).usable for future in futures)
+
+
+def test_probe_keeps_success_proof_arriving_while_it_runs(monkeypatch, tmp_path) -> None:
+    clock = [401.0]
+    monkeypatch.setattr(cli.time, "monotonic", lambda: clock[0])
+    pid = "claude_cli"
+    cli._status[pid] = cli.CliStatus(pid, "claude", checked_at=100.0, version_ok=True)
+    entered, release = threading.Event(), threading.Event()
+    monkeypatch.setattr(cli, "resolve_bin", lambda p, override=None: tmp_path / "claude")
+
+    def fake_run(argv, **kw):
+        if argv[1:] == ["--version"]:
+            entered.set()
+            assert release.wait(5)
+            return cli.CliResult(0, "2.1", "")
+        return cli.CliResult(0, "unknown", "")
+
+    monkeypatch.setattr(cli, "run_cli", fake_run)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(cli.probe, pid)
+        try:
+            assert entered.wait(5)
+            clock[0] = 402.0
+            cli.confirm_call(pid)
+            clock[0] = 403.0
+        finally:
+            release.set()
+        status = future.result(timeout=5)
+    assert status is cli.probe(pid) and status.logged_in is None and status.usable
+    assert status.call_verified_at == 402.0 and status.checked_at == 403.0

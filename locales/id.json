@@ -278,5 +278,11 @@
   "about.version": "Versora {v}",
   "order.not_set_up": "Belum diatur",
   "order.set_up": "Atur",
-  "quick.manage": "Kelola"
+  "quick.manage": "Kelola",
+  "done.stopped": "Dihentikan",
+  "done.n_unfinished": "{n} belum selesai",
+  "batch.unfinished": "Belum selesai",
+  "batch.retry_remaining": "Coba lagi {n} berkas",
+  "err.damaged_short": "Berkas {ext} ini tampaknya rusak atau kosong.",
+  "run.stopped": "Dihentikan."
 }

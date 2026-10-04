@@ -34,6 +34,12 @@ def ensure_project(name: str) -> Path:
     safe = _safe_name(name)
     d = projects_dir() / safe
     d.mkdir(parents=True, exist_ok=True)
+    # Windows may reuse a differently cased directory. Return its disk name, not the typed spelling.
+    # samefile keeps distinct case-sensitive projects distinct on other filesystems.
+    for existing in d.parent.iterdir():
+        if existing.name.casefold() == safe.casefold() and existing.is_dir() and existing.samefile(d):
+            d = existing
+            break
     gl = d / "glossary.json"
     if not gl.exists():
         gl.write_text("[]\n", encoding="utf-8")

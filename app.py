@@ -1034,9 +1034,11 @@ def _ready() -> bool:
 
 
 def _cancel_clicked() -> None:
-    # This callback runs on the next pass, after the interrupted run has unwound and its worker
-    # (or CLI child) has stopped, so the toast is true when it shows. FX_JS shows "Cancelling…" meanwhile.
-    _toast(L("run.cancelled"), "warn")
+    # runner.fastReruns=false keeps this callback after the interrupted run's worker cleanup.
+    # FX_JS shows "Cancelling…" until then; only claim files were kept when there are saved files.
+    report = st.session_state.batch_report
+    kept = bool(st.session_state.result or (report is not None and report.written))
+    _toast(L("run.cancelled" if kept else "run.stopped"), "warn")
 
 
 def _start_job() -> None:
@@ -1098,19 +1100,22 @@ def _run_line(head, text: str, right: str = "") -> None:
 # Parsers' words for a file that is not what its name says (docx/xlsx are zips, pdf has a trailer).
 _DAMAGED = ("package not found", "not a zip file", "badzipfile", "eof marker", "pdfreaderror", "invalid pdf", "no /root")
 _TEMP_SRC = re.compile(r"(?:[A-Za-z]:)?[\\/][^'\"\n]*?versora_[^'\"\n\\/]*[\\/]source\.\w+")
-_ABS_PATH = re.compile(r"(?:[A-Za-z]:\\|/(?:tmp|var|home|Users|private)/)[^'\"\s]*")
+_ABS_PATH = re.compile(r"(?:[A-Za-z]:[\\/]|\\\\|/(?:tmp|var|home|Users|private)/)[^'\"\s]*")
+_QUOTED_PATH = re.compile(r"(['\"])(?:[A-Za-z]:[\\/]|\\\\|/(?:tmp|var|home|Users|private)/)[^'\"\n]*\1")
 
 
-def _file_reason(msg: str, name: str, size: int) -> str:
+def _file_reason(msg: str, name: str, size: int | None = None) -> str:
     low = (msg or "").lower()
     if any(n in low for n in _DAMAGED):
-        return L("err.damaged", ext=(Path(name).suffix.lstrip(".").upper() or "?"), size=_fmt_size(size))
+        ext = Path(name).suffix.lstrip(".").upper() or "?"
+        return L("err.damaged_short", ext=ext) if size is None else L("err.damaged", ext=ext, size=_fmt_size(size))
     return _hint(msg) or L("err.generic")
 
 
 def _detail_text(msg: str, name: str) -> str:
     """Raw error for Details: secrets redacted, our temp copy shown as the user's file name, other paths cut."""
-    text = _TEMP_SRC.sub(name, redact_secrets(msg or ""))
+    text = _TEMP_SRC.sub(lambda _m: name, redact_secrets(msg or ""))
+    text = _QUOTED_PATH.sub(lambda m: f"{m[1]}…{m[1]}", text)  # quoted paths may contain spaces
     return _ABS_PATH.sub("…", text).strip()
 
 
@@ -1189,7 +1194,8 @@ def _files_html(report: BatchReport, cap: int) -> str:
         if rel in done:
             rows.append(_file_row(rel, "done", L("state.done")))
         elif rel in failed:
-            rows.append(_file_row(rel, "fail", _human(failed[rel].error)))
+            item = failed[rel]
+            rows.append(_file_row(rel, "wait" if item.error == CANCELLED else "fail", _file_reason(item.error, rel)))
         elif rel in running:
             rows.append(_file_row(rel, "run", L("state.running")))
         else:
@@ -1202,9 +1208,9 @@ def _run_batch(job: dict, only: set[str] | None = None) -> None:
 
     The core calls back on this thread per finished file and on a short heartbeat while files run;
     both redraw from the shared report, and each draw is where Streamlit raises its stop/rerun
-    exception on a Cancel click. Whatever phase that lands in (preparing, the first frame, mid-file),
-    the core has stopped its workers, ``cancel`` is set, and the shown report keeps what finished
-    and says Stopped."""
+    exception on a Cancel click. runner.fastReruns=false serializes the next render behind this
+    run's cleanup: the core joins its workers and harvests every outcome before the cancelled
+    report is shown. Do not publish a stopped snapshot while the old runner is still unwinding."""
     report = BatchReport()
     cancel = threading.Event()
     previous = st.session_state.batch_report if only else None
@@ -1222,7 +1228,7 @@ def _run_batch(job: dict, only: set[str] | None = None) -> None:
         previous.failed = [f for f in previous.failed if f.rel not in seen] + actual_failures
         previous.skipped += [s for s in report.skipped if s.rel in only]  # not the zip's own skips again
         previous.cancelled = report.cancelled
-        st.session_state.batch_report = previous
+        # Already held by session state. Cleanup must not yield again while merging the final outcomes.
         return previous
 
     error = None
@@ -1256,15 +1262,17 @@ def _run_batch(job: dict, only: set[str] | None = None) -> None:
                 error = e
     except BaseException:  # Streamlit's stop/rerun on a Cancel click (any phase), or a crash
         cancel.set()
-        if not report.output_root or len(report.written) + len(report.failed) < len(report.planned):
-            report.cancelled = True  # stopped before the job began, or before every file was recorded
+        report.cancelled = True  # even an early stop or a stop on the last progress frame is a stopped run
         if previous is not None:
             merge_retry()
         raise
     if error is not None:
         if not only:
             st.session_state.batch_report = None
-        st.session_state.batch_error = {"name": job.get("name") or Path(job.get("path", "")).name, "msg": str(error)}
+        name = job.get("name") or Path(job.get("path", "")).name
+        if job["kind"] == "zip":
+            name = st.session_state.picked_name or name + ".zip"  # output job names are stems, error copy needs the source extension
+        st.session_state.batch_error = {"name": name, "msg": str(error)}
         st.rerun()
     if previous is not None:  # merge a retry into the shown report
         report = merge_retry()
@@ -1305,6 +1313,8 @@ def _result_head(title: str, sub: str, actions, warn: bool = False, tone: str | 
 
 def _path_sub(path: str, extra: str = "") -> str:
     """The output's name, with the full path as its tooltip and a small Copy path (FX_JS copies)."""
+    if not path or not path.strip():
+        return extra  # early cancellation has no output folder to copy
     name = Path(path).name or path
     return (f'{extra}<span class="sfts-path" title="{html.escape(path)}">{html.escape(name)}</span>'
             f'<button type="button" class="sfts-copy" data-copy="{html.escape(path)}" data-done="{html.escape(L("result.copied"))}">'
@@ -1368,7 +1378,7 @@ def render_single_error() -> None:
 def render_batch_error() -> None:
     err = st.session_state.batch_error
     missing = err.get("missing")
-    reason = L("main.folder_missing") if missing else _human(err["msg"])
+    reason = L("main.folder_missing") if missing else _file_reason(err["msg"], err["name"])
     _error_card(reason, err["name"], "" if missing else _detail_text(err["msg"], err["name"]),
                 _clear_folder if st.session_state.source_type == "folder" else _remove_pick)
 
@@ -1376,17 +1386,23 @@ def render_batch_error() -> None:
 def render_batch_result() -> None:
     report: BatchReport = st.session_state.batch_report
     job = st.session_state.batch_job
-    n_ok, n_fail, n_skip = len(report.written), len(report.failed), len(report.skipped)
+    failures = [i for i in report.failed if i.error != CANCELLED]
+    unfinished = [i for i in report.failed if i.error == CANCELLED]
+    n_ok, n_fail, n_left, n_skip = len(report.written), len(failures), len(unfinished), len(report.skipped)
+    n_retry = len(report.failed)
     parts = [L("done.n_saved", n=n_ok)]
     if n_fail:
         parts.append(L("done.n_failed", n=n_fail))
+    if n_left:
+        parts.append(L("done.n_unfinished", n=n_left))
     if n_skip:
         parts.append(L("done.n_skipped", n=n_skip))
-    title = L("run.cancelled") if report.cancelled else (L("done.batch") if not n_fail else L("done.batch_some"))
+    title = L("done.stopped") if report.cancelled else (L("done.batch") if not n_fail else L("done.batch_some"))
 
     def actions() -> None:
-        if n_fail and job:  # runs at page level on the next pass
-            st.button(L("batch.retry", n=n_fail), key="retry_failed", on_click=lambda: st.session_state.update(retry_pending=True))
+        if n_retry and job:  # one retry for errors and unfinished files, never for already saved files
+            label = L("batch.retry_remaining" if n_left else "batch.retry", n=n_retry)
+            st.button(label, key="retry_failed", on_click=lambda: st.session_state.update(retry_pending=True))
         if report.output_root and Path(report.output_root).is_dir():
             st.button(L("batch.open_folder"), key="open_out", on_click=_open, args=(report.output_root,))
         if n_ok:
@@ -1402,9 +1418,18 @@ def render_batch_result() -> None:
         st.markdown('<div class="sfts-files">' + "".join(_file_row(i.rel, state, note(i)) for i in items) + "</div>", unsafe_allow_html=True)
 
     with st.container(border=True, key="card_result"):
-        _result_head(title, _path_sub(report.output_root, " · ".join(parts) + " · "), actions, warn=bool(n_fail))
-        if n_fail:  # problems first and open; the saved list is a folded summary
-            group(L("batch.failed"), report.failed, "fail", lambda i: _human(i.error))
+        tone = "warn" if report.cancelled else ("err" if n_fail else "ok")
+        _result_head(title, html.escape(" · ".join(parts)), actions, warn=report.cancelled or bool(n_fail), tone=tone)
+        if report.output_root:
+            st.markdown(f'<div class="sfts-result-path">{_path_sub(report.output_root)}</div>', unsafe_allow_html=True)
+        if n_fail:  # plain reasons first; raw, redacted diagnostics stay in the existing disclosure pattern
+            group(L("batch.failed"), failures, "fail", lambda i: _file_reason(i.error, i.rel))
+            with st.expander(L("main.details")):
+                for item in failures:
+                    st.markdown(f'<b>{html.escape(item.rel)}</b><code class="sfts-detail">'
+                                f'{html.escape(_detail_text(item.error, item.rel))}</code>', unsafe_allow_html=True)
+        if n_left:
+            group(L("batch.unfinished"), unfinished, "wait", lambda i: L("err.cancelled"))
         if n_skip:
             group(L("batch.skipped"), report.skipped, "skip", lambda i: _human(i.skipped or i.error, _SKIP_HINTS))
         if n_ok:
@@ -1430,8 +1455,10 @@ def _translate_button(disabled: bool = False) -> None:
     """The page's one start button: filled until a result exists, then outlined "Translate again";
     hidden while an error card offers Try again; disabled with a pulse while its job runs."""
     busy = _busy()
-    if _has_error() and not busy:
-        return
+    report = st.session_state.batch_report
+    partial_batch = st.session_state.source_type != "file" and report is not None and bool(report.failed)
+    if not busy and (_has_error() or partial_batch):
+        return  # L4: the focused result card owns the only retry for a partial batch
     again = _has_result() and not busy
     label = L("state.running") if busy else (L("main.translate_again") if again else L("main.translate_btn"))
     with st.container(key="start_busy" if busy else "start_idle"):

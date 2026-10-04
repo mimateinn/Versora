@@ -362,39 +362,64 @@ class CliStatus:
     models: tuple[str, ...] = ()
     checked_at: float = 0.0
     version_ok: bool = False
-    call_verified_at: float | None = None  # a successful explicit Test verifies transport, not sign-in identity
+    call_verified_at: float | None = None  # last successful call: verifies transport, not sign-in identity
 
     @property
     def present(self) -> bool:
         return self.binary is not None
 
     @property
-    def usable(self) -> bool:  # unknown is not ready: only a clean version run plus a seen "signed in"
+    def usable(self) -> bool:
+        """A clean version run plus a seen "signed in"; while sign-in is unknown (never when it was seen
+        signed out) a successful call within STATUS_TTL stands in for it. A version alone is not ready."""
         recent_call = self.call_verified_at is not None and time.monotonic() - self.call_verified_at < STATUS_TTL
-        return self.present and self.version_ok and (self.logged_in is True or recent_call)
+        return self.present and self.version_ok and (self.logged_in is True or (self.logged_in is None and recent_call))
 
 
 _status: dict[str, CliStatus] = {}
-_status_lock = threading.Lock()
+_proofs: dict[str, float] = {}  # last successful call per CLI; outlives a re-probe, cleared with the status
+_probing: dict[str, threading.Lock] = {}  # one probe per CLI at a time; different CLIs still probe in parallel
+_status_lock = threading.Lock()  # guards the three dicts above; never held while a child runs
 
 
 def confirm_call(pid: str) -> None:
-    """An explicit successful translation test is stronger than an unknown auth parser. Keep the
-    auth tri-state unchanged and require the clean version probe; a fresh probe clears this proof."""
+    """Record a successful call (an explicit Test or a real translation). It proves the transport, not
+    who is signed in, so the probed tri-state stays as it is. When that makes the cached status usable
+    the call also renews its cache time: a long batch is not re-probed (and maybe de-authenticated)
+    mid-run. A failed version run or a seen sign-out is never renewed; it expires to a real re-probe."""
     with _status_lock:
+        now = time.monotonic()
+        _proofs[pid] = now
         status = _status.get(pid)
-        if status is not None and status.version_ok:
-            _status[pid] = replace(status, call_verified_at=time.monotonic())
+        if status is not None:
+            status = replace(status, call_verified_at=now)
+            _status[pid] = replace(status, checked_at=now) if status.usable else status
 
 
 def probe(pid: str, *, fresh: bool = False) -> CliStatus:
     """``bin --version`` then the preset's status command, 15 s each; cached STATUS_TTL.
     A failed version run skips the status run (sign-in stays unknown); "signed in" counts only from
-    a status run that exited 0. Nothing here reads tokens, and signed in says nothing about credit."""
+    a status run that exited 0. Nothing here reads tokens, and signed in says nothing about credit.
+    Single flight per CLI: callers that find it expired wait for one probe and share its result."""
     with _status_lock:
         hit = _status.get(pid)
         if hit and not fresh and time.monotonic() - hit.checked_at < STATUS_TTL:
             return hit
+        gate = _probing.setdefault(pid, threading.Lock())
+    waiting = not gate.acquire(blocking=False)
+    if waiting:
+        gate.acquire()
+    try:
+        with _status_lock:
+            hit = _status.get(pid)
+            if hit and (waiting or not fresh) and time.monotonic() - hit.checked_at < STATUS_TTL:
+                return hit  # share an in-flight probe, even when both callers asked for a fresh check
+        return _probe_now(pid)
+    finally:
+        gate.release()
+
+
+def _probe_now(pid: str) -> CliStatus:
     binary = resolve_bin(pid)
     status = CliStatus(pid, None, checked_at=time.monotonic())
     if binary is not None:
@@ -417,7 +442,8 @@ def probe(pid: str, *, fresh: bool = False) -> CliStatus:
             except ProviderError:
                 pass
         status = CliStatus(pid, str(binary), version, logged, models, time.monotonic(), version_ok)
-    with _status_lock:
+    with _status_lock:  # the latest proof, including a call that succeeded while this probe ran
+        status = replace(status, call_verified_at=_proofs.get(pid))
         _status[pid] = status
     return status
 
@@ -426,8 +452,10 @@ def forget_status(pid: str | None = None) -> None:
     with _status_lock:
         if pid:
             _status.pop(pid, None)
+            _proofs.pop(pid, None)
         else:
             _status.clear()
+            _proofs.clear()
 
 
 class CLIEngine(Engine):
@@ -466,5 +494,8 @@ class CLIEngine(Engine):
                 finished=grok_finished if self.id == "grok_cli" else None,
             )
         if self.id == "grok_cli" and not res.timed_out and (res.code == 0 or res.done_early):
-            return classify(res, parse_grok(res.stdout, self.id), self.id)
-        return classify(res, res.stdout, self.id)
+            text = classify(res, parse_grok(res.stdout, self.id), self.id)
+        else:
+            text = classify(res, res.stdout, self.id)
+        confirm_call(self.id)  # reached only by a usable answer: errors, refusals, empty and cut-off replies raised
+        return text

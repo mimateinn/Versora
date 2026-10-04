@@ -2,16 +2,20 @@
 
 from __future__ import annotations
 
+import io
 import json
+import re
 import threading
+import tomllib
+import zipfile
 from pathlib import Path
 
-import re
+import pytest
 
 import src.batch as batch
 import src.config as config
 import src.runtime as runtime
-from src.batch import CANCELLED, BatchReport, translate_tree
+from src.batch import CANCELLED, BatchItem, BatchReport, translate_tree
 from src.providers.base import Engine, ProviderError
 
 AUTH_FAIL = "[auth] HTTP 401 invalid api key"
@@ -355,7 +359,8 @@ def test_unavailable_choice_and_safe_language_filename(tmp_path, monkeypatch) ->
     assert not any(c in calls[-1].name for c in '/\\:<>?*')
 
 
-def test_created_glossary_uses_canonical_name_and_keeps_existing_terms(tmp_path, monkeypatch) -> None:
+@pytest.mark.parametrize("new_name", ["My Project", "my project"])
+def test_created_glossary_uses_canonical_name_and_keeps_existing_terms(tmp_path, monkeypatch, new_name) -> None:
     import src.glossary as glossary
     import src.ui_prefs as prefs
     from streamlit.testing.v1 import AppTest
@@ -365,12 +370,250 @@ def test_created_glossary_uses_canonical_name_and_keeps_existing_terms(tmp_path,
     monkeypatch.setattr(glossary, "projects_dir", lambda: tmp_path / "projects")
     existing = glossary.ensure_project("My Project").name
     glossary.save_glossary(existing, [("API", "interface")])
+    if new_name != "My Project" and not (tmp_path / "projects" / "my_project").is_dir():
+        pytest.skip("Case-sensitive filesystems permit a distinct case-only project.")
     at = AppTest.from_file(str(Path(__file__).resolve().parents[1] / "app.py"), default_timeout=60)
     at.session_state["page"] = "settings"
     at.session_state["settings_pane"] = "glossary"
     at.run()
-    at.text_input(key="new_project_name").set_value("My Project").run()
+    at.text_input(key="new_project_name").set_value(new_name).run()
     at.button(key="create_project").click().run()
     assert not at.exception and at.session_state["project"] == existing
     assert at.selectbox(key="project_select").value == existing
     assert at.session_state["glossary_pairs"] == [("API", "interface")]
+
+def test_cancel_cleanup_uses_serialized_reruns() -> None:
+    """The browser runner must not render a shared report while its old runner is harvesting it."""
+    config_path = Path(__file__).resolve().parents[1] / ".streamlit" / "config.toml"
+    assert tomllib.loads(config_path.read_text(encoding="utf-8"))["runner"]["fastReruns"] is False
+
+
+def _batch_app(tmp_path, monkeypatch):
+    """An isolated zip selection; fake core functions below interrupt via a real Streamlit rerun."""
+    import src.glossary as glossary
+    import src.ui_prefs as prefs
+    from streamlit.testing.v1 import AppTest
+
+    monkeypatch.setenv("SFTS_DEMO", "1")
+    monkeypatch.setattr(prefs, "prefs_path", lambda: tmp_path / "prefs.json")
+    monkeypatch.setattr(config, "_probe_available", lambda: ["demo"])
+    monkeypatch.setattr(config, "_available_cache", None)
+    monkeypatch.setattr(glossary, "projects_dir", lambda: tmp_path / "projects")
+    at = AppTest.from_file(str(Path(__file__).resolve().parents[1] / "app.py"), default_timeout=60)
+    at.session_state["ui_lang"] = "en"
+    at.session_state["provider"] = "demo"
+    at.session_state["source_type"] = "zip"
+    at.session_state["picked_name"] = "fixture.zip"
+    at.session_state["picked_bytes"] = b"zip"
+    at.session_state["picked_size"] = 3
+    return at
+
+
+def test_cancelled_batch_rerun_shows_harvested_outputs_and_unfinished_files(tmp_path, monkeypatch) -> None:
+    """The next render sees the output finalized during unwind, all remaining files, and one retry."""
+    import streamlit as st
+
+    out = tmp_path / "output"
+    out.mkdir()
+    active = {"running": False}
+
+    def interrupted(_zip, _tree, *, report, cancel, on_progress, **_kw):
+        active["running"] = True
+        report.output_root = str(out)
+        report.planned = [f"f{i}.txt" for i in range(8)]
+        report.started = ["f0.txt", "f1.txt"]
+        report.skipped = [BatchItem(rel="art/logo.png", skipped="unsupported type")]
+        first = out / "f0.txt"
+        first.write_text("first saved", encoding="utf-8")
+        report.written.append(BatchItem(rel=first.name, out=str(first)))
+        try:
+            on_progress(1, 8, report.written[0])
+            st.rerun()  # deterministic interruption: no browser timer or sleep
+        finally:
+            cancel.set()
+            last = out / "f1.txt"  # the core harvests a file already finishing when cancellation lands
+            last.write_text("saved during cleanup", encoding="utf-8")
+            report.written.append(BatchItem(rel=last.name, out=str(last)))
+            report.failed = [BatchItem(rel=rel, error=CANCELLED) for rel in report.planned[2:]]
+            report.cancelled = True
+            active["running"] = False
+
+    monkeypatch.setattr(batch, "translate_zip", interrupted)
+    at = _batch_app(tmp_path, monkeypatch).run()
+    at.button(key="start_translate").click().run()
+    assert not at.exception and not active["running"]
+    report = at.session_state["batch_report"]
+    assert report.cancelled and len(report.written) == 2 and len(report.failed) == 6
+    assert sorted(i.rel for i in report.written + report.failed) == sorted(report.planned)
+    markup = "\n".join(m.value for m in at.markdown)
+    assert 'sfts-done-title">Stopped</div>' in markup and "All done" not in markup
+    assert 'data-tone="warn"' in markup and "2 saved · 6 not finished · 1 skipped" in markup
+    assert "Not finished · 6" in markup and all(rel in markup for rel in report.planned[2:])
+    assert at.button(key="retry_failed").label == "Retry 6 files"
+    assert "start_translate" not in [b.key for b in at.button]
+    with zipfile.ZipFile(io.BytesIO(at.session_state["batch_zip"])) as archive:
+        assert sorted(archive.namelist()) == ["f0.txt", "f1.txt"]
+        assert archive.read("f1.txt") == b"saved during cleanup"
+
+
+def test_cancelled_batch_retry_keeps_unreached_errors(tmp_path, monkeypatch) -> None:
+    """A stopped retry replaces reached outcomes but does not turn earlier real errors into cancellation."""
+    import streamlit as st
+
+    out = tmp_path / "output"
+    out.mkdir()
+    saved = out / "saved.txt"
+    saved.write_text("keep this", encoding="utf-8")
+    old_error = "cannot open docx: Package not found at 'C:\\private owner\\Temp\\unreached.docx'"
+    previous = BatchReport(
+        output_root=str(out), written=[BatchItem(rel=saved.name, out=str(saved))],
+        failed=[BatchItem(rel="fixed.txt", error=AUTH_FAIL), BatchItem(rel="still-bad.txt", error="old failure"),
+                BatchItem(rel="unreached.docx", error=old_error), BatchItem(rel="waiting.txt", error=CANCELLED)],
+        skipped=[BatchItem(rel="art/logo.png", skipped="unsupported type")],
+        planned=["saved.txt", "fixed.txt", "still-bad.txt", "unreached.docx", "waiting.txt"], cancelled=True,
+    )
+    calls = []
+
+    def interrupted(_zip, _tree, *, report, cancel, only, **_kw):
+        calls.append(set(only))
+        report.output_root = str(out)
+        report.planned = sorted(only)
+        report.started = ["fixed.txt", "still-bad.txt"]
+        fixed = out / "fixed.txt"
+        fixed.write_text("fixed", encoding="utf-8")
+        report.written = [BatchItem(rel=fixed.name, out=str(fixed))]
+        report.skipped = [BatchItem(rel="art/logo.png", skipped="unsupported type")]
+        try:
+            st.rerun()
+        finally:
+            cancel.set()
+            report.failed = [BatchItem(rel="still-bad.txt", error="[timeout] retry timeout"),
+                             BatchItem(rel="unreached.docx", error=CANCELLED), BatchItem(rel="waiting.txt", error=CANCELLED)]
+            report.cancelled = True
+
+    monkeypatch.setattr(batch, "translate_zip", interrupted)
+    at = _batch_app(tmp_path, monkeypatch)
+    at.session_state["batch_report"] = previous
+    at.session_state["batch_job"] = {"kind": "zip", "name": "fixture", "bytes": b"zip"}
+    at.run()
+    at.button(key="retry_failed").click().run()
+    assert not at.exception and calls == [{"fixed.txt", "still-bad.txt", "unreached.docx", "waiting.txt"}]
+    final = at.session_state["batch_report"]
+    assert final.cancelled and sorted(i.rel for i in final.written) == ["fixed.txt", "saved.txt"]
+    assert {i.rel: i.error for i in final.failed} == {
+        "still-bad.txt": "[timeout] retry timeout", "unreached.docx": old_error, "waiting.txt": CANCELLED,
+    }
+    assert len(final.skipped) == 1 and saved.read_text(encoding="utf-8") == "keep this"
+    assert at.button(key="retry_failed").label == "Retry 3 files"
+    assert "start_translate" not in [b.key for b in at.button]
+    markup = "\n".join(m.value for m in at.markdown)
+    assert "2 failed · 1 not finished" in markup and 'sfts-done-title">Stopped</div>' in markup
+
+
+def test_batch_reasons_are_plain_details_redacted_and_path_separate(tmp_path, monkeypatch) -> None:
+    out = tmp_path / "output"
+    out.mkdir()
+    saved = out / "saved.txt"
+    saved.write_text("saved", encoding="utf-8")
+    secret = "sk-" + "x" * 40
+    report = BatchReport(
+        output_root=str(out), written=[BatchItem(rel=saved.name, out=str(saved))],
+        failed=[
+            BatchItem(rel="docs/damaged.docx", error="cannot open docx: Package not found at 'C:\\private owner\\AppData\\Local\\Temp\\versora_zip_42\\tree\\damaged file.docx'"),
+            BatchItem(rel="other/damaged.docx", error=f"reader rejected '{secret}' in '/tmp/private owner/source document.docx'"),
+            BatchItem(rel="online.txt", error=f"[auth] HTTP 401 invalid api key {secret}"),
+        ],
+    )
+    at = _batch_app(tmp_path, monkeypatch)
+    at.session_state["batch_report"] = report
+    at.session_state["batch_job"] = {"kind": "zip", "name": "fixture", "bytes": b"zip"}
+    at.run()
+    assert not at.exception and at.button(key="retry_failed").label == "Retry 3 failed"
+    assert "start_translate" not in [b.key for b in at.button]
+    rows = "\n".join(m.value for m in at.markdown if '<div class="sfts-files">' in m.value)
+    assert rows.count("This DOCX file looks damaged or empty.") == 1
+    assert "Something went wrong with this file." in rows and "The key was refused." in rows
+    assert "docs/damaged.docx" in rows and "other/damaged.docx" in rows
+    assert "Package not found" not in rows and "reader rejected" not in rows
+    details = "\n".join(m.value for m in at.markdown if 'class="sfts-detail"' in m.value)
+    assert "Package not found" in details and "reader rejected" in details and "****" in details
+    assert secret not in details and "private owner" not in details and "versora_zip_42" not in details
+    assert "AppData" not in details
+    head = next(m.value for m in at.markdown if 'sfts-done-title' in m.value and '<div class="sfts-done ' in m.value)
+    path_line = next(m.value for m in at.markdown if '<div class="sfts-result-path">' in m.value)
+    assert "3 failed" in head and 'data-copy=' not in head and str(out) not in head
+    assert f'data-copy="{out}"' in path_line and "Copy path" in path_line
+    assert len(at.expander) == 2  # one Details disclosure and the existing folded Saved group
+
+
+def test_early_batch_cancel_has_no_copy_path(tmp_path, monkeypatch) -> None:
+    import streamlit as st
+
+    def interrupted(*_args, **_kw):
+        st.rerun()  # before the core sets output_root or plans any files
+
+    monkeypatch.setattr(batch, "translate_zip", interrupted)
+    at = _batch_app(tmp_path, monkeypatch).run()
+    at.button(key="start_translate").click().run()
+    assert not at.exception and at.session_state["batch_report"].cancelled
+    assert not at.session_state["batch_report"].output_root
+    markup = "\n".join(m.value for m in at.markdown)
+    assert 'sfts-done-title">Stopped</div>' in markup and 'data-copy=' not in markup
+
+
+def test_successful_batch_keeps_translate_again(tmp_path, monkeypatch) -> None:
+    out = tmp_path / "output"
+    out.mkdir()
+    saved = out / "saved.txt"
+    saved.write_text("saved", encoding="utf-8")
+    at = _batch_app(tmp_path, monkeypatch)
+    at.session_state["batch_report"] = BatchReport(output_root=str(out), written=[BatchItem(rel=saved.name, out=str(saved))])
+    at.session_state["batch_job"] = {"kind": "zip", "name": "fixture", "bytes": b"zip"}
+    at.run()
+    assert not at.exception and at.button(key="start_translate").label == "Translate again"
+    assert at.button(key="start_translate").proto.type == "secondary"
+    assert "retry_failed" not in [b.key for b in at.button]
+
+
+@pytest.mark.parametrize("name,variant", [("My Project", "my project"), ("Ünicode Project", "ünicode project")])
+def test_ensure_project_returns_disk_casing_without_merging_distinct_dirs(tmp_path, monkeypatch, name, variant) -> None:
+    import src.glossary as glossary
+
+    root = tmp_path / "projects"
+    monkeypatch.setattr(glossary, "projects_dir", lambda: root)
+    original = glossary.ensure_project(name)
+    glossary.save_glossary(original.name, [("API", "interface")])
+    variant_path = root / variant.replace(" ", "_")
+    reused = variant_path.is_dir()  # actual filesystem behavior, not a guessed OS label
+    created = glossary.ensure_project(variant)
+    if reused:
+        assert created.samefile(original) and created.name == original.name
+        assert glossary.load_glossary(created.name) == [("API", "interface")]
+        assert glossary.list_projects() == [original.name]
+    else:
+        assert not created.samefile(original) and created.name == variant_path.name
+        assert glossary.load_glossary(created.name) == []
+        assert glossary.load_glossary(original.name) == [("API", "interface")]
+
+
+
+def test_zip_error_keeps_source_extension(tmp_path, monkeypatch) -> None:
+    """The batch job's output stem must not turn the damaged-zip heading into 'This ? file'."""
+    import src.ui_prefs as prefs
+    from streamlit.testing.v1 import AppTest
+    monkeypatch.setattr(prefs, "prefs_path", lambda: tmp_path / "prefs.json")
+    monkeypatch.setattr(config, "_probe_available", lambda: ["demo"])
+    monkeypatch.setattr(config, "_available_cache", None)
+    def broken(*_args, **_kw):
+        raise ValueError("File is not a zip file")
+    monkeypatch.setattr(batch, "translate_zip", broken)
+    at = AppTest.from_file(str(Path(__file__).resolve().parents[1] / "app.py"), default_timeout=60)
+    at.session_state["source_type"] = "zip"
+    at.session_state["picked_name"] = "bad.archive.zip"
+    at.session_state["picked_bytes"] = b"not a zip"
+    at.session_state["picked_size"] = 9
+    at.run()
+    at.button(key="start_translate").click().run()
+    assert not at.exception and at.session_state["batch_error"]["name"] == "bad.archive.zip"
+    assert any("This ZIP file looks damaged or empty." in m.value for m in at.markdown)
+    assert not any("This ? file" in m.value for m in at.markdown)

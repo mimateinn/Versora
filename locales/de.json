@@ -278,5 +278,11 @@
   "about.version": "Versora {v}",
   "order.not_set_up": "Nicht eingerichtet",
   "order.set_up": "Einrichten",
-  "quick.manage": "Verwalten"
+  "quick.manage": "Verwalten",
+  "done.stopped": "Angehalten",
+  "done.n_unfinished": "{n} nicht abgeschlossen",
+  "batch.unfinished": "Nicht abgeschlossen",
+  "batch.retry_remaining": "{n} Dateien erneut versuchen",
+  "err.damaged_short": "Diese {ext}-Datei scheint beschädigt oder leer zu sein.",
+  "run.stopped": "Angehalten."
 }

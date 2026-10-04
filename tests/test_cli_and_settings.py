@@ -197,3 +197,30 @@ def test_locales_hide_subscription_copy() -> None:
         assert "keys.connect_sub" not in text
         assert "keys.sub_wait" not in text
         assert "等候安全審查" not in text
+
+
+def test_stopped_copy_and_token_contract() -> None:
+    """r5: cancellation labels exist in every UI language; reduced motion has no frozen percentage."""
+    import json
+    import string
+    from src.theme import css_for
+
+    root = Path(__file__).resolve().parents[1]
+    keys = ("done.stopped", "done.n_unfinished", "batch.unfinished", "batch.retry_remaining", "err.damaged_short", "run.stopped")
+    expected = {"done.n_unfinished": {"n"}, "batch.retry_remaining": {"n"}, "err.damaged_short": {"ext"}}
+    for path in (root / "locales").glob("*.json"):
+        messages = json.loads(path.read_text(encoding="utf-8"))
+        for key in keys:
+            assert messages[key].strip(), (path.name, key)
+            fields = {field for _text, field, _fmt, _convert in string.Formatter().parse(messages[key]) if field}
+            assert fields == expected.get(key, set()), (path.name, key, fields)
+    for mode in ("light", "dark"):
+        css = css_for(mode, "translate", "appearance")
+        assert '[data-testid="stMarkdownContainer"] a { color: var(--sfts-accent-strong) !important; }' in css
+        assert ".sfts-result-path { margin-left: 32px;" in css
+        reduced = "\n".join(_reduced_motion_blocks(css))
+        assert ".sfts-bar::after { animation: none !important; display: none; }" in reduced
+        assert "left: 35%" not in reduced
+    requirements = (root / "requirements.txt").read_text(encoding="utf-8").splitlines()
+    assert "streamlit>=1.65.0" in requirements
+    assert "openai>=1.40.0" in requirements  # owner approved the Streamlit floor only; no other dependency bump

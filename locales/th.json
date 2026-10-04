@@ -278,5 +278,11 @@
   "about.version": "Versora {v}",
   "order.not_set_up": "ยังไม่ได้ตั้งค่า",
   "order.set_up": "ตั้งค่า",
-  "quick.manage": "จัดการ"
+  "quick.manage": "จัดการ",
+  "done.stopped": "หยุดแล้ว",
+  "done.n_unfinished": "ยังไม่เสร็จ {n} ไฟล์",
+  "batch.unfinished": "ยังไม่เสร็จ",
+  "batch.retry_remaining": "ลองใหม่ {n} ไฟล์",
+  "err.damaged_short": "ไฟล์ {ext} นี้อาจเสียหายหรือว่างเปล่า",
+  "run.stopped": "หยุดแล้ว"
 }

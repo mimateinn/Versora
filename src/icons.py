@@ -27,7 +27,7 @@ re-created, so add it only where a fresh appearance is meaningful):
 On action (add ``.vi-play`` for one frame-pair, e.g. after a click; remove it to re-arm):
   SWAP flips 180deg; SUN rays spin in; MOON swings in.
 Always running while present: SPINNER rotates; DOT pulses a ring (progress / busy dot). Under reduced
-motion these two keep a slow opacity fade so a busy state is still visible.
+motion these two stay drawn but still; the adjacent label carries the busy state.
 """
 
 from __future__ import annotations
