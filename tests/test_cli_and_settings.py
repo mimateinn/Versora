@@ -75,8 +75,9 @@ def test_codex_argv_isolation() -> None:
     assert "model_reasoning_effort=low" in argv
     joined = " ".join(argv)
     assert not any(b in joined for b in PRESETS["codex_cli"].banned)
-    assert _argv("claude_cli") == ["-p", "--model", "m-1", "--effort", "low"]
-    assert _argv("claude_cli", "", "") == ["-p"]
+    flags = ["-p", "--tools", "", "--strict-mcp-config", "--disable-slash-commands", "--permission-mode", "dontAsk"]
+    assert _argv("claude_cli") == flags + ["--model", "m-1", "--effort", "low"]
+    assert _argv("claude_cli", "", "") == flags
 
 
 def test_cli_binary_names(tmp_path: Path) -> None:
@@ -145,6 +146,9 @@ def test_v2_chrome_contract() -> None:
     assert 'SETTINGS_PANES = ("purposes", "keys", "order", "glossary", "appearance")' in app  # nav == headings (r3)
     assert "status.info" not in app and "st.info(" not in app and "st.success(" not in app
     assert "L(\"main.status_ready\")" not in app
+    import ast
+    downloads = [n for n in ast.walk(ast.parse(app)) if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == "download_button"]
+    assert len(downloads) == 2 and all(any(k.arg == "on_click" and ast.literal_eval(k.value) == "ignore" for k in n.keywords) for n in downloads)
     maker = (root / "scripts" / "make_icon.py").read_text(encoding="utf-8")
     assert (root / "scripts" / "make_icon.py").is_file()
     assert "assets/icon.svg" in maker

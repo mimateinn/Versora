@@ -604,10 +604,10 @@ def _service_state(pid: str) -> tuple[str, str]:
         status = cli_engine.probe(pid)
         if not status.present:
             return "setup", "off"
+        if status.usable and h.get("kind") != "auth":
+            return "ready", "ok"
         if status.logged_in is False or h.get("kind") == "auth":
             return "signed_out", "err"
-        if status.logged_in or (test and test[0] == "ok") or (h and h.get("kind") is None):
-            return "ready", "ok"
         return "unchecked", "off"
     if not load_secret(API_KEY_NAMES[pid]) or pid not in list_available_providers() or h.get("kind") == "auth":
         return "setup", "off" if not h.get("kind") else "err"
@@ -629,6 +629,9 @@ def _test_service(pid: str) -> None:
         )
         text = runtime.parse_numbered(reply, 1)[0] if reply.strip().startswith("1") else reply.strip()
         runtime.note(pid, None)
+        if pid in cli_engine.PRESETS:
+            cli_engine.confirm_call(pid)
+            list_available_providers(fresh=True)  # Order and Translate see the same verified transport
         result = ("ok", time.perf_counter() - started, text[:80])
     except Exception as e:  # shown as a line; nothing here may break the page
         runtime.note(pid, getattr(e, "kind", None) or "spawn")
@@ -859,10 +862,11 @@ def render_glossary_pane() -> None:
             st.session_state.glossary_nonce += 1
             st.rerun()
         if create and new_name.strip():
-            ensure_project(new_name.strip())
-            st.session_state.project = new_name.strip()
-            st.session_state.glossary_pairs = []
+            canonical = ensure_project(new_name.strip()).name
+            st.session_state.project = canonical
+            st.session_state.glossary_pairs = load_glossary(canonical)  # creating an existing name keeps its terms
             st.session_state.glossary_nonce += 1
+            st.session_state.pop("project_select", None)  # next render seeds the widget from the canonical project
             st.rerun()
         st.markdown('<hr class="sfts-divider">', unsafe_allow_html=True)
 
@@ -990,10 +994,10 @@ def render_quick_bar() -> None:
         if available:
             options = ["auto", *available]
             if st.session_state.provider not in options:
-                st.session_state.provider = "auto"
-                st.session_state.pop("qb_provider", None)
+                options.append(st.session_state.provider)  # a transient failed probe must not overwrite the saved choice
             label = L("quick.translator") + ("" if busy else f' · [{L("quick.manage")}](?page=settings&pane=keys)')
-            st.selectbox(label, options=options, format_func={p: _translator_label(p) for p in options}.get,
+            st.selectbox(label, options=options,
+                         format_func={p: _translator_label(p) + (" · " + L("order.not_set_up") if p != "auto" and p not in available else "") for p in options}.get,
                          disabled=busy, **_bound("qb_provider", "provider"))
         else:
             with st.container(key="qb_setup"):
@@ -1020,9 +1024,12 @@ def _job_kwargs() -> dict:
 
 
 def _ready() -> bool:
-    if list_available_providers():
+    available = list_available_providers()
+    chosen = st.session_state.provider
+    if chosen in available or (chosen == "auto" and available):
         return True
-    _toast(L("main.no_translator"), "error")  # the quick bar shows the same notice inline
+    message = L("main.no_translator") if chosen == "auto" else f"{_translator_label(chosen)} · {L('order.not_set_up')}"
+    _toast(message, "error")
     return False
 
 
@@ -1048,7 +1055,9 @@ def _clear_folder() -> None:
 
 
 def _out_name(name: str) -> str:
-    return Path(name).stem + f".{_target_lang()}" + Path(name).suffix.lower()
+    # The full free-text language goes to the translator, never into a filesystem path.
+    tag = re.sub(r"[^\w-]+", "_", _target_lang(), flags=re.UNICODE).strip("_") or "target"
+    return Path(name).stem + f".{tag}" + Path(name).suffix.lower()
 
 
 def _unique_out(name: str, suffix: str) -> Path:
@@ -1189,49 +1198,76 @@ def _files_html(report: BatchReport, cap: int) -> str:
 
 
 def _run_batch(job: dict, only: set[str] | None = None) -> None:
-    """Run a folder or zip job with live per-file rows. ``only`` = retry those files."""
+    """Run a folder or zip job with live per-file rows. ``only`` = retry those files.
+
+    The core calls back on this thread per finished file and on a short heartbeat while files run;
+    both redraw from the shared report, and each draw is where Streamlit raises its stop/rerun
+    exception on a Cancel click. Whatever phase that lands in (preparing, the first frame, mid-file),
+    the core has stopped its workers, ``cancel`` is set, and the shown report keeps what finished
+    and says Stopped."""
     report = BatchReport()
+    cancel = threading.Event()
     previous = st.session_state.batch_report if only else None
     if not only:
         st.session_state.batch_report = report
         st.session_state.batch_job = job
     st.session_state.batch_zip = None
     cap = _run_cap()
-    with st.container(border=True, key="card_run"):
-        head, bar = _run_header()
-        _run_line(head, L("run.preparing"))
-        rows = st.empty()
-        shown = {"rows": ""}
 
-        def progress(done: int, total: int, _item) -> None:
-            _run_line(head, L("run.batch", total=total), L("run.files", done=done, total=total))
-            bar.progress(min(1.0, done / total) if total else 0.0)
-            now = _files_html(report, cap)
-            if now != shown["rows"]:  # same states: leave the rows' DOM (and its scroll) alone
-                shown["rows"] = now
-                rows.markdown(now, unsafe_allow_html=True)
-
-        try:
-            kw = dict(_job_kwargs(), report=report, on_progress=progress, only=only)
-            if job["kind"] == "folder":
-                root = Path(job["path"])
-                translate_tree(root, job_name=root.name, **kw)
-            else:
-                with tempfile.TemporaryDirectory(prefix="versora_zip_", ignore_cleanup_errors=True) as tmp:
-                    zpath = Path(tmp) / "upload.zip"
-                    zpath.write_bytes(job["bytes"])
-                    translate_zip(zpath, Path(tmp) / "tree", job_name=job["name"], **kw)
-        except Exception as e:  # the whole job could not run: a card that stays, not a toast
-            if not only:
-                st.session_state.batch_report = None
-            st.session_state.batch_error = {"name": job.get("name") or Path(job.get("path", "")).name, "msg": str(e)}
-            st.rerun()
-    if previous is not None:  # merge a retry into the shown report
+    def merge_retry() -> BatchReport:
+        # Files the retry did not get to keep their earlier failure; the rest take the new outcome.
+        actual_failures = [f for f in report.failed if f.error != CANCELLED]
+        seen = {i.rel for i in report.written + actual_failures + report.skipped}
         previous.written += report.written
-        previous.failed = [f for f in previous.failed if f.rel not in only] + report.failed
+        previous.failed = [f for f in previous.failed if f.rel not in seen] + actual_failures
+        previous.skipped += [s for s in report.skipped if s.rel in only]  # not the zip's own skips again
         previous.cancelled = report.cancelled
-        report = previous
-        st.session_state.batch_report = report
+        st.session_state.batch_report = previous
+        return previous
+
+    error = None
+    try:
+        with st.container(border=True, key="card_run"):
+            head, bar = _run_header()
+            _run_line(head, L("run.preparing"))
+            rows = st.empty()
+            shown = {"rows": ""}
+
+            def draw(done: int, total: int) -> None:
+                _run_line(head, L("run.batch", total=total), L("run.files", done=done, total=total))
+                bar.progress(min(1.0, done / total) if total else 0.0)
+                now = _files_html(report, cap)
+                if now != shown["rows"]:  # same states: leave the rows' DOM (and its scroll) alone
+                    shown["rows"] = now
+                    rows.markdown(now, unsafe_allow_html=True)
+
+            try:
+                kw = dict(_job_kwargs(), report=report, cancel=cancel, only=only,
+                          on_progress=lambda done, total, _item: draw(done, total), on_tick=draw)
+                if job["kind"] == "folder":
+                    root = Path(job["path"])
+                    translate_tree(root, job_name=root.name, **kw)
+                else:
+                    with tempfile.TemporaryDirectory(prefix="versora_zip_", ignore_cleanup_errors=True) as tmp:
+                        zpath = Path(tmp) / "upload.zip"
+                        zpath.write_bytes(job["bytes"])
+                        translate_zip(zpath, Path(tmp) / "tree", job_name=job["name"], **kw)
+            except Exception as e:  # the whole job could not run: a card that stays, not a toast
+                error = e
+    except BaseException:  # Streamlit's stop/rerun on a Cancel click (any phase), or a crash
+        cancel.set()
+        if not report.output_root or len(report.written) + len(report.failed) < len(report.planned):
+            report.cancelled = True  # stopped before the job began, or before every file was recorded
+        if previous is not None:
+            merge_retry()
+        raise
+    if error is not None:
+        if not only:
+            st.session_state.batch_report = None
+        st.session_state.batch_error = {"name": job.get("name") or Path(job.get("path", "")).name, "msg": str(error)}
+        st.rerun()
+    if previous is not None:  # merge a retry into the shown report
+        report = merge_retry()
     if not report.cancelled:
         _toast(L("toast.batch_failed") if report.failed else L("toast.batch_done"), "warn" if report.failed else "ok")
     st.rerun()
@@ -1292,7 +1328,7 @@ def render_single_result() -> None:
         if path.is_file():
             st.download_button(
                 L("main.download"), data=path.read_bytes(), file_name=path.name,
-                mime="application/octet-stream", key="dl_single", type="primary",
+                mime="application/octet-stream", key="dl_single", type="primary", on_click="ignore",
             )
 
     with st.container(border=True, key="card_result"):
@@ -1358,7 +1394,7 @@ def render_batch_result() -> None:
                 st.session_state.batch_zip = _zip_outputs(report)
             st.download_button(
                 L("batch.download_all"), data=st.session_state.batch_zip,
-                file_name=Path(report.output_root).name + ".zip", mime="application/zip", key="dl_all", type="primary",
+                file_name=Path(report.output_root).name + ".zip", mime="application/zip", key="dl_all", type="primary", on_click="ignore",
             )
 
     def group(label: str, items, state: str, note) -> None:

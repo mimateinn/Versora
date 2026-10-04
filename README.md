@@ -55,7 +55,7 @@ Keys live only in a local `.env`. The repository has no secrets. For extra optio
 - Folder and zip jobs: download everything as one zip, open the output folder, retry only the failed files. Failed and skipped files are listed apart, in plain words.
 - A file with the same name is no longer overwritten; the new one gets a time stamp.
 - Fixes: glossary rows no longer shift when one is deleted; the update check shows that it is working; temporary files are cleaned up.
-- Needs Streamlit 1.40 or newer.
+- Needs Streamlit 1.65 or newer.
 
 ### v0.1.1
 
@@ -129,4 +129,4 @@ Versora 在 v0.1.1 之前叫「智能檔案翻譯系統」。舊連結仍然有�
 - 資料夾／zip：一次下載全部、打開輸出資料夾、只重試失敗的檔案。失敗和略過分開列出，用白話說明。
 - 同名檔案不再被覆蓋，新檔會加上時間。
 - 修正：刪除用語不會再令其他行錯位；檢查更新時會顯示進行中；暫存檔會清走。
-- 需要 Streamlit 1.40 或以上。
+- 需要 Streamlit 1.65 或以上。

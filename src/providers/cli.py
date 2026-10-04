@@ -19,7 +19,7 @@ import subprocess
 import tempfile
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, replace, field
 from pathlib import Path
 from typing import Callable
 
@@ -301,8 +301,11 @@ PRESETS: dict[str, Preset] = {
     "claude_cli": Preset(
         "claude_cli", "Claude Code", "claude", "CLAUDE_CLI_PATH", ("auth", "status"), parse_claude_status,
         "claude auth login", "https://docs.anthropic.com/en/docs/claude-code",
-        lambda m, e, f, cwd: ["-p", *_flag("--model", m), *_flag("--effort", e)],
-        banned=("--dangerously-skip-permissions",),
+        # a translation transport: no built-in tools, no MCP servers from the user's config, no skills,
+        # and any permission prompt is denied, so document text cannot make the CLI act
+        lambda m, e, f, cwd: ["-p", "--tools", "", "--strict-mcp-config", "--disable-slash-commands",
+                              "--permission-mode", "dontAsk", *_flag("--model", m), *_flag("--effort", e)],
+        banned=("--dangerously-skip-permissions", "bypassPermissions"),
     ),
     "codex_cli": Preset(
         "codex_cli", "Codex", "codex", "CODEX_CLI_PATH", ("login", "status"), parse_codex_status,
@@ -350,28 +353,44 @@ def resolve_bin(pid: str, override: str | None = None) -> Path | None:
 
 @dataclass(frozen=True)
 class CliStatus:
+    """Separate facts: found on disk, ``--version`` ran cleanly, and the sign-in state (None = unknown)."""
+
     id: str
     binary: str | None
     version: str = ""
     logged_in: bool | None = None
     models: tuple[str, ...] = ()
     checked_at: float = 0.0
+    version_ok: bool = False
+    call_verified_at: float | None = None  # a successful explicit Test verifies transport, not sign-in identity
 
     @property
     def present(self) -> bool:
         return self.binary is not None
 
     @property
-    def usable(self) -> bool:  # unknown login still gets a try; a seen "not signed in" does not
-        return self.present and self.logged_in is not False
+    def usable(self) -> bool:  # unknown is not ready: only a clean version run plus a seen "signed in"
+        recent_call = self.call_verified_at is not None and time.monotonic() - self.call_verified_at < STATUS_TTL
+        return self.present and self.version_ok and (self.logged_in is True or recent_call)
 
 
 _status: dict[str, CliStatus] = {}
 _status_lock = threading.Lock()
 
 
+def confirm_call(pid: str) -> None:
+    """An explicit successful translation test is stronger than an unknown auth parser. Keep the
+    auth tri-state unchanged and require the clean version probe; a fresh probe clears this proof."""
+    with _status_lock:
+        status = _status.get(pid)
+        if status is not None and status.version_ok:
+            _status[pid] = replace(status, call_verified_at=time.monotonic())
+
+
 def probe(pid: str, *, fresh: bool = False) -> CliStatus:
-    """``bin --version`` then the preset's status command, 15 s each; cached STATUS_TTL."""
+    """``bin --version`` then the preset's status command, 15 s each; cached STATUS_TTL.
+    A failed version run skips the status run (sign-in stays unknown); "signed in" counts only from
+    a status run that exited 0. Nothing here reads tokens, and signed in says nothing about credit."""
     with _status_lock:
         hit = _status.get(pid)
         if hit and not fresh and time.monotonic() - hit.checked_at < STATUS_TTL:
@@ -380,20 +399,24 @@ def probe(pid: str, *, fresh: bool = False) -> CliStatus:
     status = CliStatus(pid, None, checked_at=time.monotonic())
     if binary is not None:
         preset = PRESETS[pid]
-        version, logged, models = "", None, ()
+        version, version_ok, logged, models = "", False, None, ()
         with tempfile.TemporaryDirectory(prefix="versora_probe_", ignore_cleanup_errors=True) as tmp:
             env = child_env(preset.env_extra)
             try:
                 res = run_cli([str(binary), "--version"], cwd=tmp, env=env, timeout=PROBE_TIMEOUT)
-                m = re.search(r"\d+\.\d+(?:\.\d+)?", f"{res.stdout} {res.stderr}")
+                version_ok = not res.timed_out and res.code == 0
+                m = re.search(r"\d+\.\d+(?:\.\d+)?", f"{res.stdout} {res.stderr}") if version_ok else None
                 version = m.group(0) if m else ""
-                res = run_cli([str(binary), *preset.status_args], cwd=tmp, env=env, timeout=PROBE_TIMEOUT)
-                if not res.timed_out:
-                    logged, found = preset.parse_status(f"{res.stdout}\n{res.stderr}")
-                    models = tuple(found)
+                if version_ok:
+                    res = run_cli([str(binary), *preset.status_args], cwd=tmp, env=env, timeout=PROBE_TIMEOUT)
+                    if not res.timed_out:
+                        logged, found = preset.parse_status(f"{res.stdout}\n{res.stderr}")
+                        models = tuple(found)
+                        if logged is True and res.code != 0:
+                            logged = None  # a positive from a failed run is not proof
             except ProviderError:
                 pass
-        status = CliStatus(pid, str(binary), version, logged, models, time.monotonic())
+        status = CliStatus(pid, str(binary), version, logged, models, time.monotonic(), version_ok)
     with _status_lock:
         _status[pid] = status
     return status

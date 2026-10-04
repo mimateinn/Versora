@@ -6,7 +6,7 @@ import os
 import re
 import threading
 import zipfile
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
@@ -81,6 +81,10 @@ CANCELLED = "cancelled"
 # (done, total, item_or_None), called on the caller's thread: once with item=None
 # before the first file, then once per finished file (per chunk for a single file).
 ProgressFn = Callable[[int, int, "BatchItem | None"], None]
+# (done, total), called on the caller's thread about every TICK_SECONDS while no file finishes,
+# so a UI can redraw (and be interrupted by a Cancel click) during a long file.
+TickFn = Callable[[int, int], None]
+TICK_SECONDS = 0.25
 
 
 def _max_files() -> int:
@@ -277,12 +281,14 @@ def translate_tree(
     purpose: str = "general",
     report: BatchReport | None = None,
     on_progress: ProgressFn | None = None,
+    on_tick: TickFn | None = None,
     cancel: threading.Event | None = None,
     only: set[str] | None = None,
 ) -> BatchReport:
     """``only`` limits the run to those rel paths (retry). Setting ``cancel`` drops queued
-    files and stops running ones at their next chunk. If ``on_progress`` raises (Streamlit
-    interrupts the script on a Cancel click) the same cleanup runs, then it propagates."""
+    files and stops running ones at their next chunk. If ``on_progress`` or ``on_tick`` raises
+    (Streamlit interrupts the script on a Cancel click), the same cleanup runs, then the
+    exception propagates."""
     source_root = source_root.resolve()
     if not source_root.is_dir():
         raise TranslationError("That folder was not found.")
@@ -368,30 +374,55 @@ def translate_tree(
         return report
     total = len(jobs)
     pool = ThreadPoolExecutor(max_workers=workers)
-    futs = [pool.submit(_run_one, src, dest, rel) for src, dest, rel in jobs]
-    if on_progress:  # after submit, so the first frame already shows the files workers picked up
-        on_progress(0, total, None)
+    futs: dict = {}  # future -> rel
     finished: set[str] = set()
+
+    def record(kind: str, item: BatchItem) -> None:
+        finished.add(item.rel)
+        (report.written if kind == "written" else report.failed).append(item)
+
     try:
-        for fut in as_completed(futs):
-            kind, item = fut.result()
-            finished.add(item.rel)
-            (report.written if kind == "written" else report.failed).append(item)
-            if on_progress:
-                on_progress(len(finished), total, item)
-            if cancel.is_set():
-                break
+        for src, dest, rel in jobs:
+            futs[pool.submit(_run_one, src, dest, rel)] = rel
+        if on_progress:  # after submit, so the first frame already shows the files workers picked up
+            on_progress(0, total, None)
+        pending = set(futs)
+        while pending and not cancel.is_set():
+            # Short waits, not a blocking as_completed: the caller gets its thread back while a
+            # long file runs, so a Cancel click is heard without waiting for a file to finish.
+            done, pending = wait(pending, timeout=TICK_SECONDS, return_when=FIRST_COMPLETED)
+            for fut in done:
+                kind, item = fut.result()
+                record(kind, item)
+                if on_progress:
+                    on_progress(len(finished), total, item)
+            if not done and on_tick:
+                on_tick(len(finished), total)
     finally:
-        # Cancelled, or the caller's callback raised: drop queued work, stop running
-        # files (a CLI child is killed, an API call ends at its timeout), record what
-        # never finished, and only then return, so "Stopped" is true when it shows.
+        # Cancelled, or the caller's callback raised (at any point, the first frame too): drop
+        # queued work, stop running files (a CLI child is killed, an API call ends at its own
+        # timeout), wait for them, and only then return, so "Stopped" is true when it shows.
         if len(finished) < total:
-            cancel.set()
             report.cancelled = True
-            for rel in report.planned:
-                if rel not in finished:
-                    report.failed.append(BatchItem(rel=rel, error=CANCELLED))
+            for fut in futs:
+                fut.cancel()  # only succeeds for files no worker has picked up
+            cancel.set()
         pool.shutdown(wait=True, cancel_futures=True)
+        # Record each file left once, by what really happened: a file whose worker wrote its
+        # output while we were stopping is kept as written (so Retry does not redo it).
+        for fut, rel in futs.items():
+            if rel in finished:
+                continue
+            if fut.cancelled():
+                record("failed", BatchItem(rel=rel, error=CANCELLED))
+                continue
+            try:
+                record(*fut.result())
+            except Exception as e:  # _run_one catches its own errors; this is a last guard
+                record("failed", BatchItem(rel=rel, error=str(e) or type(e).__name__))
+        for rel in report.planned:  # interrupted before every file was submitted
+            if rel not in finished:
+                record("failed", BatchItem(rel=rel, error=CANCELLED))
     return report
 
 
@@ -448,6 +479,10 @@ def translate_zip(
     extract_root = extract_root.resolve()
     extract_root.mkdir(parents=True, exist_ok=True)
     _extracted, zip_skips = safe_extract_zip(zip_path, extract_root)
-    report = translate_tree(extract_root, job_kind="archive", **kwargs)
-    report.skipped = zip_skips + report.skipped
+    report = kwargs.pop("report", None)
+    report = report if report is not None else BatchReport()
+    try:
+        translate_tree(extract_root, job_kind="archive", report=report, **kwargs)
+    finally:  # a caller holding the report sees the zip's skips after a Cancel too
+        report.skipped = zip_skips + report.skipped
     return report

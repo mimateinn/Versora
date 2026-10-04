@@ -83,6 +83,123 @@ def test_batch_progress_cancel_retry(tmp_path, monkeypatch) -> None:
     assert (tmp_path / "out" / "folder_c" / "bad.txt").read_text(encoding="utf-8").startswith("[ja]")
 
 
+class _Stop(BaseException):
+    """Stands in for Streamlit's stop/rerun exception (a BaseException) raised inside a draw."""
+
+
+def _slow_docs(monkeypatch, gate: str) -> dict:
+    """Each file waits on ``gate`` ("release": a test Event; "cancel": the job's cancel event),
+    then writes its output whatever the cancel state is, like a last chunk already answered."""
+    seen = {"calls": 0, "running": 0, "release": threading.Event(), "entered": threading.Event()}
+
+    def fake(src, dest, game_mode, **kw):
+        seen["calls"] += 1
+        seen["running"] += 1
+        seen["entered"].set()
+        try:
+            assert (seen["release"] if gate == "release" else kw["cancel"]).wait(10), "gate never opened"
+            Path(dest).parent.mkdir(parents=True, exist_ok=True)
+            Path(dest).write_text("[ja] done", encoding="utf-8")
+        finally:
+            seen["running"] -= 1
+
+    monkeypatch.setattr(batch, "_translate_document", fake)
+    return seen
+
+
+def _three_files(tmp_path, monkeypatch) -> tuple[Path, dict]:
+    src = tmp_path / "src"
+    src.mkdir()
+    for i in range(3):
+        (src / f"f{i}.txt").write_text(f"hello {i}\n", encoding="utf-8")
+    monkeypatch.setattr(batch, "outputs_dir", lambda: tmp_path / "out")
+    return src, dict(target_lang="ja", source_lang=None, project=None, provider_choice="auto", game_mode=False, concurrency=1)
+
+
+def test_batch_heartbeat_while_a_file_runs(tmp_path, monkeypatch) -> None:
+    """F1: the caller gets a heartbeat while a slow file has not finished; per-file progress is unchanged."""
+    src, kw = _three_files(tmp_path, monkeypatch)
+    seen = _slow_docs(monkeypatch, "release")
+    events = []
+
+    def tick(done, total):
+        events.append(("tick", done, total))
+        seen["release"].set()  # only a heartbeat can let the first file finish
+
+    report = translate_tree(src, job_name="h", on_tick=tick,
+                            on_progress=lambda d, t, item: events.append(("progress", d, t)), **kw)
+    progress = [e for e in events if e[0] == "progress"]
+    assert progress == [("progress", d, 3) for d in range(4)]  # (0, total), then once per finished file
+    assert events.index(("tick", 0, 3)) < events.index(("progress", 1, 3))
+    assert len(report.written) == 3 and not report.failed and not report.cancelled
+
+
+def test_batch_heartbeat_interrupt_stops_active_and_queued(tmp_path, monkeypatch) -> None:
+    """A Cancel click raised from the heartbeat mid-file: the running file is told to stop and waited
+    for, queued files never start and are recorded once each as cancelled, and nothing is still
+    running on return."""
+    src, kw = _three_files(tmp_path, monkeypatch)
+    seen = _slow_docs(monkeypatch, "cancel")
+
+    def tick(done, total):
+        assert seen["entered"].wait(10)
+        raise _Stop
+
+    report = BatchReport()
+    try:
+        translate_tree(src, job_name="t", report=report, on_tick=tick, **kw)
+        raise AssertionError("the heartbeat's exception must propagate")
+    except _Stop:
+        pass
+    assert report.cancelled and seen["calls"] == 1 and seen["running"] == 0
+    assert len(report.started) == 1
+    # The running file wrote after cancel (see the race test); the two queued ones are cancelled once each.
+    assert sorted(f.rel for f in report.failed) == sorted(r for r in report.planned if r not in report.started)
+    assert all(f.error == CANCELLED for f in report.failed)
+    assert len(report.written) + len(report.failed) == 3
+
+
+def test_batch_interrupt_on_first_frame(tmp_path, monkeypatch) -> None:
+    """Early Cancel: the (0, total) frame raises. The report says cancelled, not done, and keeps every file."""
+    src, kw = _three_files(tmp_path, monkeypatch)
+    seen = _slow_docs(monkeypatch, "cancel")
+
+    def progress(d, t, item):
+        if d == 0:
+            raise _Stop
+
+    report = BatchReport()
+    try:
+        translate_tree(src, job_name="e", report=report, on_progress=progress, **kw)
+        raise AssertionError("the first frame's exception must propagate")
+    except _Stop:
+        pass
+    assert report.cancelled and seen["running"] == 0 and seen["calls"] <= 1
+    rels = [i.rel for i in report.written + report.failed]
+    assert sorted(rels) == sorted(report.planned) and len(rels) == 3  # each file once
+    assert all(f.error == CANCELLED for f in report.failed)
+
+
+def test_batch_output_written_while_stopping_is_kept(tmp_path, monkeypatch) -> None:
+    """F4: a file whose output lands after cancel is set stays in written (not failed), and the
+    retry set (the failed files) does not redo it."""
+    src, kw = _three_files(tmp_path, monkeypatch)
+    _slow_docs(monkeypatch, "cancel")  # each file writes only once the job is cancelled
+    cancel = threading.Event()
+    report = BatchReport()
+
+    def tick(done, total):
+        cancel.set()  # same as a Stop raised here, minus the exception
+
+    translate_tree(src, job_name="w", report=report, cancel=cancel, on_tick=tick, **kw)
+    assert report.cancelled
+    assert [w.rel for w in report.written] == report.started and len(report.written) == 1
+    assert Path(report.written[0].out).read_text(encoding="utf-8") == "[ja] done"
+    retry = {f.rel for f in report.failed}
+    assert report.written[0].rel not in retry and len(retry) == 2
+    assert all(f.error == CANCELLED for f in report.failed)
+
+
 def test_choices_survive_settings_visit(tmp_path, monkeypatch) -> None:
     """Bug 1: target/source/type/mode reset after opening Settings (widget keys were dropped)."""
     import src.config as config
@@ -204,3 +321,56 @@ def test_single_file_result_error_and_notice(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(config, "_available_cache", None)
     at2 = AppTest.from_file(app, default_timeout=60).run()
     assert any("No translator set up yet" in m.value for m in at2.markdown)
+
+
+def test_unavailable_choice_and_safe_language_filename(tmp_path, monkeypatch) -> None:
+    """A failed probe preserves the explicit choice; a free-text target cannot escape outputs."""
+    import src.ui_prefs as prefs
+    from streamlit.testing.v1 import AppTest
+    monkeypatch.setattr(prefs, "prefs_path", lambda: tmp_path / "prefs.json")
+    monkeypatch.setattr(config, "_probe_available", lambda: ["demo"])
+    monkeypatch.setattr(config, "_available_cache", None)
+    monkeypatch.setattr(config, "outputs_dir", lambda: tmp_path)
+    prefs.save_prefs(provider="claude_cli")
+    calls = []
+    def translate(src, dest, **kw):
+        calls.append(Path(dest))
+        Path(dest).write_text("translated", encoding="utf-8")
+    monkeypatch.setattr(batch, "translate_single_file", translate)
+    at = AppTest.from_file(str(Path(__file__).resolve().parents[1] / "app.py"), default_timeout=60)
+    at.session_state["picked_name"] = "notes.txt"
+    at.session_state["picked_bytes"] = b"hello"
+    at.session_state["picked_size"] = 5
+    at.run()
+    assert not at.exception and at.selectbox(key="qb_provider").value == "claude_cli"
+    at.selectbox(key="qb_target").set_value("ja").run()
+    assert prefs.load_prefs()["provider"] == "claude_cli"
+    at.button(key="start_translate").click().run()
+    assert not calls and not at.exception  # another available service never silently replaces the choice
+    at.selectbox(key="qb_provider").set_value("demo").run()
+    at.selectbox(key="qb_target").set_value("other").run()
+    at.text_input(key="qb_other").set_value("x/../../escape:<>?*").run()
+    at.button(key="start_translate").click().run()
+    assert not at.exception and calls and calls[-1].resolve().parent == tmp_path.resolve()
+    assert not any(c in calls[-1].name for c in '/\\:<>?*')
+
+
+def test_created_glossary_uses_canonical_name_and_keeps_existing_terms(tmp_path, monkeypatch) -> None:
+    import src.glossary as glossary
+    import src.ui_prefs as prefs
+    from streamlit.testing.v1 import AppTest
+    monkeypatch.setattr(prefs, "prefs_path", lambda: tmp_path / "prefs.json")
+    monkeypatch.setattr(config, "_probe_available", lambda: ["demo"])
+    monkeypatch.setattr(config, "_available_cache", None)
+    monkeypatch.setattr(glossary, "projects_dir", lambda: tmp_path / "projects")
+    existing = glossary.ensure_project("My Project").name
+    glossary.save_glossary(existing, [("API", "interface")])
+    at = AppTest.from_file(str(Path(__file__).resolve().parents[1] / "app.py"), default_timeout=60)
+    at.session_state["page"] = "settings"
+    at.session_state["settings_pane"] = "glossary"
+    at.run()
+    at.text_input(key="new_project_name").set_value("My Project").run()
+    at.button(key="create_project").click().run()
+    assert not at.exception and at.session_state["project"] == existing
+    assert at.selectbox(key="project_select").value == existing
+    assert at.session_state["glossary_pairs"] == [("API", "interface")]

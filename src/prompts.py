@@ -18,12 +18,14 @@ PRESETS = ("general", "technical", "ui", "subtitles", "game", "legal", "academic
 CUSTOM = "custom"
 PURPOSES = PRESETS + (CUSTOM,)
 DEFAULT = "general"
-FORMAT_VERSION = 1  # the numbered-line contract below; bump with RULES
+FORMAT_VERSION = 2  # lossless layout / literal-mark framing; bump with RULES
 
 RULES = (
     "Input: numbered lines, each `N. text`. Reply with exactly the same numbers, in the same order, "
     "one line per number, each holding only the translation of that line. The mark ⏎ is a line break "
-    "inside an item: keep every ⏎ where it belongs. Output nothing else: no preface, notes, quotes or code fences."
+    "inside an item: keep every ⏎ where it belongs. A batch header may name another break mark; use that mark instead. "
+    "A doubled break mark is literal text: keep it doubled. Never merge or split the item's lines. "
+    "Output nothing else: no preface, notes, quotes or code fences."
 )
 _HEAD = re.compile(r"\Aversion:\s*(\d+)\s*\n---\s*\n", re.M)
 

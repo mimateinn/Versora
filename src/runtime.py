@@ -1,8 +1,11 @@
 """Shared translation runtime for every translator (CLI, API, demo).
 
-- Batch format: numbered lines ``N. text`` (a line break inside an item travels as ⏎). The reply is
-  parsed strictly; when it does not parse, or comes back cut off, the batch is split in half and
+- Batch format: numbered lines ``N. text`` (a line break inside an item travels as `` ⏎ ``). The reply
+  is parsed strictly; when it does not parse, or comes back cut off, the batch is split in half and
   each half retried, down to one item.
+- Layout never travels: an item's outer whitespace and every line's indent / trailing whitespace stay
+  here (``Shape``) and are put back around the reply's lines, so a model or transport that trims or
+  re-spaces cannot flatten nested lists, indented code or a file's final newline.
 - Calls: retried twice for transient kinds (limit / timeout / empty) with backoff 1 → 30 s that
   honours Retry-After; a wait over 30 s, or auth / refused / spawn, fails over to the next
   translator in the user's ordered chain. "Auto" means that chain.
@@ -28,6 +31,9 @@ GLOBAL_LIMIT = (1, 16, 3)  # min, max, default
 PER_LIMIT = (1, 8, 1)
 TRANSIENT = ("limit", "timeout", "empty")
 NL = "⏎"
+MARKS = (NL, "␤", "↵")  # line-break marks; a batch uses the first one its text does not contain
+_H = " \t\r\f\v"  # whitespace at a line's edges (layout, not content)
+_WS = _H + "\n"
 
 
 class ParseError(Exception):
@@ -37,29 +43,73 @@ class ParseError(Exception):
 # ── numbered lines ──────────────────────────────────────────────────────────
 
 
-def encode(text: str) -> str:
-    return re.sub(r"\r?\n", f" {NL} ", text)
+def encode(text: str, mark: str = NL) -> str:
+    """Lossless one-line form: a line break is `` ⏎ `` (one framing space each side), a literal ⏎ is ⏎⏎."""
+    return text.replace(mark, mark * 2).replace("\n", f" {mark} ")
 
 
-def decode(text: str) -> str:
-    return re.sub(rf"[ \t]*{NL}[ \t]*", "\n", text)
+def decode(text: str, mark: str = NL) -> str:
+    """Inverse of ``encode``; a bare ⏎ (a model that dropped the framing spaces) is a line break too."""
+    m = re.escape(mark)
+    return re.sub(rf"{m}{m}| {m} |{m}", lambda hit: mark if hit.group(0) == mark * 2 else "\n", text)
 
 
-def numbered(items: list[str]) -> str:
-    return "\n".join(f"{i}. {encode(t)}" for i, t in enumerate(items, 1))
+def numbered(items: list[str], mark: str = NL) -> str:
+    return "\n".join(f"{i}. {encode(t, mark)}" for i, t in enumerate(items, 1))
+
+
+@dataclass(frozen=True)
+class Shape:
+    """One item split into what the model sees (``text``: trimmed lines) and the layout it never sees."""
+
+    head: str
+    tail: str
+    edges: tuple[tuple[str, str], ...]  # (indent, trailing whitespace) of each line
+    text: str
+
+    @classmethod
+    def of(cls, item: str) -> "Shape":
+        lead = len(item) - len(item.lstrip(_WS))
+        core = item[lead:].rstrip(_WS)
+        edges, lines = [], []
+        for line in core.split("\n"):
+            body = line.strip(_H)
+            indent = line[:len(line) - len(line.lstrip(_H))]
+            edges.append((indent, line[len(indent) + len(body):]))
+            lines.append(body)
+        return cls(item[:lead], item[lead + len(core):], tuple(edges), "\n".join(lines))
+
+    def apply(self, lines: list[str]) -> str:
+        """Put source layout around translated lines; changed line counts are a malformed reply."""
+        if len(lines) != len(self.edges):
+            raise ParseError("translated line-break structure changed")  # fail closed, never flatten an outline
+        body = "\n".join(f"{a}{line}{b}" for (a, b), line in zip(self.edges, lines))
+        return f"{self.head}{body}{self.tail}"
+
+
+def _mark(texts: list[str]) -> str:
+    return next((m for m in MARKS if not any(m in t for t in texts)), NL)
+
+
+def _lines(raw: str, mark: str = NL) -> list[str]:
+    """One reply item as lines; whitespace next to a line break is framing, never content."""
+    raw = re.sub(rf"{re.escape(mark)}[ \t]*\r?\n", mark, raw.strip(_WS))  # a model that also broke the line
+    return [line.strip(_H) for line in decode(raw, mark).split("\n")]
 
 
 _LINE = re.compile(r"^\s*(\d+)[.)]\s?(.*)$")
 _FENCE = re.compile(r"^\s*```")
 
 
-def parse_numbered(reply: str, n: int) -> list[str]:
-    """Exactly items 1..n, in order. A line that is not the next number continues the current item
-    (a model that broke a line); anything before item 1, a gap or a missing tail is a ParseError."""
+def _items(reply: str, n: int) -> list[str]:
+    """Raw (still encoded) items 1..n, in order. A line that is not the next number continues the
+    current item (a model that broke a line); anything before item 1, a gap or a missing tail is a
+    ParseError. Only a code fence wrapped around the whole reply is dropped; fences inside stay."""
+    lines = (reply or "").strip(_WS).split("\n")  # Unicode separators inside content are not protocol rows
+    if len(lines) > 1 and _FENCE.match(lines[0]):
+        lines = lines[1:-1] if _FENCE.match(lines[-1]) else lines[1:]
     items: list[str] = []
-    for line in (reply or "").strip().splitlines():
-        if _FENCE.match(line):
-            continue
+    for line in lines:
         m = _LINE.match(line)
         if m and int(m.group(1)) == len(items) + 1 and len(items) < n:
             items.append(m.group(2))
@@ -69,7 +119,12 @@ def parse_numbered(reply: str, n: int) -> list[str]:
             raise ParseError(f"text before item 1: {line[:40]!r}")
     if len(items) != n:
         raise ParseError(f"expected {n} items, got {len(items)}")
-    return [decode(t).strip() for t in items]
+    return items
+
+
+def parse_numbered(reply: str, n: int, mark: str = NL) -> list[str]:
+    """Items 1..n as text, each line trimmed (layout comes back through ``Shape``)."""
+    return ["\n".join(_lines(t, mark)) for t in _items(reply, n)]
 
 
 # ── gates ───────────────────────────────────────────────────────────────────
@@ -274,24 +329,42 @@ def _batches(items: list[str], max_chars: int) -> list[list[int]]:
 
 
 def _strip_number(reply: str) -> str:
-    lines = (reply or "").strip().splitlines()
+    lines = (reply or "").strip(_WS).split("\n")
     m = _LINE.match(lines[0]) if lines else None
     if m and m.group(1) == "1":
         lines[0] = m.group(2)
-    return decode("\n".join(lines)).strip()
+    return "\n".join(lines)
 
 
 def translate_batch(runner: Runner, system: str, header: str, items: list[str]) -> list[str]:
-    """One numbered batch; on a reply that does not parse (or is cut off) split in half and retry."""
+    """One numbered batch; on a reply that does not parse (or is cut off) split in half and retry.
+    Only each item's trimmed lines are sent; its layout is restored from the source (``Shape``)."""
+    shapes = [Shape.of(t) for t in items]
+    texts = [s.text for s in shapes]
+    mark = _mark(texts)
+    note_mark = "" if mark == NL else f"\nIn this batch the line-break mark is {mark}, not ⏎: keep every {mark} where it belongs."
     try:
-        reply = runner.call(system, f"{header}\n\n{numbered(items)}")
+        reply = runner.call(system, f"{header}{note_mark}\n\n{numbered(texts, mark)}")
         if len(items) == 1:
             try:
-                return parse_numbered(reply, 1)
+                raw = _items(reply, 1)
             except ParseError:
-                return [_strip_number(reply)]  # one item cannot be misaligned: take it whole
-        return parse_numbered(reply, len(items))
+                raw = [_strip_number(reply)]  # one item cannot be misaligned: take it whole
+        else:
+            raw = _items(reply, len(items))
+        return [s.apply(_lines(t, mark)) for s, t in zip(shapes, raw)]
     except (ParseError, ProviderError) as e:
+        if len(items) == 1 and isinstance(e, ParseError) and "\n" in items[0]:
+            # A model may reflow a wrapped paragraph. Retry its source lines as separate numbered
+            # units, retaining their layout, instead of flattening it or failing the whole file.
+            lines = items[0].split("\n")
+            todo = [i for i, line in enumerate(lines) if line.strip()]
+            if not todo:
+                return items
+            translated = translate_batch(runner, system, header + "\nEach number is one source line; do not reflow it.", [lines[i] for i in todo])
+            for i, text in zip(todo, translated):
+                lines[i] = text
+            return ["\n".join(lines)]
         if isinstance(e, ProviderError) and e.kind != "truncated" or len(items) == 1:
             raise
         mid = len(items) // 2
