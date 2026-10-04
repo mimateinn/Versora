@@ -1,10 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="20 16 120 120">
   <title>Versora two-leaves book mark</title>
-  <rect data-part="target-leaf" x="50" y="26" width="78" height="72" rx="14" fill="#923D27"/>
-  <rect data-part="cover" x="32" y="40" width="80" height="82" rx="14" fill="#ECE7D4"/>
-  <path data-part="spine" fill="#B95233" d="M46 40H50V125H32V54Q32 40 46 40Z"/>
-  <path data-part="spine-groove" fill="#923D27" fill-opacity=".38" d="M47.4 45H48.2V121H47.4Z"/>
-  <path data-part="ribbon" fill="#B95233" d="M57 26H71V65L64 59.5L57 65Z"/>
-  <path data-part="cover-monogram" fill="#AA9E85" d="M65.5 74L82.5 74L82.5 76.8L78.5 76.8L84.8 94.4L91.5 76.8L88.5 76.8L88.5 74L99.5 74L99.5 76.8L95.5 76.8L83.6 108L80.6 108L69.5 76.8L65.5 76.8Z"/>
-  <path data-part="page-block" fill="#141415" d="M38.3 120H98.4Q112 120 112 107V120Q112 132 99.5 132H38.3Q32 132 32 126Q32 120 38.3 120Z"/>
+  <rect data-part="target-leaf" x="50" y="28" width="78" height="70" rx="14" fill="#923D27"/>
+  <rect data-part="cover" x="32" y="40" width="88" height="82" rx="14" fill="#ECE7D4"/>
+  <path data-part="spine" fill="#B95233" d="M46 40H50.8V125H32V54Q32 40 46 40Z"/>
+  <path data-part="spine-groove" fill="#923D27" fill-opacity=".38" d="M48.2 45H49V121H48.2Z"/>
+  <path data-part="ribbon" fill="#B95233" d="M59.1 28H76.9V66L68 59.5L59.1 66Z"/>
+  <path data-part="cover-monogram" fill="#AA9E85" d="M68.6 72.3L87 72.3L87 75.3L82.7 75.3L89.5 94.3L96.7 75.3L93.5 75.3L93.5 72.3L105.4 72.3L105.4 75.3L101 75.3L88.2 109L84.9 109L73 75.3L68.6 75.3Z"/>
+  <path data-part="page-block" fill="#141415" d="M38.3 120H106.4Q120 120 120 107V120Q120 132 107.5 132H38.3Q32 132 32 126Q32 120 38.3 120Z"/>
 </svg>
