@@ -8,7 +8,9 @@ Writes:
 Why a tiny in-house rasteriser: the icon is flat fills only, and the repo has
 no SVG renderer. Supported on purpose (not a general SVG engine):
   <rect x y width height rx fill fill-opacity>
-  <path d="M L H V Q Z" (absolute only) fill fill-opacity>, even-odd subpaths
+  <path d="M L H V Q Z" (absolute only) fill fill-opacity fill-rule>
+    fill-rule="evenodd": subpaths XOR (counters/holes); default: subpaths unioned
+    (equals SVG nonzero for non-overlapping-hole shapes such as crossing strokes)
 Painter order, supersampled anti-aliasing. If the SVG grows strokes, gradients,
 arcs or relative commands, extend this first; it raises instead of guessing.
 Pillow is a dev-only dependency of this script (not in requirements.txt).
@@ -112,10 +114,11 @@ def render(svg_text: str, size: int) -> Image.Image:
             ImageDraw.Draw(mask).rounded_rectangle(
                 (x0, y0, x1 - 1, y1 - 1), radius=float(a.get("rx", 0)) * sx, fill=255)
         else:
+            evenodd = a.get("fill-rule") == "evenodd"
             for sub in _subpaths(a["d"]):
                 part = Image.new("L", (big, big), 0)
                 ImageDraw.Draw(part).polygon([((px - mx) * sx, (py - my) * sy) for px, py in sub], fill=255)
-                mask = ImageChops.difference(mask, part)  # even-odd
+                mask = ImageChops.difference(mask, part) if evenodd else ImageChops.lighter(mask, part)
         alpha = mask.reduce(SS)
         op = float(a.get("fill-opacity", 1))
         if op < 1:
