@@ -97,15 +97,15 @@ def test_choices_survive_settings_visit(tmp_path, monkeypatch) -> None:
     at = AppTest.from_file(app, default_timeout=60).run()
     at.selectbox(key="qb_target").set_value("ja").run()
     at.selectbox(key="qb_source").set_value("en").run()
-    at.button_group(key="content_mode_seg").set_value("game").run()
-    assert at.session_state["content_mode"] == "game"
+    at.selectbox(key="qb_purpose").set_value("game").run()
+    assert at.session_state["purpose"] == "game"
 
     at.button(key="nav_settings").click().run()
     at.button(key="nav_translate").click().run()
     assert at.session_state["target_lang"] == "ja"
     assert at.selectbox(key="qb_target").value == "ja"
     assert at.selectbox(key="qb_source").value == "en"
-    assert at.session_state["content_mode"] == "game"
+    assert at.session_state["purpose"] == "game" and at.selectbox(key="qb_purpose").value == "game"
     saved = json.loads(prefs.read_text(encoding="utf-8"))
     assert saved["target_lang"] == "ja" and saved["source_choice"] == "en"
 

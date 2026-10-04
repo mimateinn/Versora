@@ -37,6 +37,7 @@ from src.game_text import SCRIPT_SUFFIXES
 from src.glossary import ensure_project, list_projects, load_glossary, save_glossary
 from src.i18n import FALLBACK_LANG, available_languages, detect_ui_language, language_display_name, t
 from src.models import default_model, models_for, resolve_model
+from src.prompts import PRESETS as PURPOSE_PRESETS, PURPOSES, custom_path, load as load_purpose, save_custom
 from src.providers import cli as cli_engine
 from src.providers.demo import demo_enabled
 from src.security.secrets import load_secret, redact_secrets, save_secret_to_env
@@ -74,7 +75,7 @@ CHOICE_DEFAULTS = {
     "target_lang": "en",
     "source_choice": "auto",
     "source_type": "file",
-    "content_mode": "document",
+    "purpose": "general",
     "target_other": "",
 }
 TOAST_ICON = {"ok": ":material/check_circle:", "warn": ":material/info:", "error": ":material/error:"}
@@ -129,6 +130,8 @@ def _init_state() -> None:
         "folder_path": "",
         **{k: prefs.get(k, v) for k, v in CHOICE_DEFAULTS.items()},
     }
+    if "purpose" not in prefs and prefs.get("content_mode") == "game":  # v0.2.0 "Game text" switch
+        defaults["purpose"] = "game"
     for key, val in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = val
@@ -469,56 +472,32 @@ def _provider_labels() -> dict[str, str]:
     return labels
 
 
+def _copy_purpose() -> None:
+    st.session_state["purpose_body"] = load_purpose(st.session_state.get("purpose_from") or "general")[1]
+
+
 def render_translation_pane() -> None:
-    st.markdown(f'<div class="sfts-pane-title">{L("card.translation")}</div>', unsafe_allow_html=True)
-    with st.container(border=True, key="card_translation"):
-        provider_labels = _provider_labels()
-        chosen_provider = st.selectbox(
-            L("sidebar.provider"),
-            options=PROVIDER_OPTIONS,
-            index=PROVIDER_OPTIONS.index(st.session_state.provider) if st.session_state.provider in PROVIDER_OPTIONS else 0,
-            format_func=lambda x: provider_labels.get(x, x),
-            key="provider_select",
-        )
-        if chosen_provider != st.session_state.provider:
-            st.session_state.provider = chosen_provider
-            stored = (st.session_state.model_by_provider or {}).get(chosen_provider)
-            st.session_state.model = resolve_model(chosen_provider, stored) or default_model(chosen_provider)
-            _persist_prefs()
-            st.rerun()
-        model_options = models_for(st.session_state.provider)
-        if not model_options:
-            st.caption(L("sidebar.model_auto"))
-        else:
-            current_model = resolve_model(st.session_state.provider, st.session_state.get("model"))
-            if current_model not in model_options:
-                current_model = model_options[0]
-            picked = st.selectbox(
-                L("sidebar.model"),
-                options=model_options,
-                index=model_options.index(current_model),
-                key="model_select",
+    """Custom purpose: start from any preset, edit, save (each save is a new version)."""
+    st.markdown(f'<div class="sfts-pane-title">{L("card.purpose")}</div>', unsafe_allow_html=True)
+    with st.container(border=True, key="card_purpose"):
+        version, body = load_purpose("custom") if custom_path().is_file() else (0, load_purpose("general")[1])
+        if "purpose_body" not in st.session_state:
+            st.session_state["purpose_body"] = body
+        st.markdown(f'<div class="sfts-muted">{L("purpose.hint")}</div>', unsafe_allow_html=True)
+        with st.container(key="purpose_from_row", horizontal=True, vertical_alignment="bottom", gap="small", wrap=False):
+            st.selectbox(
+                L("purpose.start_from"), options=list(PURPOSE_PRESETS),
+                format_func={p: L(f"purpose.{p}") for p in PURPOSE_PRESETS}.get, key="purpose_from",
             )
-            if picked != st.session_state.model:
-                st.session_state.model = picked
-                models = dict(st.session_state.model_by_provider or {})
-                models[st.session_state.provider] = picked
-                st.session_state.model_by_provider = models
-                _persist_prefs()
+            st.button(L("purpose.copy"), key="purpose_copy", on_click=_copy_purpose)
+        st.text_area(L("purpose.instructions"), key="purpose_body", height=220)
+        with st.container(key="purpose_save_row", horizontal=True, horizontal_alignment="right", vertical_alignment="center"):
+            if version:
+                st.markdown(f'<div class="sfts-muted">{L("purpose.version", v=version)}</div>', unsafe_allow_html=True)
+            if st.button(L("purpose.save"), key="purpose_save", type="primary",
+                         disabled=not (st.session_state.get("purpose_body") or "").strip()):
+                _toast(L("purpose.saved", v=save_custom(st.session_state["purpose_body"])))
                 st.rerun()
-        conc = st.slider(
-            L("sidebar.concurrency"),
-            min_value=MIN_CONCURRENCY,
-            max_value=MAX_CONCURRENCY,
-            value=clamp_concurrency(st.session_state.concurrency),
-            key="concurrency_slider",
-        )
-        if conc != st.session_state.concurrency:
-            st.session_state.concurrency = conc
-            _persist_prefs()
-            st.rerun()
-        st.markdown(f'<div class="sfts-muted">{L("sidebar.concurrency_hint")}</div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="sfts-muted">{L("quick.where")}</div>', unsafe_allow_html=True)
 
 
 def _key_label(fallback: str, locale_key: str) -> str:
@@ -742,7 +721,7 @@ def render_quick_bar() -> None:
     """From / swap / To / translator, as the header row of the translate card."""
     available = list_available_providers()
     with st.container(key="quickbar"):
-        c_from, c_swap, c_to, c_chip = st.columns([2.2, 0.42, 2.2, 2.3], vertical_alignment="bottom")
+        c_from, c_swap, c_to, c_use, c_chip = st.columns([1.6, 0.42, 1.6, 1.7, 2.2], vertical_alignment="bottom")
         src_opts = ["auto"] + [c for c in TARGET_CODES if c != "other"]
         with c_from:
             st.selectbox(
@@ -767,6 +746,13 @@ def render_quick_bar() -> None:
                 format_func={c: L(f"target.{c}") for c in TARGET_CODES}.get,
                 **_bound("qb_target", "target_lang"),
             )
+        with c_use:
+            st.selectbox(
+                L("quick.purpose"),
+                options=list(PURPOSES),
+                format_func={p: L(f"purpose.{p}") for p in PURPOSES}.get,
+                **_bound("qb_purpose", "purpose"),
+            )
         with c_chip:
             st.markdown(f'<div class="sfts-flabel">{L("quick.translator")}</div>', unsafe_allow_html=True)
             text, warn = _chip_text(available)
@@ -784,8 +770,8 @@ def _job_kwargs() -> dict:
         source_lang=_source_lang(),
         project=st.session_state.project,
         provider_choice=st.session_state.provider,
-        game_mode=st.session_state.content_mode == "game",
-        purpose="game" if st.session_state.content_mode == "game" else "general",
+        game_mode=st.session_state.purpose == "game",  # game text: only player-facing strings are sent
+        purpose=st.session_state.purpose if st.session_state.purpose in PURPOSES else "general",
         model=resolve_model(st.session_state.provider, st.session_state.get("model")),
         concurrency=clamp_concurrency(st.session_state.concurrency),
     )
@@ -993,7 +979,7 @@ def _done_header(title: str, sub: str, warn: bool = False, tone: str | None = No
 
 def _result_head(title: str, sub: str, actions, warn: bool = False, tone: str | None = None) -> None:
     """Card header: what happened on the left, one action bar on the right (secondaries, then the primary)."""
-    with st.container(key="result_head", horizontal=True, vertical_alignment="center", gap="small"):
+    with st.container(key="result_head", horizontal=True, vertical_alignment="center", gap="small", wrap=False):
         _done_header(title, sub, warn, tone)
         actions()
 
@@ -1154,26 +1140,14 @@ def render_translate() -> None:
     with st.container(border=True, key="card_main"):
         render_quick_bar()
         st.markdown('<hr class="sfts-rule">', unsafe_allow_html=True)
-        c1, c2 = st.columns([1.3, 1], vertical_alignment="center")
-        with c1:
-            st.segmented_control(
-                L("main.source_type"),
-                options=["file", "folder", "zip"],
-                format_func={"file": L("main.seg_file"), "folder": L("main.seg_folder"), "zip": L("main.seg_zip")}.get,
-                required=True,
-                label_visibility="collapsed",
-                **_bound("source_type_seg", "source_type"),
-            )
-        with c2:
-            st.segmented_control(
-                L("main.content_mode"),
-                options=["document", "game"],
-                format_func={"document": L("main.seg_doc"), "game": L("main.seg_game")}.get,
-                required=True,
-                label_visibility="collapsed",
-                help=L("main.mode_help"),
-                **_bound("content_mode_seg", "content_mode"),
-            )
+        st.segmented_control(
+            L("main.source_type"),
+            options=["file", "folder", "zip"],
+            format_func={"file": L("main.seg_file"), "folder": L("main.seg_folder"), "zip": L("main.seg_zip")}.get,
+            required=True,
+            label_visibility="collapsed",
+            **_bound("source_type_seg", "source_type"),
+        )
         kind = st.session_state.source_type
         with st.container(key="sourcebody"):
             if kind in {"file", "zip"}:
@@ -1187,7 +1161,7 @@ def render_translate() -> None:
                     _show_file_panel()
             else:
                 st.markdown(f'<div class="sfts-note">{L("main.folder_hint")}</div>', unsafe_allow_html=True)
-                with st.container(key="folder_row", horizontal=True, vertical_alignment="center", gap="small"):
+                with st.container(key="folder_row", horizontal=True, vertical_alignment="center", gap="small", wrap=False):
                     folder = st.text_input(
                         L("main.folder_path"),
                         label_visibility="collapsed",

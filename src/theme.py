@@ -283,10 +283,9 @@ div[class*="st-key-card_run"] { animation-delay: 24ms; }
 }
 [data-testid="stButtonGroup"] button[aria-checked="true"]::before { color: var(--sfts-accent); }
 [data-testid="stButtonGroup"] button p { overflow: visible !important; text-overflow: clip !important; white-space: nowrap !important; }
-[class*="st-key-content_mode"] { align-self: flex-end !important; }  /* mode control on the card's right edge */
-[class*="st-key-content_mode"] [data-testid="stButtonGroup"] { display: flex; justify-content: flex-end; align-items: center; gap: 4px; }
-[class*="st-key-source_type"] [data-testid="stWidgetLabel"],
-[class*="st-key-content_mode"] [data-testid="stWidgetLabel"] { display: none !important; }
+[class*="st-key-source_type"] [data-testid="stWidgetLabel"] { display: none !important; }
+[class*="st-key-purpose_from_row"] > [data-testid="stElementContainer"]:first-child { flex: 1 1 auto !important; min-width: 0; }
+[class*="st-key-purpose_save_row"] { gap: 16px !important; }
 
 /* ── Drop zone: the hero of the Translate page ── */
 [data-testid="stFileUploader"] > [data-testid="stWidgetLabel"] { display: none !important; }
@@ -476,8 +475,6 @@ def _chrome_keys(theme: str, page: str, pane: str) -> str:
             _mask_icon(seg.format(key="source_type", n=1), "file"),
             _mask_icon(seg.format(key="source_type", n=2), "folder"),
             _mask_icon(seg.format(key="source_type", n=3), "zip"),
-            _mask_icon(seg.format(key="content_mode", n=1), "bubble"),
-            _mask_icon(seg.format(key="content_mode", n=2), "game"),
             _mask_icon('[class*="st-key-swap_langs"] button', "swap", "0"),
             _mask_icon('[class*="st-key-theme_toggle"] button', "moon" if theme == "light" else "sun", "0"),
             _mask_icon('[class*="st-key-dl_"] button', "download"),
