@@ -43,7 +43,8 @@ from src.providers.grok_cli import INSTALL_HINT as GROK_HINT
 from src.providers.grok_cli import grok_cli_path_setting, probe_grok_cli
 from src.security.secrets import load_secret, redact_secrets, save_secret_to_env
 from src.icons import ALERT, CHECK, DASH, FILE, GLOBE, wrap
-from src.theme import css_for
+from src.theme import FX_JS, css_for
+from src import __version__
 from src.ui_prefs import load_prefs, save_prefs
 
 ROOT = Path(__file__).resolve().parent
@@ -124,6 +125,7 @@ def _init_state() -> None:
         "batch_report": None,
         "batch_job": None,  # how to rerun the job for "retry failed"
         "batch_zip": None,
+        "single_error": None,  # single file failed: {"name", "msg"}
         "toasts": [],
         "folder_path": "",
         **{k: prefs.get(k, v) for k, v in CHOICE_DEFAULTS.items()},
@@ -190,6 +192,7 @@ def _watermark() -> str:
 
 
 st.markdown(_watermark(), unsafe_allow_html=True)
+st.html(FX_JS, unsafe_allow_javascript=True)  # click motion for icons; binds once per browser tab
 
 
 # ── state helpers ────────────────────────────────────────────────────────────
@@ -365,13 +368,17 @@ _SKIP_HINTS = (
 )
 
 
-def _human(msg: str, hints=_ERROR_HINTS) -> str:
+def _hint(msg: str, hints=_ERROR_HINTS) -> str | None:
     low = (msg or "").lower()
     for needle, key in hints:
         if needle in low:
             return L(key)
+    return None
+
+
+def _human(msg: str, hints=_ERROR_HINTS) -> str:
     text = redact_secrets(msg or "").strip()
-    return text if len(text) <= 160 else text[:157] + "..."
+    return _hint(msg, hints) or (text if len(text) <= 160 else text[:157] + "...") or L("err.generic")
 
 
 # ── chrome ──────────────────────────────────────────────────────────────────
@@ -533,11 +540,11 @@ def _key_head(label: str, on: bool, status: str) -> None:
 
 def _field_and_save(label: str, key: str, save_key: str, **field) -> str | None:
     """A field and its Save button on one row; returns the stripped value when Save is clicked."""
-    c1, c2 = st.columns([2.4, 1.3], vertical_alignment="bottom")
+    c1, c2 = st.columns([3, 1], vertical_alignment="bottom")
     with c1:
         val = st.text_input(label, key=key, label_visibility="collapsed", **field)
     with c2:
-        clicked = st.button(L("keys.save_local"), key=save_key, use_container_width=True)
+        clicked = st.button(L("keys.save"), key=save_key, use_container_width=True)
     return val.strip() if clicked and val.strip() else None
 
 
@@ -698,6 +705,7 @@ def _clear_results() -> None:
     st.session_state.batch_report = None
     st.session_state.batch_job = None
     st.session_state.batch_zip = None
+    st.session_state.single_error = None
 
 
 def _swap_langs() -> None:
@@ -758,6 +766,8 @@ def render_quick_bar() -> None:
                 _go("settings", "keys" if warn else "translation")
         if st.session_state.target_lang == "other":
             st.text_input(L("sidebar.target_other"), placeholder="e.g. it, nl, pl", **_bound("qb_other", "target_other"))
+        if not available:
+            st.markdown(f'<div class="sfts-note">{wrap(ALERT)}{L("main.no_translator")}</div>', unsafe_allow_html=True)
 
 
 def _job_kwargs() -> dict:
@@ -775,7 +785,7 @@ def _job_kwargs() -> dict:
 def _ready() -> bool:
     if list_available_providers():
         return True
-    _toast(L("main.status_no_key"), "error")
+    _toast(L("main.no_translator"), "error")
     return False
 
 
@@ -796,13 +806,17 @@ def _preview_text(raw: bytes) -> str:
     return raw[:16000].decode("utf-8", errors="replace")[:4000]
 
 
-def _run_header():
-    """Status line with Cancel on the right, then a thin bar. Returns (head, bar)."""
+def _run_header(indeterminate: bool = False):
+    """Status line with Cancel on the right, then a thin bar. Returns (head, bar); bar is None
+    when indeterminate (one file has no meaningful fraction)."""
     line, stop = st.columns([6, 1], vertical_alignment="center")
     with line:
         head = st.empty()
     with stop:
         st.button(L("run.cancel"), key="cancel_run", on_click=_cancel_clicked, use_container_width=True)
+    if indeterminate:
+        st.markdown('<div class="sfts-bar" role="progressbar" aria-busy="true"></div>', unsafe_allow_html=True)
+        return head, None
     return head, st.progress(0.0)
 
 
@@ -819,13 +833,11 @@ def _run_single() -> None:
     suffix = Path(name).suffix.lower()
     out_path = _unique_out(name, suffix)
     with st.container(border=True, key="card_run"):
-        head, bar = _run_header()
+        head, _bar = _run_header(indeterminate=True)
         _run_line(head, L("run.file", name=name), L("run.preparing"))
 
         def progress(done: int, total: int, _item) -> None:
-            if total:
-                _run_line(head, L("run.file", name=name), L("run.chunks", done=done, total=total))
-                bar.progress(min(1.0, done / total))
+            _run_line(head, L("run.file", name=name), L("run.chunks", done=done, total=total) if total > 1 else "")
 
         try:
             with tempfile.TemporaryDirectory(prefix="versora_") as tmp:
@@ -833,7 +845,7 @@ def _run_single() -> None:
                 src.write_bytes(raw)
                 translate_single_file(src, out_path, on_progress=progress, **_job_kwargs())
         except Exception as e:
-            _toast(L("main.status_error", msg=_human(str(e))), "error")
+            st.session_state.single_error = {"name": name, "msg": str(e)}
             st.rerun()
     binary = out_path.suffix.lower() in {".docx", ".pdf", ".xlsx"}
     st.session_state.result = {
@@ -923,9 +935,9 @@ def _zip_outputs(report: BatchReport) -> bytes:
     return buf.getvalue()
 
 
-def _done_header(title: str, sub: str, warn: bool = False) -> None:
+def _done_header(title: str, sub: str, warn: bool = False, tone: str | None = None) -> None:
     st.markdown(
-        f'<div class="sfts-done {"vi-anim-alert" if warn else "vi-anim-check"}" data-tone="{"warn" if warn else "ok"}">'
+        f'<div class="sfts-done {"vi-anim-alert" if warn else "vi-anim-check"}" data-tone="{tone or ("warn" if warn else "ok")}">'
         f'{wrap(ALERT if warn else CHECK)}'
         f'<div><div class="sfts-done-title">{html.escape(title)}</div>'
         f'<div class="sfts-done-sub">{sub}</div></div></div>',
@@ -937,9 +949,12 @@ def render_single_result() -> None:
     res = st.session_state.result
     path = Path(res["path"])
     with st.container(border=True, key="card_result"):
-        top, act = st.columns([3, 1.4], vertical_alignment="center")
+        top, folder, act = st.columns([2.6, 1.3, 1.1], vertical_alignment="center")
         with top:
             _done_header(L("done.file"), f'<code class="sfts-path">{html.escape(str(path))}</code>')
+        with folder:
+            if path.parent.is_dir() and st.button(L("batch.open_folder"), key="open_out_single", use_container_width=True):
+                _open_folder(str(path.parent))
         with act:
             if path.is_file():
                 st.download_button(
@@ -958,6 +973,24 @@ def render_single_result() -> None:
         with c2:
             st.markdown(f'<div class="sfts-panel-title">{L("main.preview_out")}</div>', unsafe_allow_html=True)
             st.text_area("out", value=res["out"], height=240, label_visibility="collapsed", disabled=True)
+
+
+def render_single_error() -> None:
+    err = st.session_state.single_error
+    with st.container(border=True, key="card_error"):
+        top, act = st.columns([4, 1.1], vertical_alignment="center")
+        with top:
+            line = _hint(err["msg"]) or L("err.generic")
+            _done_header(L("main.failed_title"), f'{html.escape(err["name"])} · {html.escape(line)}', warn=True, tone="err")
+        with act:
+            st.button(
+                L("main.try_again"), key="retry_single", type="primary", use_container_width=True,
+                on_click=lambda: st.session_state.update(retry_single_pending=True),
+            )
+        detail = redact_secrets(err["msg"] or "").strip()
+        if detail:
+            with st.expander(L("main.details")):
+                st.markdown(f'<code class="sfts-detail">{html.escape(detail)}</code>', unsafe_allow_html=True)
 
 
 def render_batch_result() -> None:
@@ -1015,18 +1048,24 @@ def render_batch_result() -> None:
                 st.markdown(rows(report.skipped, "skip", lambda i: _human(i.skipped or i.error, _SKIP_HINTS)), unsafe_allow_html=True)
 
 
+def _has_result() -> bool:
+    """A result card is on screen for the current source type (then Download leads, not Translate)."""
+    if st.session_state.source_type == "file":
+        return bool(st.session_state.result or st.session_state.single_error)
+    return st.session_state.batch_report is not None
+
+
 def _show_file_chip() -> bool:
     """Picked file row: name, size, remove, and the start button. Returns True on start."""
     name = st.session_state.picked_name
-    chip, clear, start = st.columns([7, 0.5, 2], vertical_alignment="center")
-    with chip:
+    chip, start = st.columns([7.5, 2], vertical_alignment="center")
+    with chip, st.container(key="filechip", horizontal=True, vertical_alignment="center", gap=None):
         st.markdown(
             f'<div class="sfts-filechip">{wrap(FILE)}'
             f'<span class="sfts-filechip-name">{html.escape(name)}</span>'
             f'<span class="sfts-filechip-size">{_fmt_size(int(st.session_state.picked_size or 0))}</span></div>',
             unsafe_allow_html=True,
         )
-    with clear:
         if st.button(L("main.clear"), key="clear_picked", help=L("main.clear")):  # CLOSE glyph: theme.py mask
             _forget_pick()
             _clear_results()
@@ -1038,7 +1077,10 @@ def _show_file_chip() -> bool:
     elif st.session_state.source_type == "file" and not is_supported(name) and suffix not in SCRIPT_SUFFIXES:
         problem = L("error.unsupported_format")
     with start:
-        go = st.button(L("main.translate_btn"), type="primary", use_container_width=True, key="start_translate", disabled=bool(problem))
+        go = st.button(
+            L("main.translate_btn"), type="secondary" if _has_result() else "primary",
+            use_container_width=True, key="start_translate", disabled=bool(problem),
+        )
     if problem:
         st.markdown(f'<div class="sfts-warn">{problem}</div>', unsafe_allow_html=True)
     return go
@@ -1109,10 +1151,12 @@ def render_translate() -> None:
                     )
                 with start:
                     go = st.button(
-                        L("main.translate_btn"), type="primary", use_container_width=True,
-                        key="start_translate", disabled=not folder.strip(),
+                        L("main.translate_btn"), type="secondary" if _has_result() else "primary",
+                        use_container_width=True, key="start_translate", disabled=not folder.strip(),
                     )
 
+    retry = st.session_state.pop("retry_single_pending", False)
+    go = go or (retry and kind == "file" and bool(st.session_state.picked_name))
     if go and _ready():
         _clear_results()
         if kind == "file":
@@ -1133,6 +1177,8 @@ def render_translate() -> None:
 
     if kind == "file" and st.session_state.result:
         render_single_result()
+    if kind == "file" and st.session_state.single_error:
+        render_single_error()
     if kind in {"folder", "zip"} and st.session_state.batch_report is not None:
         render_batch_result()
 
@@ -1145,4 +1191,4 @@ if st.session_state.page == "settings":
 else:
     render_translate()
 
-st.markdown(f'<div class="sfts-footer">{L("about.footer")}</div>', unsafe_allow_html=True)
+st.markdown(f'<div class="sfts-footer">{L("about.footer")} · v{__version__}</div>', unsafe_allow_html=True)

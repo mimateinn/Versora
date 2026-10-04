@@ -44,7 +44,7 @@ _TOKENS = {
         **ACCENTS["light"],
         "ok": "#2B7A52", "err": "#A81830", "wait": "#C9C4BA",
         "ok-soft": "rgba(43,122,82,.08)", "err-soft": "rgba(168,24,48,.06)",
-        "wm-ink": "rgba(26,26,26,.10)",
+        "wm-ink": "rgba(26,26,26,.06)",
         "shadow": "0 8px 22px rgba(15,15,15,.08), 0 2px 6px rgba(15,15,15,.05)",
         "shadow-sm": "0 2px 6px rgba(15,15,15,.05), 0 1px 2px rgba(15,15,15,.04)",
         "toast-bg": "#1A1A1A", "toast-ink": "#FAF8F5",
@@ -57,7 +57,7 @@ _TOKENS = {
         **ACCENTS["dark"],
         "ok": "#5CB287", "err": "#E07A8C", "wait": "#4A5470",
         "ok-soft": "rgba(92,178,135,.12)", "err-soft": "rgba(224,122,140,.10)",
-        "wm-ink": "rgba(242,245,251,.055)",
+        "wm-ink": "rgba(242,245,251,.03)",
         "shadow": "0 8px 22px rgba(0,0,0,.30), 0 2px 6px rgba(0,0,0,.22)",
         "shadow-sm": "0 2px 6px rgba(0,0,0,.22), 0 1px 2px rgba(0,0,0,.16)",
         "toast-bg": "#F2F5FB", "toast-ink": "#0E1320",
@@ -280,6 +280,7 @@ div[class*="st-key-card_run"] { animation-delay: 24ms; }
 }
 [data-testid="stButtonGroup"] button[aria-checked="true"]::before { color: var(--sfts-accent); }
 [data-testid="stButtonGroup"] button p { overflow: visible !important; text-overflow: clip !important; white-space: nowrap !important; }
+[class*="st-key-content_mode"] { align-self: flex-end !important; }  /* mode control on the card's right edge */
 [class*="st-key-content_mode"] [data-testid="stButtonGroup"] { display: flex; justify-content: flex-end; align-items: center; gap: 4px; }
 [class*="st-key-source_type"] [data-testid="stWidgetLabel"],
 [class*="st-key-content_mode"] [data-testid="stWidgetLabel"] { display: none !important; }
@@ -315,12 +316,16 @@ div[class*="st-key-card_run"] { animation-delay: 24ms; }
 }
 [data-testid="stFileUploaderFile"], [data-testid="stFileUploaderFileData"], [data-testid="stFileUploader"] small { display: none !important; }
 
-/* ── Picked file row ── */
-.sfts-filechip {
-  display: flex; align-items: center; gap: 8px; height: var(--h-ctrl); box-sizing: border-box;
-  background: var(--sfts-sunken); border: 1px solid var(--sfts-line);
-  border-radius: 10px; padding: 0 12px; animation: sfts-enter 240ms var(--e-out) both;
+/* ── Picked file row: the keyed container is the chip; its 34 remove button sits 3px inside the right edge ── */
+[class*="st-key-filechip"] {
+  height: var(--h-ctrl) !important; min-height: var(--h-ctrl) !important; box-sizing: border-box !important;
+  flex-wrap: nowrap !important; align-items: center !important; gap: 8px !important;
+  background: var(--sfts-sunken) !important; border: 1px solid var(--sfts-line) !important; border-radius: 10px !important;
+  padding: 0 3px 0 12px !important;
+  animation: sfts-enter 240ms var(--e-out) both;
 }
+[class*="st-key-filechip"] > [data-testid="stElementContainer"]:first-child { flex: 1 1 auto !important; min-width: 0; width: auto !important; }
+.sfts-filechip { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .sfts-filechip .sfts-ico { color: var(--sfts-accent); margin: 0; }
 .sfts-filechip-name { font-weight: 600; color: var(--sfts-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sfts-filechip-size { color: var(--sfts-muted); font-family: var(--f-mono); font-size: 11px; margin-left: auto; }
@@ -330,11 +335,12 @@ div[class*="st-key-card_run"] { animation-delay: 24ms; }
 .sfts-run img { width: 20px; height: 20px; display: block; }
 .sfts-run span { color: var(--sfts-muted); font-weight: 400; font-family: var(--f-mono); font-size: 12px; margin-left: auto; }
 @keyframes sfts-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .35; transform: scale(.8); } }
-[data-testid="stProgress"] > div > div { background: var(--sfts-sunken) !important; height: 3px !important; border-radius: 3px !important; }
-[data-testid="stProgress"] > div > div > div > div,
+/* 1.65: an (empty) label row, then track > fill; the fill moves by transform */
+[data-testid="stProgress"] > div:not([role="progressbar"]) { display: none !important; }
+[data-testid="stProgressBarTrack"] { background: var(--sfts-sunken) !important; height: 3px !important; border-radius: 3px !important; overflow: hidden; }
 [data-testid="stProgress"] [role="progressbar"] > div > div {
   height: 3px !important; border-radius: 3px !important; position: relative; overflow: hidden;
-  background: var(--sfts-accent) !important; transition: width var(--d-norm) var(--e-out) !important;
+  background: var(--sfts-accent) !important; transition: transform var(--d-norm) var(--e-out) !important;
 }
 /* shimmer: a lighter band of the same hue slides along the filled part */
 [data-testid="stProgress"] [role="progressbar"] > div > div::after {
@@ -342,6 +348,13 @@ div[class*="st-key-card_run"] { animation-delay: 24ms; }
   background: linear-gradient(90deg, transparent, rgba(255,255,255,.45), transparent);
   animation: sfts-shimmer 1.4s var(--e-out) infinite;
 }
+/* one file has no fraction to show: a 30% band slides along the track */
+.sfts-bar { height: 3px; border-radius: 3px; background: var(--sfts-sunken); position: relative; overflow: hidden; }
+.sfts-bar::after {
+  content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 30%; border-radius: 3px;
+  background: var(--sfts-accent); animation: sfts-ind 1.6s ease-in-out infinite alternate;
+}
+@keyframes sfts-ind { from { transform: translateX(-20%); } to { transform: translateX(253%); } }  /* 30% band, 6% past each end */
 [data-testid="stProgress"] p { font-family: var(--f-mono) !important; font-size: 11px !important; color: var(--sfts-muted) !important; }
 @keyframes sfts-shimmer { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
 
@@ -366,6 +379,11 @@ div[class*="st-key-card_run"] { animation-delay: 24ms; }
 .sfts-done > .sfts-ico { flex: 0 0 20px; width: 20px; height: 20px; margin: 0; color: var(--sfts-ok); --vi-accent: var(--sfts-ok); }
 .sfts-done > .sfts-ico svg { width: 20px; height: 20px; }
 .sfts-done[data-tone="warn"] > .sfts-ico { color: var(--sfts-accent); --vi-accent: var(--sfts-accent); }
+.sfts-done[data-tone="err"] > .sfts-ico { color: var(--sfts-err); --vi-accent: var(--sfts-err); }
+.sfts-detail {
+  display: block; font-family: var(--f-mono); font-size: 11px; line-height: 16px; color: var(--sfts-muted);
+  background: none; padding: 0; white-space: pre-wrap; word-break: break-word;
+}
 .sfts-done-title { font-size: 15px; line-height: 20px; font-weight: 600; color: var(--sfts-text); }
 .sfts-done-sub { color: var(--sfts-muted); font-size: 13px; line-height: 20px; margin-top: 4px; }
 .sfts-path { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; }
@@ -394,6 +412,7 @@ div[class*="st-key-card_run"] { animation-delay: 24ms; }
 /* ── Text bits ── */
 .sfts-muted { color: var(--sfts-muted); font-size: 12px; line-height: 20px; }
 .sfts-note { color: var(--sfts-muted); font-size: 13px; line-height: 20px; }
+.sfts-note .sfts-ico { color: var(--sfts-accent-strong); }
 .sfts-warn { color: var(--sfts-err); font-size: 13px; line-height: 20px; }
 .sfts-row-label { color: var(--sfts-text); font-size: 14px; font-weight: 500; line-height: 42px; }
 .sfts-pane-title { font-family: var(--f-disp); font-size: 22px; line-height: 28px; height: 28px; font-weight: 600; letter-spacing: -.01em; margin: 0; color: var(--sfts-text); }
@@ -418,6 +437,7 @@ hr { border-color: var(--sfts-line) !important; margin: 0 !important; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; }
   .sfts-wm-a, .sfts-wm-b { animation: none !important; }
+  .sfts-bar::after { width: 100%; animation: vi-fade 1.2s ease-in-out infinite alternate !important; }  /* busy, but still */
 }
 """
 
@@ -441,12 +461,14 @@ def _chrome_keys(theme: str, page: str, pane: str) -> str:
             _mask_icon('[class*="st-key-theme_toggle"] button', "moon" if theme == "light" else "sun", "0"),
             _mask_icon('[class*="st-key-dl_"] button', "download"),
             _mask_icon('[class*="st-key-open_out"] button', "folder_open"),
-            _mask_icon('[class*="st-key-retry_failed"] button', "retry"),
+            _mask_icon('[class*="st-key-retry_"] button', "retry"),
             _mask_icon('[class*="st-key-cancel_run"] button', "stop", "0 6px 0 0", 12),
             _mask_icon('[class*="st-key-clear_picked"] button', "close", "0", 14),
             _mask_icon('[class*="st-key-gdel_"] button', "close", "0", 14),
         ]
     )
+    seg_file, seg_folder, seg_zip = (seg.format(key="source_type", n=n) for n in (1, 2, 3))
+    theme_in = "vi-moon-in" if theme == "light" else "vi-rays-in"  # the glyph now showing swings in
     return f"""
 /* Top tabs: plain text + accent underline, 42 tall */
 [class*="st-key-nav_translate"] button, [class*="st-key-nav_settings"] button {{
@@ -466,6 +488,10 @@ def _chrome_keys(theme: str, page: str, pane: str) -> str:
   background: transparent !important; border: 1px solid var(--sfts-line) !important; color: var(--sfts-muted) !important;
 }}
 [class*="st-key-clear_picked"] button, [class*="st-key-gdel_"] button {{ border-color: transparent !important; }}
+[class*="st-key-clear_picked"] button {{
+  width: var(--h-small) !important; min-width: var(--h-small) !important; height: var(--h-small) !important; min-height: var(--h-small) !important;
+  border-radius: 7px !important;
+}}
 [class*="st-key-theme_toggle"] button:hover, [class*="st-key-swap_langs"] button:hover:not(:disabled),
 [class*="st-key-clear_picked"] button:hover {{
   color: var(--sfts-accent-strong) !important; border-color: var(--sfts-accent) !important; background: var(--sfts-accent-soft) !important;
@@ -474,7 +500,21 @@ def _chrome_keys(theme: str, page: str, pane: str) -> str:
 [class*="st-key-theme_toggle"] button > div, [class*="st-key-swap_langs"] button > div,
 [class*="st-key-clear_picked"] button > div, [class*="st-key-gdel_"] button > div {{ display: none !important; }}
 [class*="st-key-theme_toggle"] {{ display: flex; justify-content: flex-end; }}
-[class*="st-key-swap_langs"] button:not(:disabled):active::before {{ transform: rotate(180deg); transition: transform var(--d-norm) var(--e-out); }}
+/* Click motion (FX_JS): .is-press once per click, Litora's press set; .vi-play on swap and on a theme change */
+.stApp button.is-press::before {{ animation: vi-pop 440ms cubic-bezier(.3, .7, .3, 1) 1; }}
+[class*="st-key-dl_"] button.is-press::before, {seg_folder}.is-press::before,
+[data-testid="stFileUploaderDropzone"] button.is-press [data-testid="stIconMaterial"] {{ animation: vi-drop-press 440ms cubic-bezier(.3, .7, .3, 1) 1; }}
+[class*="st-key-pane_keys"] button.is-press::before, [class*="st-key-pane_glossary"] button.is-press::before {{
+  animation: vi-lean 440ms cubic-bezier(.3, .7, .3, 1) 1; transform-origin: 50% 85%;
+}}
+[class*="st-key-retry_"] button.is-press::before, [class*="st-key-pane_translation"] button.is-press::before {{
+  animation: vi-spin-press 560ms cubic-bezier(.3, .7, .3, 1) 1;
+}}
+[class*="st-key-open_out"] button.is-press::before, {seg_file}.is-press::before, {seg_zip}.is-press::before {{
+  animation: vi-open 440ms cubic-bezier(.3, .7, .3, 1) 1;
+}}
+[class*="st-key-swap_langs"] button.vi-play::before {{ animation: vi-flip 380ms var(--e-out) 1; }}
+[class*="st-key-theme_toggle"] button.vi-play::before {{ animation: {theme_in} 380ms var(--e-out) 1; }}
 
 /* Translator field: a button dressed as a select */
 [class*="st-key-provider_chip"] button {{
@@ -510,6 +550,42 @@ def _chrome_keys(theme: str, page: str, pane: str) -> str:
 [class*="st-key-update_settings"] button:hover {{ color: var(--sfts-accent-strong) !important; }}
 {icons}
 """
+
+
+# Icon click motion (ICON_CSS contract). st.html runs this in the page itself; the flag keeps one
+# set of listeners per tab across reruns. Reduced motion binds nothing (the CSS stops it too).
+FX_JS = """<script>
+(() => {
+  if (window.__versoraFx || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  window.__versoraFx = true;
+  const replay = (el, cls) => {
+    clearTimeout(el.__fxT);
+    el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls);
+    el.__fxT = setTimeout(() => el.classList.remove(cls), 900);  // hosts whose icon has no motion
+  };
+  document.addEventListener('animationend', (e) => {
+    const host = e.animationName.startsWith('vi-') && e.target.closest('.is-press, .vi-play');
+    if (host) { clearTimeout(host.__fxT); host.classList.remove('is-press', 'vi-play'); }
+  }, true);
+  const THEME = '.st-key-theme_toggle button';
+  const glyph = (el) => { const cs = getComputedStyle(el, '::before'); return cs.maskImage || cs.webkitMaskImage; };
+  document.addEventListener('click', (e) => {
+    const host = e.target.closest && e.target.closest('button, a, label, [role="button"]');
+    if (!host || host.disabled) return;
+    if (host.matches('.st-key-swap_langs button')) return replay(host, 'vi-play');
+    if (host.matches(THEME)) {  // play once the rerun has swapped sun and moon
+      const was = glyph(host), t0 = performance.now();
+      const wait = () => {
+        const btn = document.querySelector(THEME);
+        if (btn && glyph(btn) !== was) return replay(btn, 'vi-play');
+        if (performance.now() - t0 < 3000) requestAnimationFrame(wait);
+      };
+      return requestAnimationFrame(wait);
+    }
+    replay(host, 'is-press');
+  }, true);
+})();
+</script>"""
 
 
 def css_for(

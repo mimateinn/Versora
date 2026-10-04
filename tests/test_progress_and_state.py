@@ -94,3 +94,51 @@ def test_choices_survive_settings_visit(tmp_path, monkeypatch) -> None:
     # A fresh session starts from the remembered choices.
     at2 = AppTest.from_file(app, default_timeout=60).run()
     assert at2.selectbox(key="qb_target").value == "ja"
+
+
+def test_single_file_result_error_and_notice(tmp_path, monkeypatch) -> None:
+    """Single file: once a result shows, Translate steps down to secondary and Open folder appears;
+    a failure is an error card with Try again (not a toast); no translator shows the notice."""
+    import src.batch as batch_mod
+    import src.config as config
+    import src.ui_prefs as ui_prefs
+    from streamlit.testing.v1 import AppTest
+
+    monkeypatch.setattr(ui_prefs, "prefs_path", lambda: tmp_path / ".sfts-ui.json")
+    monkeypatch.setattr(config, "outputs_dir", lambda: tmp_path)
+    monkeypatch.setattr(config, "_probe_available", lambda: ["demo"])
+    monkeypatch.setattr(config, "_available_cache", None)
+    calls = []
+
+    def fake(src, dest, *, on_progress=None, **_kw):
+        calls.append(dest)
+        if len(calls) == 2:
+            raise RuntimeError("boom 7f3a")
+        on_progress and on_progress(1, 1, None)
+        Path(dest).write_text("[ja] hello", encoding="utf-8")
+
+    monkeypatch.setattr(batch_mod, "translate_single_file", fake)
+    app = str(Path(__file__).resolve().parents[1] / "app.py")
+    at = AppTest.from_file(app, default_timeout=60)
+    at.session_state["source_type"] = "file"
+    at.session_state["picked_name"] = "notes.txt"
+    at.session_state["picked_bytes"] = b"hello"
+    at.session_state["picked_size"] = 5
+    at.run()
+    assert at.button(key="start_translate").proto.type == "primary"
+    at.button(key="start_translate").click().run()
+    assert at.session_state["result"] and not at.exception
+    assert at.button(key="start_translate").proto.type == "secondary"
+    assert at.button(key="open_out_single").label
+
+    at.button(key="start_translate").click().run()  # second call fails
+    assert at.session_state["single_error"]["msg"] == "boom 7f3a" and not at.session_state["result"]
+    assert at.button(key="retry_single").proto.type == "primary"
+    assert any("Something went wrong" in m.value for m in at.markdown)
+    at.button(key="retry_single").click().run()
+    assert len(calls) == 3 and at.session_state["result"] and not at.session_state["single_error"]
+
+    monkeypatch.setattr(config, "_probe_available", lambda: [])
+    monkeypatch.setattr(config, "_available_cache", None)
+    at2 = AppTest.from_file(app, default_timeout=60).run()
+    assert any("No translator set up yet" in m.value for m in at2.markdown)
