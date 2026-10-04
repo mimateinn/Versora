@@ -6,7 +6,7 @@ Start the app with the demo provider, slowed down so a run can be caught in prog
     python scripts/shoot.py --out <dir> [--url http://localhost:8511/] [--themes light dark]
 
 Writes <state>-<theme>.png at 1440x900, and runs check_alignment's measurements on each: idle, file-chosen, translating-file, file-done,
-file-error, translating-batch, batch-done, settings-purposes, settings-keys, settings-order, settings-appearance.
+file-error, translating-batch, batch-done, settings-purposes, settings-keys, settings-order, settings-glossary, settings-appearance.
 The provider must be Demo in prefs (Auto would pick a local CLI).
 """
 
@@ -105,7 +105,7 @@ def main() -> int:
                 settle(page)
                 shot("batch-done")
 
-            for pane in ("purposes", "keys", "order", "appearance"):
+            for pane in ("purposes", "keys", "order", "glossary", "appearance"):
                 fresh(f"page=settings&pane={pane}", mode=None)
                 shot(f"settings-{pane}")
 
