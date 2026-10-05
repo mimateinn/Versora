@@ -68,7 +68,7 @@ dialog{padding:24px;border:1px solid var(--line);border-radius:var(--radius-card
    carries a foil coin with a sun or moon; pressing it again flips light/dark. */
 .seg{display:flex;gap:2px;padding:3px;background:var(--sunken);border:1px solid var(--line);border-radius:999px;position:relative}
 .topbar .theme-switcher{flex:0 1 auto;min-width:0;max-width:min(520px,44vw);margin:0 6px 0 4px;overflow-x:auto;overflow-y:hidden;overscroll-behavior-inline:contain;scrollbar-gutter:auto;z-index:103}
-.theme-switcher::-webkit-scrollbar{height:4px}.theme-switcher::-webkit-scrollbar-thumb{border:0;border-radius:999px;background:var(--sb-thumb-area)}.theme-switcher::-webkit-scrollbar-thumb:hover{background:var(--muted)}
+.theme-switcher::-webkit-scrollbar{height:4px}.theme-switcher::-webkit-scrollbar-thumb{border:0;border-radius:999px;background:var(--sb-thumb)}.theme-switcher::-webkit-scrollbar-thumb:hover{background:var(--muted)}
 .theme-choice{--choice-film:none;flex:none;gap:0;height:30px;min-height:30px;padding:0 10px;border:1px solid transparent;border-radius:999px;background:transparent;color:var(--muted);font-size:var(--size-detail);white-space:nowrap}
 .theme-choice:hover:not([aria-pressed=true]){border-color:transparent;background:var(--card-solid);color:var(--text)}
 .theme-choice[aria-pressed=true]{background-color:var(--choice-bg);background-image:var(--choice-film);color:var(--choice-ink);border-color:var(--choice-edge);box-shadow:inset 0 -2px 0 var(--choice-edge);font-weight:var(--strong-weight)}
@@ -89,7 +89,8 @@ dialog{padding:24px;border:1px solid var(--line);border-radius:var(--radius-card
 .holo-mode-mark .vi{grid-area:1/1;width:14px;height:14px;transition:opacity var(--theme-duration) var(--theme-ease),transform var(--theme-duration) var(--theme-ease)}
 .holo-mode-mark .vi-sun{opacity:1;transform:none}.holo-mode-mark .vi-moon{opacity:0;transform:rotate(70deg)}
 [data-hologram-tone=dark]>.holo-mode-mark::before{opacity:.34}[data-hologram-tone=dark]>.holo-mode-mark .vi-sun{opacity:0;transform:rotate(-70deg)}[data-hologram-tone=dark]>.holo-mode-mark .vi-moon{opacity:1;transform:none}
-.theme-row{display:flex;flex-wrap:wrap;gap:8px}
+/* Litora scrolls this row; Versora's narrower pane wraps it so Auto is never clipped. */
+.theme-row{display:flex;flex-wrap:wrap;gap:6px;min-width:0;max-width:100%}
 .theme-row .theme-choice{height:32px;min-height:32px;padding:0 13px 0 6px;gap:7px;border-color:var(--line-strong);background:var(--card);color:var(--text)}
 .theme-row .theme-choice:hover:not([aria-pressed=true]){background:var(--sunken);border-color:var(--line-strong)}
 .theme-dot{width:18px;height:18px;border-radius:50%;flex:none;background:var(--choice-dot);box-shadow:inset 0 0 0 1px rgba(128,128,128,.45)}
@@ -110,9 +111,8 @@ dialog{padding:24px;border:1px solid var(--line);border-radius:var(--radius-card
 :root[data-theme=hologram]{--seg-pill:var(--seg-on);--seg-pill-ink:var(--seg-on-ink);--seg-pill-shadow:var(--seg-on-shadow)}
 :root[data-theme=hologram] .segments button.active .vi{color:var(--accent)}
 :root[data-theme=hologram] .brand-tile{border-color:transparent;background:var(--holo-foil);box-shadow:0 0 0 1px rgba(37,41,53,.14)}
-:root[data-theme=hologram] .settings-pane h1{background:linear-gradient(100deg,var(--text) 0%,var(--text) 38%,#6C5BA8 58%,#2E8C80 78%,var(--text) 100%);background-size:250% 100%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;animation:holo-title 9s ease-in-out infinite}
-:root[data-theme=hologram][data-hologram-tone=dark] .settings-pane h1{background-image:linear-gradient(100deg,var(--text) 0%,var(--text) 38%,#C8B5F2 58%,#B6EADF 78%,var(--text) 100%)}
-@keyframes holo-title{0%,100%{background-position:100% 0}50%{background-position:0% 0}}
+/* Litora spectral signature: one static 2px rule under the page title. */
+:root[data-theme=hologram] .settings-pane h1{background-image:var(--holo-spectrum);background-repeat:no-repeat;background-size:2.6em 2px;background-position:0 100%;padding-bottom:3px}
 dialog,select option{background:var(--card-solid)}select option{color:var(--text)}
 :root[data-reduced-motion=true] .holo-blobs{animation:none}
 @media(prefers-reduced-motion:reduce){.holo-lamp{display:none}}

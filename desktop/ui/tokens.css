@@ -1,7 +1,7 @@
 @import url("fonts.css");
 /* Versora PR4 theme.py tokens with bundled Libron. No remote font requests.
    Palettes follow Litora (the series' design source): Dusk, Ivory, Sepia, Grove,
-   Onyx, Opal and Auto, with the same surface/ink values. Versora keeps its own
+   Onyx, Opal and Auto, with Litora's page and chooser colors. Versora keeps its own
    ink-blue accent inside them, as Litora keeps its orange. Auto resolves to
    Ivory or Dusk in JS; data-theme always names the painted palette. */
 :root {
@@ -32,6 +32,7 @@
   --radius-card:12px; --radius-control:10px; --gap:16px; --section-gap:24px;
   /* Opal foil (Litora aliases.css); also paints the Opal chooser while another palette is on. */
   --holo-cyan:#B6EADF; --holo-violet:#C8B5F2; --holo-pink:#F2B9D7; --holo-gold:#F5D28E; --holo-pearl:#C5EFE5;
+  --holo-spectrum:linear-gradient(112deg,#C9E7E4 0%,#DDD4EE 46%,#E8DCC4 100%);
   --holo-foil:linear-gradient(130deg,var(--holo-cyan) 0%,var(--holo-violet) 29%,var(--holo-pink) 52%,var(--holo-gold) 76%,var(--holo-pearl) 100%);
   --holo-foil-turn:linear-gradient(35deg,var(--holo-violet) 0%,var(--holo-pearl) 30%,var(--holo-gold) 56%,var(--holo-pink) 80%,var(--holo-cyan) 100%);
   --field-opacity:0; --lamp:rgba(70,119,181,.07);
@@ -112,12 +113,12 @@
   --btn:#262B38; --btn-hover:#363C4D; --btn-ink:#F7F8FC;
   --art-fill:rgba(255,255,255,.5); --art-line:rgba(37,41,53,.42);
   --sb-thumb:rgba(64,76,100,.22); --sb-thumb-area:rgba(64,76,100,.46);
-  --sb-hover:var(--holo-foil); --sb-hover-x:var(--holo-foil-turn); --sb-active:var(--holo-foil-turn);
   --field-a:#B6EADF; --field-b:#C8B5F2; --field-c:#F2B9D7; --field-d:#F5D28E; --field-e:#C5EFE5;
   --field-opacity:1; --lamp:rgba(255,255,255,.55);
   color-scheme:light;
 }
 :root[data-theme="hologram"][data-hologram-tone="dark"] {
+  --sb-hover:linear-gradient(180deg,#A3C0E6,#7FA6D8); --sb-hover-x:linear-gradient(90deg,#A3C0E6,#7FA6D8); --sb-active:linear-gradient(180deg,#7FA6D8,#4677B5);
   --bg:#101522; --card:rgba(25,33,49,.68); --card-solid:#192131; --sunken:rgba(35,46,64,.72); --raised:#192131;
   --text:#F4F6FC; --muted:#CBD5E6; --faint:#BFCDE1;
   --line:rgba(232,239,255,.10); --line-strong:rgba(232,239,255,.20);
