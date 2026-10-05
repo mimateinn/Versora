@@ -58,6 +58,11 @@ jobs:
       - name: Updater tests (update_policy)
         run: cargo test --locked -p versora-desktop --test update_policy
       - name: Workspace tests
+        # The runner's default %TEMP% is an 8.3 short path (RUNNER~1); jobs.rs compares a
+        # registered path with the handle's final long path, so give the tests a long temp dir.
+        env:
+          TEMP: ${{ runner.temp }}
+          TMP: ${{ runner.temp }}
         run: cargo test --locked --workspace
       - name: Release build and isolated Test-mode installer
         id: package
