@@ -1140,6 +1140,7 @@ async def run(args):
             require(native.snapshot()["window"] == before, "Interactive navigation unexpectedly dragged the window.")
             native.guard()
             await navigation.click()
+            # The coin may have opened Translate; make sure Settings is open.
             await navigate(page, "settings")
             await page.get_by_test_id("settings-pane-appearance").click()
             require(native.snapshot()["window"] == before, "Interactive navigation moved native placement.")
