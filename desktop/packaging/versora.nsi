@@ -76,6 +76,8 @@ Var ShortcutPath
 Var InstallerMutex
 Var ExistingOwned
 Var RollbackFailed
+Var UpdateMode
+Var Relaunch
 
 ; Every enumerated file is checked as a leaf and through all its ancestors.
 ; Unknown directories are never traversed, including unknown junctions.
@@ -240,7 +242,41 @@ FunctionEnd
 !insertmacro COMMON_INIT ""
 !insertmacro COMMON_INIT "un."
 
+; In-app update handoff (`setup.exe /S /UPDATE [/RELAUNCH]`, started by the verified Versora
+; updater just before it exits): wait up to 30 seconds for the closing app to release
+; versora.exe instead of refusing at once. Every other safety check is unchanged.
+Function WaitForExecutableRelease
+  StrCpy $R2 0
+  ${Do}
+    IfFileExists "$INSTDIR\versora.exe" 0 release_done
+    System::Call 'kernel32::CreateFileW(w "$INSTDIR\versora.exe", i 0x40000000, i 7, p 0, i 3, i 0, p 0) p.r0'
+    ${If} $0 != -1
+      System::Call 'kernel32::CloseHandle(p r0)'
+      Goto release_done
+    ${EndIf}
+    IntOp $R2 $R2 + 1
+    ${If} $R2 >= 60
+      Goto release_done ; CheckExecutableNotInUse reports the refusal.
+    ${EndIf}
+    Sleep 500
+  ${Loop}
+release_done:
+FunctionEnd
+
 Function .onInit
+  StrCpy $UpdateMode 0
+  StrCpy $Relaunch 0
+  ${GetParameters} $R0
+  ClearErrors
+  ${GetOptions} $R0 "/UPDATE" $R1
+  ${IfNot} ${Errors}
+    StrCpy $UpdateMode 1
+  ${EndIf}
+  ClearErrors
+  ${GetOptions} $R0 "/RELAUNCH" $R1
+  ${IfNot} ${Errors}
+    StrCpy $Relaunch 1
+  ${EndIf}
   Call ValidateLocation
   ${IfNot} ${IsNativeAMD64}
     MessageBox MB_OK|MB_ICONSTOP "This package requires Windows x64." /SD IDOK
@@ -278,6 +314,9 @@ Function .onInit
     ${If} $0 != ""
       Goto unowned_collision
     ${EndIf}
+  ${EndIf}
+  ${If} $UpdateMode == 1
+    Call WaitForExecutableRelease
   ${EndIf}
   Call CheckExecutableNotInUse
   StrCpy $StageDir "$INSTDIR\.versora-stage-${BUILD_ID}"
@@ -368,6 +407,28 @@ integration_failed:
   Abort "Program files were installed, but shortcut/registration could not be completed. Existing backups and user data were retained."
 install_done:
 SectionEnd
+
+; /RELAUNCH starts the installed app as the current user (this installer is never elevated).
+Function .onInstSuccess
+  ${If} $Relaunch == 1
+    SetOutPath "$INSTDIR"
+    Exec '"$INSTDIR\versora.exe"'
+  ${EndIf}
+FunctionEnd
+
+; A failed update restores the previous program; reopen it when the user asked to restart,
+; unless it is still running.
+Function .onInstFailed
+  ${If} $Relaunch == 1
+    IfFileExists "$INSTDIR\versora.exe" 0 relaunch_done
+    System::Call 'kernel32::CreateFileW(w "$INSTDIR\versora.exe", i 0x40000000, i 7, p 0, i 3, i 0, p 0) p.r0'
+    ${If} $0 != -1
+      System::Call 'kernel32::CloseHandle(p r0)'
+      Exec '"$INSTDIR\versora.exe"'
+    ${EndIf}
+  ${EndIf}
+relaunch_done:
+FunctionEnd
 
 Function un.onInit
   Call un.ValidateLocation

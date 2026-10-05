@@ -1,0 +1,66 @@
+name: Versora CI
+
+on:
+  push:
+    branches: ['claude/**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: versora-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ui-sources:
+    name: UI source freeze
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check desktop/tests/ui/source-freeze.json against the committed bytes
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, pathlib, sys
+          rows = json.loads(pathlib.Path('desktop/tests/ui/source-freeze.json').read_text())
+          bad = []
+          for row in rows:
+              data = pathlib.Path(row['path'].replace('\\', '/')).read_bytes()
+              if hashlib.sha256(data).hexdigest().upper() != row['sha256'] or len(data) != row['bytes']:
+                  bad.append(row['path'])
+          tracked = {p.as_posix() for root in ('desktop/ui', 'desktop/assets/fonts/libron') for p in pathlib.Path(root).rglob('*') if p.is_file()}
+          listed = {row['path'].replace('\\', '/') for row in rows}
+          missing = sorted(tracked - listed)
+          print(f'{len(rows)} frozen files, {len(bad)} changed, {len(missing)} unlisted')
+          sys.exit(1 if bad or missing else 0)
+          PY
+      - name: Parse UI modules
+        run: for f in desktop/ui/*.js; do cp "$f" "$RUNNER_TEMP/$(basename "$f" .js).mjs" && node --check "$RUNNER_TEMP/$(basename "$f" .js).mjs" || exit 1; done
+
+  windows:
+    name: Windows tests, release build and update handoff
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the pinned Rust toolchain
+        run: |
+          $channel = [regex]::Match((Get-Content rust-toolchain.toml -Raw), 'channel\s*=\s*"([^"]+)"').Groups[1].Value
+          rustup toolchain install $channel --profile minimal --no-self-update
+          rustup show active-toolchain
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop
+      - name: Updater tests (update_policy)
+        run: cargo test --locked -p versora-desktop --test update_policy
+      - name: Workspace tests
+        run: cargo test --locked --workspace
+      - name: Release build and isolated Test-mode installer
+        id: package
+        run: ./packaging/Build-CiPackage.ps1 -Mode Test -BuildId "ci-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT" -TestId "ci-$env:GITHUB_RUN_ID"
+      - name: Installer update handoff (/UPDATE wait, /RELAUNCH)
+        run: ./packaging/Test-UpdateHandoff.ps1 -PlanPath '${{ steps.package.outputs.plan }}'
