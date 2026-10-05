@@ -11,14 +11,15 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <div class="holo-field" aria-hidden="true"><div class="holo-blobs"></div><div class="holo-lamp"></div></div>
   <div class="watermark" aria-hidden="true"><div class="watermark-field" id="watermark"></div></div>
   <header class="topbar" data-testid="topbar" data-tauri-drag-region="deep">
       <a href="#translate" class="brand" data-tauri-drag-region="false" data-action="navigate" data-page="translate" data-testid="brand" aria-label="Versora"><span class="brand-tile"><img src="assets/icon.png" alt=""></span><b>Versora</b></a>
       <nav class="topnav" data-tauri-drag-region="false" aria-label="Main navigation">
         <button type="button" class="nav-button active" data-action="navigate" data-page="translate" data-testid="nav-translate" data-i18n="nav.translate">Translate</button>
         <button type="button" class="nav-button" data-action="navigate" data-page="settings" data-testid="nav-settings" data-i18n="nav.settings">Settings</button>
-        <button type="button" class="icon-button theme-toggle" data-action="toggle-theme" data-testid="theme-toggle" aria-label="Change theme"></button>
       </nav>
+      <div class="seg theme-switcher" role="group" data-testid="theme-switcher" data-tauri-drag-region="false" aria-label="Theme"></div>
       <div class="window-controls" data-testid="window-controls" data-tauri-drag-region="false">
         <button type="button" class="caption-button" data-window-action="minimize" data-testid="window-minimize" aria-label="Minimize" title="Minimize" disabled></button>
         <button type="button" class="caption-button" data-window-action="maximize" data-testid="window-maximize" aria-label="Maximize" title="Maximize" disabled></button>

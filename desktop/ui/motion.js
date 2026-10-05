@@ -10,6 +10,14 @@ export class UIMotion {
     this.reduced=window.matchMedia('(prefers-reduced-motion:reduce)');
     this.onMotion=()=>{if(this.reduced.matches)this.settleTheme();};
     this.reduced.addEventListener('change',this.onMotion);
+    this.lampFrame=0;
+    // Opal's pointer lamp follows the cursor; one style write per frame, nothing when motion is reduced.
+    this.onPointer=event=>{
+      if(this.root.dataset.theme!=='hologram'||this.root.dataset.reducedMotion==='true'||this.reduced.matches||this.lampFrame)return;
+      const x=event.clientX,y=event.clientY;
+      this.lampFrame=requestAnimationFrame(()=>{this.lampFrame=0;this.root.style.setProperty('--lamp-x',`${x}px`);this.root.style.setProperty('--lamp-y',`${y}px`);});
+    };
+    window.addEventListener('pointermove',this.onPointer,{passive:true});
   }
   settleTheme() {
     this.themeGeneration++;
@@ -22,9 +30,9 @@ export class UIMotion {
       delete this.root.dataset.themeTransition;
     }
   }
-  theme(theme,reduced) {
+  theme(theme,reduced,tone='light') {
     this.root.dataset.reducedMotion=String(Boolean(reduced));
-    const changed=this.root.dataset.theme!==theme;
+    const changed=this.root.dataset.theme!==theme||this.root.dataset.hologramTone!==tone;
     if(!changed){if(reduced||this.reduced.matches)this.settleTheme();this.initialized=true;return;}
     clearTimeout(this.themeTimer);
     const generation=++this.themeGeneration;
@@ -32,6 +40,7 @@ export class UIMotion {
     if(animate){this.root.dataset.themeTransition='running';void this.root.offsetWidth;}
     else this.settleTheme();
     this.root.dataset.theme=theme;
+    this.root.dataset.hologramTone=tone;
     void this.root.offsetWidth;
     this.initialized=true;
     if(animate)this.themeTimer=setTimeout(()=>{if(generation!==this.themeGeneration)return;delete this.root.dataset.themeTransition;this.themeTimer=null;},280);
@@ -47,7 +56,8 @@ export class UIMotion {
     this.routeTimer=setTimeout(()=>{content.classList.remove('is-enter');this.routeTimer=null;},800);
   }
   dispose() {
-    this.settleTheme();clearTimeout(this.routeTimer);
+    this.settleTheme();clearTimeout(this.routeTimer);cancelAnimationFrame(this.lampFrame);
     this.reduced.removeEventListener('change',this.onMotion);
+    window.removeEventListener('pointermove',this.onPointer);
   }
 }

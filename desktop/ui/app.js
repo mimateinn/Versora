@@ -64,14 +64,62 @@ async function confirmRemoval(name) {
   dialog.returnValue = 'cancel';
   return new Promise(resolve => {dialog.addEventListener('close',() => resolve(dialog.returnValue === 'confirm'),{once:true});dialog.showModal();});
 }
+// Litora series palettes, in Litora's order; Opal (hologram) flips light/dark when pressed again.
+const themes = ['dark','light','sepia','forest','black','hologram','system'];
+const systemDark = window.matchMedia('(prefers-color-scheme: dark)');
+const themeId = () => themes.includes(state.settings.theme) ? state.settings.theme : 'light';
+const hologramTone = () => state.settings.hologram_tone === 'dark' ? 'dark' : 'light';
+const resolvedTheme = () => themeId() === 'system' ? (systemDark.matches ? 'dark' : 'light') : themeId();
+function themeTitle(id) {
+  const name = t(`theme.name.${id}`);
+  return id === 'hologram' ? `${name} · ${t(hologramTone() === 'dark' ? 'theme.dark' : 'theme.light')} · ${t('theme.opal_hint')}` : name;
+}
+const themeChoice = (id,testid,lead='') => `<button type="button" class="theme-choice" data-action="set-theme" data-id="${id}" data-testid="${attr(testid)}" aria-pressed="false">${lead}${id === 'hologram' ? `<span class="holo-mode-mark" aria-hidden="true">${icon('sun')}${icon('moon')}</span>` : ''}<span class="theme-name"></span></button>`;
+function paintThemeChoices(group) {
+  if (!group) return;
+  const current = themeId(),tone = hologramTone(),busy = controlsBusy();
+  group.dataset.value = current;
+  for (const node of group.querySelectorAll('.theme-choice')) {
+    const id = node.dataset.id,title = themeTitle(id);
+    node.setAttribute('aria-pressed',String(id === current));
+    if (id === 'hologram') node.dataset.hologramTone = tone;
+    node.title = title;node.setAttribute('aria-label',title);
+    node.querySelector('.theme-name').textContent = t(`theme.name.${id}`);
+    node.disabled = busy;
+  }
+}
+// Segmented controls carry one sliding pill; its last position survives a re-render so it glides.
+const indicatorMemory = new Map();
+function placeIndicators() {
+  const still = state.settings.reduced_motion || motion.reduced.matches;
+  for (const group of content.querySelectorAll('.segments')) {
+    const active = group.querySelector('button.active'),key = group.dataset.testid;
+    if (!active) {delete group.dataset.ind;continue;}
+    const next = {x:active.offsetLeft,y:active.offsetTop,w:active.offsetWidth,h:active.offsetHeight};
+    const apply = pos => {group.style.setProperty('--ind-x',`${pos.x}px`);group.style.setProperty('--ind-y',`${pos.y}px`);group.style.setProperty('--ind-w',`${pos.w}px`);group.style.setProperty('--ind-h',`${pos.h}px`);};
+    const previous = indicatorMemory.get(key);
+    if (!group.dataset.ind && previous && !still && (previous.x !== next.x || previous.w !== next.w)) {apply(previous);group.dataset.ind = 'init';void group.offsetWidth;}
+    if (!group.dataset.ind) group.dataset.ind = 'init';
+    if (!still) group.dataset.ind = 'live';
+    apply(next);indicatorMemory.set(key,next);
+  }
+}
 const windowChrome = new WindowChrome(message => toast(message,'error'),async()=>{captureDrafts();await backend.unsaved(workSnapshot().unsaved);});
 function renderChrome() {
   windowChrome.render();
-  motion.theme(state.settings.theme === 'dark' ? 'dark' : 'light',state.settings.reduced_motion);
+  motion.theme(resolvedTheme(),state.settings.reduced_motion,hologramTone());
   translateDocument();
-  document.querySelector('.theme-toggle').innerHTML = icon(state.settings.theme === 'dark' ? 'sun' : 'moon');
-  document.querySelector('.theme-toggle').disabled = controlsBusy();
-  document.querySelector('.theme-toggle').setAttribute('aria-label',t(state.settings.theme === 'dark' ? 'theme.light' : 'theme.dark'));
+  const strip = document.querySelector('.theme-switcher');
+  if (!strip.children.length) strip.innerHTML = themes.map(id => themeChoice(id,`theme-choice-${id}`)).join('');
+  strip.setAttribute('aria-label',t('card.theme'));
+  paintThemeChoices(strip);
+  // On narrow windows the strip scrolls; keep the active palette in view.
+  const pressed = strip.querySelector('[aria-pressed="true"]');
+  if (pressed && strip.scrollWidth > strip.clientWidth) {
+    const box = strip.getBoundingClientRect(),own = pressed.getBoundingClientRect();
+    if (own.left < box.left || own.right > box.right) strip.scrollLeft += own.left - box.left - (box.width - own.width) / 2;
+  }
+  paintThemeChoices(content.querySelector('#appearance-theme'));
   document.querySelectorAll('.nav-button').forEach(node => {node.classList.toggle('active',node.dataset.page === view.page);node.setAttribute('aria-current',node.dataset.page === view.page ? 'page' : 'false');});
   document.querySelector('#version').textContent = state.version ? `v${state.version.replace(/^v/,'')}` : '';
 }
@@ -222,7 +270,7 @@ function glossaryView() {
 }
 function appearanceView() {
   const s = state.settings,busy=controlsBusy();
-  return `<div class="card pane-card" data-testid="appearance-card">${field('appearance-theme',L('card.theme'),select('appearance-theme',s.theme || 'light',[{value:'light',label:t('theme.light')},{value:'dark',label:t('theme.dark')}],{setting:'theme',disabled:busy}))}${field('interface-language',L('sidebar.language'),select('interface-language',s.ui_lang_follow !== false ? 'system' : s.ui_lang || systemLanguage(),[{value:'system',label:t('lang.follow_system',{name:nativeLanguageNames[systemLanguage()]})},...languages.map(value => ({value,label:nativeLanguageNames[value]}))],{disabled:busy}))}<p class="note">${L('card.lang_count')} · ${L('desktop.os_language')}</p><label class="limits-line"><input type="checkbox" id="reduce-motion" data-testid="reduce-motion" data-setting="reduced_motion" ${s.reduced_motion ? 'checked' : ''} ${busy ? 'disabled' : ''}>${L('desktop.motion')}</label><hr class="divider"><p class="eyebrow">${L('desktop.data')}</p><p class="output-path" data-testid="data-directory" title="${attr(displayPath(state.dataDir))}">${escape(displayPath(state.dataDir))}</p><div class="actions spread">${button('import-legacy',t('desktop.import'),'import-legacy',{icon:'folder_open',disabled:busy})}${button('open-data',t('batch.open_folder'),'open-data',{icon:'folder',disabled:busy})}</div></div>`;
+  return `<div class="card pane-card" data-testid="appearance-card"><div class="field"><span class="field-label" id="appearance-theme-label">${L('card.theme')}</span><div class="theme-row" role="group" id="appearance-theme" data-testid="appearance-theme" aria-labelledby="appearance-theme-label">${themes.map(id => themeChoice(id,`appearance-theme-${id}`,'<span class="theme-dot" aria-hidden="true"></span>')).join('')}</div><p class="note theme-hint" data-testid="appearance-theme-hint">${themeId() === 'hologram' ? L('theme.opal_hint') : ''}</p></div>${field('interface-language',L('sidebar.language'),select('interface-language',s.ui_lang_follow !== false ? 'system' : s.ui_lang || systemLanguage(),[{value:'system',label:t('lang.follow_system',{name:nativeLanguageNames[systemLanguage()]})},...languages.map(value => ({value,label:nativeLanguageNames[value]}))],{disabled:busy}))}<p class="note">${L('card.lang_count')} · ${L('desktop.os_language')}</p><label class="limits-line"><input type="checkbox" id="reduce-motion" data-testid="reduce-motion" data-setting="reduced_motion" ${s.reduced_motion ? 'checked' : ''} ${busy ? 'disabled' : ''}>${L('desktop.motion')}</label><hr class="divider"><p class="eyebrow">${L('desktop.data')}</p><p class="output-path" data-testid="data-directory" title="${attr(displayPath(state.dataDir))}">${escape(displayPath(state.dataDir))}</p><div class="actions spread">${button('import-legacy',t('desktop.import'),'import-legacy',{icon:'folder_open',disabled:busy})}${button('open-data',t('batch.open_folder'),'open-data',{icon:'folder',disabled:busy})}</div></div>`;
 }
 function render() {
   rememberProviderInputs();
@@ -243,6 +291,7 @@ function render() {
   }else content.innerHTML=view.page==='settings'?settingsView():translateView();
   restoreProviderInputs();
   renderChrome();
+  placeIndicators();
   motion.enter(content,view.page==='settings'?`settings:${view.pane}`:view.page);
   document.querySelector('#output-folder')?.setAttribute('title',displayPath(view.outputDir));
   content.setAttribute('aria-busy',String(view.busy));
@@ -294,7 +343,8 @@ function patchProviderRows() {
 }
 function syncAppearanceControls() {
   const theme=document.querySelector('#appearance-theme'),reduced=document.querySelector('#reduce-motion');
-  if(theme)theme.value=state.settings.theme==='dark'?'dark':'light';
+  paintThemeChoices(theme);
+  const hint=document.querySelector('.theme-hint');if(hint)hint.textContent=themeId()==='hologram'?t('theme.opal_hint'):'';
   if(reduced)reduced.checked=Boolean(state.settings.reduced_motion);
 }
 function captureDrafts() {
@@ -359,7 +409,7 @@ async function runAction(action,node) {
     case 'settings-pane':captureDrafts();view.pane=id;render();return;
     case 'manage-providers':captureDrafts();view.page='settings';view.pane='keys';render();return;
     case 'manage-purpose':captureDrafts();view.page='settings';view.pane='purposes';render();return;
-    case 'toggle-theme':if(activeJob())return;captureDrafts();await saveSettings({theme:state.settings.theme === 'dark' ? 'light' : 'dark'});renderChrome();syncAppearanceControls();return;
+    case 'set-theme':if(activeJob())return;captureDrafts();await saveSettings(id === 'hologram' && themeId() === 'hologram' ? {hologram_tone:hologramTone() === 'dark' ? 'light' : 'dark'} : {theme:id});renderChrome();syncAppearanceControls();return;
     case 'source-type':if(activeJob())return;await backend.clearSelection();state.selected=[];state.job=null;view.preview=null;view.error=null;await saveSettings({source_type:id});render();return;
     case 'swap':await saveSettings({source_choice:state.settings.target_lang,target_lang:state.settings.source_choice});render();return;
     case 'pick':state.selected=await backend.pick(effectiveSourceType() === 'file' ? 'files' : effectiveSourceType());state.job=null;view.preview=null;view.error=null;render();return;
@@ -405,7 +455,7 @@ function beginOperation() {
   operationFocus=document.activeElement;operationControls=new Map();
   operationPane=content.querySelector('.settings-pane')||content.firstElementChild;
   view.busy=true;content.setAttribute('aria-busy','true');
-  const controls=[document.querySelector('.theme-toggle'),...content.querySelectorAll('button,input,select,textarea')];
+  const controls=[...document.querySelectorAll('.theme-switcher button'),...content.querySelectorAll('button,input,select,textarea')];
   for(const node of controls){if(!immediateActions.has(node.dataset.action)){operationControls.set(node,node.disabled);node.disabled=true;}}
 }
 function finishOperation(preserveContent=false) {
@@ -423,7 +473,7 @@ document.addEventListener('click',async event => {
   event.preventDefault();
   const action=node.dataset.action;
   if(view.busy && !immediateActions.has(action))return;
-  const ownsBusy=!immediateActions.has(action),preserveContent=action==='toggle-theme';
+  const ownsBusy=!immediateActions.has(action),preserveContent=action==='set-theme';
   if(ownsBusy)beginOperation();
   try {await runAction(action,node);} catch(error) {view.error=String(error?.message || error);toast(view.error,'error');if(view.page==='translate'&&!preserveContent)render();}
   finally {if(ownsBusy)finishOperation(preserveContent);}
@@ -473,6 +523,8 @@ document.addEventListener('input',event=>{
   if(event.target.id.startsWith('order-model-'))captureOrder();
   reportUnsaved();
 });
+systemDark.addEventListener('change',() => {if (themeId() === 'system') renderChrome();});
+window.addEventListener('resize',placeIndicators,{passive:true});
 // Native drag/drop paths are validated and registered by Rust before this event.
 window.addEventListener('beforeunload',() => {clearTimeout(view.pollTimer);clearTimeout(view.toastTimer);updates.dispose();motion.dispose();for(const unlisten of view.unlisten)unlisten();});
 async function initialize() {

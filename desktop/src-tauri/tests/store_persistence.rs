@@ -126,6 +126,28 @@ fn preferences_roundtrip_merge_aliases_and_argv_sanitization() {
 }
 
 #[test]
+fn preferences_accept_litora_palettes_and_opal_tone() {
+    let temp = TestDirectory::new();
+    let store = temp.store();
+    assert_eq!(store.preferences()["hologram_tone"], "light");
+    for theme in ["sepia", "forest", "black", "system", "hologram"] {
+        assert_eq!(
+            store.save_preferences(json!({"theme":theme})).unwrap()["theme"],
+            theme
+        );
+    }
+    let saved = store
+        .save_preferences(json!({"hologramTone":"dark"}))
+        .unwrap();
+    assert_eq!(saved["hologram_tone"], "dark");
+    let saved = store
+        .save_preferences(json!({"theme":"neon","hologram_tone":"dim"}))
+        .unwrap();
+    assert_eq!(saved["theme"], "hologram");
+    assert_eq!(saved["hologram_tone"], "dark");
+}
+
+#[test]
 fn source_language_can_return_to_auto_and_survive_restart() {
     let temp = TestDirectory::new();
     let data = temp.child("native");

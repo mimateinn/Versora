@@ -115,7 +115,7 @@ async def run(args):
             }'''
             for theme in ('light','dark'):
                 await page.get_by_test_id('settings-pane-appearance').click()
-                await page.get_by_test_id('appearance-theme').select_option(theme)
+                await page.get_by_test_id(f'appearance-theme-{theme}').click()
                 await page.wait_for_function('theme=>document.documentElement.dataset.theme===theme',arg=theme)
                 for locale in locales:
                     await page.get_by_test_id('settings-pane-appearance').click()
@@ -145,7 +145,7 @@ async def run(args):
                     print(json.dumps({'nativeFontProgress':f'{theme}/{locale}','layouts':len(result['layouts'])}),flush=True)
             await page.get_by_test_id('settings-pane-appearance').click()
             await page.get_by_test_id('interface-language').select_option('en')
-            await page.get_by_test_id('appearance-theme').select_option('light')
+            await page.get_by_test_id('appearance-theme-light').click()
             await page.get_by_test_id('nav-translate').click()
             result['status']='PASS'
         except Exception as error:

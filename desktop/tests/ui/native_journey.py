@@ -65,7 +65,7 @@ async def run(args):
         for theme in ["light", "dark"]:
             await page.get_by_test_id("nav-settings").click()
             await page.get_by_test_id("settings-pane-appearance").click()
-            await page.get_by_test_id("appearance-theme").select_option(theme)
+            await page.get_by_test_id(f"appearance-theme-{theme}").click()
             await page.wait_for_function("theme => document.documentElement.dataset.theme === theme", arg=theme)
             for pane in ["purposes", "keys", "order", "glossary", "appearance", "updates"]:
                 await page.get_by_test_id(f"settings-pane-{pane}").click()
@@ -85,7 +85,7 @@ async def run(args):
         evidence["checks"].append("Every interface locale loaded and appearance heading matches its preserved catalog")
         await page.get_by_test_id("interface-language").select_option("en")
         await page.wait_for_function("() => document.documentElement.lang === 'en'")
-        await page.get_by_test_id("appearance-theme").select_option("light")
+        await page.get_by_test_id("appearance-theme-light").click()
         await page.wait_for_function("() => document.documentElement.dataset.theme === 'light'")
 
         # Missing publisher trust/capability must keep the app alive and block download/install.
@@ -115,7 +115,7 @@ async def run(args):
         await page.get_by_test_id(f"order-model-{first_provider}").fill("native-regression-model")
         await page.get_by_test_id("global-limit").select_option("3" if original_limit != "3" else "2")
         await page.wait_for_function("id => document.querySelector(`[data-testid=order-model-${id}]`)?.value === 'native-regression-model'", arg=first_provider)
-        await page.get_by_test_id("theme-toggle").click()
+        await page.get_by_test_id("theme-choice-dark").click()
         await page.wait_for_function("() => document.documentElement.dataset.theme === 'dark'")
         assert await page.get_by_test_id(f"order-model-{first_provider}").input_value() == "native-regression-model"
         await page.get_by_test_id(f"order-model-{first_provider}").fill(original_model)
@@ -127,7 +127,7 @@ async def run(args):
         # Real glossary and prompt edits must survive subsequent native state reload.
         await page.get_by_test_id("settings-pane-glossary").click()
         await page.get_by_test_id("new-project").fill("retained-project-draft")
-        await page.get_by_test_id("theme-toggle").click()
+        await page.get_by_test_id("theme-choice-light").click()
         await page.wait_for_function("() => document.documentElement.dataset.theme === 'light'")
         await page.get_by_test_id("settings-pane-appearance").click()
         await page.get_by_test_id("settings-pane-glossary").click()
@@ -157,7 +157,7 @@ async def run(args):
         await page.get_by_test_id("settings-pane-keys").click()
         await page.get_by_test_id("edit-provider-openai").click()
         await page.get_by_test_id("provider-key-openai").fill("unsent-native-credential-draft")
-        await page.get_by_test_id("theme-toggle").click()
+        await page.get_by_test_id("theme-choice-dark").click()
         await page.wait_for_function("() => document.documentElement.dataset.theme === 'dark'")
         assert await page.get_by_test_id("provider-key-openai").input_value() == "unsent-native-credential-draft"
         await page.get_by_test_id("nav-translate").click()

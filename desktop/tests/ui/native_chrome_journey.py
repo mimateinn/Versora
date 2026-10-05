@@ -524,7 +524,7 @@ async def chrome_geometry(page):
 
 
 async def verify_interactive_hits(page):
-    samples = await page.evaluate("""() => ['brand','nav-translate','nav-settings','theme-toggle',
+    samples = await page.evaluate("""() => ['brand','nav-translate','nav-settings','theme-switcher',
       'window-minimize','window-maximize','window-close'].map(id=>{
         const nodes=[...document.querySelectorAll(`[data-testid=${id}]`)];
         if(nodes.length!==1)return {id,count:nodes.length,points:[]};
@@ -762,9 +762,9 @@ async def inspect_motion(page, native):
         require(route["route"]["name"] == "none", "OS reduced motion must suppress route animation.")
     await page.get_by_test_id("nav-settings").click()
     await page.get_by_test_id("settings-pane-appearance").click()
-    theme = await page.get_by_test_id("appearance-theme").input_value()
+    theme = await page.get_by_test_id("appearance-theme").get_attribute("data-value")
     native.guard()
-    await page.get_by_test_id("appearance-theme").select_option("light" if theme == "dark" else "dark")
+    await page.get_by_test_id(f'appearance-theme-{"light" if theme == "dark" else "dark"}').click()
     await page.wait_for_function("theme => document.documentElement.dataset.theme!==theme", arg=theme)
     theme_motion = await page.evaluate("""() => {
       const s=getComputedStyle(document.body);
@@ -805,7 +805,7 @@ async def inspect_motion(page, native):
         await page.mouse.up()
     await page.get_by_test_id("nav-settings").click()
     await page.get_by_test_id("settings-pane-appearance").click()
-    await page.get_by_test_id("appearance-theme").select_option(theme)
+    await page.get_by_test_id(f"appearance-theme-{theme}").click()
     await page.wait_for_function("theme => document.documentElement.dataset.theme===theme", arg=theme)
     await wait_idle(page)
     reduced_theme = await page.evaluate("""() => ({active:document.documentElement.dataset.themeTransition||null,
@@ -825,7 +825,7 @@ async def inspect_motion(page, native):
 async def wait_idle(page):
     # Theme destination can be painted before finishOperation restores controls.
     await page.wait_for_function("""() => document.querySelector('[data-testid=main-content]').getAttribute('aria-busy')==='false' &&
-      !document.querySelector('[data-testid=theme-toggle]').disabled""")
+      !document.querySelector('[data-testid=theme-choice-dark]').disabled""")
 
 
 async def inspect_retained_theme_and_rail(page, native):
@@ -849,7 +849,7 @@ async def inspect_retained_theme_and_rail(page, native):
         native.guard()
         # DOM click invokes the real delegated product action and Rust save. It
         # preserves the existing input focus so DOM replacement is observable.
-        await page.evaluate("() => document.querySelector('[data-testid=theme-toggle]').click()")
+        await page.evaluate("theme => document.querySelector(`[data-testid=theme-choice-${theme}]`).click()", target)
         await page.wait_for_function("theme=>document.documentElement.dataset.theme===theme", arg=target)
         await wait_idle(page)
         retained = await handle.evaluate("""n=>({same:n.isConnected&&n===document.querySelector('[data-testid=purpose-instructions]'),
@@ -862,10 +862,10 @@ async def inspect_retained_theme_and_rail(page, native):
         cycles.append({"theme": target, "focusedDraftNodeRetained": True, "selection": [2, 8]})
     native.guard()
     target = "light" if theme == "dark" else "dark"
-    await page.evaluate("""() => {
-      document.querySelector('[data-testid=theme-toggle]').click();
+    await page.evaluate("""theme => {
+      document.querySelector(`[data-testid=theme-choice-${theme}]`).click();
       document.querySelector('[data-testid=settings-pane-glossary]').click();
-    }""")
+    }""", target)
     await page.wait_for_function("theme=>document.documentElement.dataset.theme===theme", arg=target)
     await wait_idle(page)
     require(await page.get_by_test_id("new-project").is_enabled() and
@@ -893,7 +893,7 @@ async def inspect_retained_theme_and_rail(page, native):
             "Real theme/pane race lost the prior isolated purpose draft.")
     await page.get_by_test_id("purpose-instructions").fill(original)
     await page.get_by_test_id("settings-pane-appearance").click()
-    await page.get_by_test_id("appearance-theme").select_option(theme)
+    await page.get_by_test_id(f"appearance-theme-{theme}").click()
     await wait_idle(page)
     await page.wait_for_function("() => !document.documentElement.dataset.themeTransition")
     return {"cycles": cycles, "sameTaskThemePaneRace": "PASS", "railNodesRetained": True, "markers": markers,
@@ -1135,7 +1135,7 @@ async def run(args):
             validate_shell(shell_reference)
             for theme in ("light", "dark"):
                 native.guard()
-                await page.get_by_test_id("appearance-theme").select_option(theme)
+                await page.get_by_test_id(f"appearance-theme-{theme}").click()
                 await page.wait_for_function("theme => document.documentElement.dataset.theme === theme", arg=theme)
                 await wait_idle(page)
                 await settled(page)
