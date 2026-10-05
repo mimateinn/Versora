@@ -1,0 +1,92 @@
+name: Versora release
+
+# Push a tag `v<semver>` (e.g. v0.4.0 or v0.4.0-preview.1) to build, sign and publish the
+# Windows installer and its updater signature. A SemVer pre-release becomes a GitHub
+# prerelease, which only the Preview channel offers.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to build and publish (for example v0.4.0)
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: versora-release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ env.TAG }}
+      - name: Check tag and app versions
+        run: |
+          if ($env:TAG -notmatch '^v((0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-[0-9A-Za-z.-]+)?)$') { throw "Tag must be v<semver>: $env:TAG" }
+          $version = $Matches[1]
+          $conf = (Get-Content desktop/src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+          $cargo = [regex]::Match((Get-Content desktop/Cargo.toml -Raw), '(?m)^version\s*=\s*"([^"]+)"').Groups[1].Value
+          if ($conf -ne $version -or $cargo -ne $version) { throw "Tag $env:TAG, tauri.conf.json $conf and Cargo.toml $cargo must name the same version." }
+          "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Install the pinned Rust toolchain
+        working-directory: desktop
+        run: |
+          $channel = [regex]::Match((Get-Content rust-toolchain.toml -Raw), 'channel\s*=\s*"([^"]+)"').Groups[1].Value
+          rustup toolchain install $channel --profile minimal --no-self-update
+      - name: Updater tests
+        working-directory: desktop
+        run: cargo test --locked -p versora-desktop --test update_policy
+      - name: Build the production installer
+        id: package
+        run: ./desktop/packaging/Build-CiPackage.ps1 -Mode Production -BuildId "rel-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
+      - name: Sign the installer for the in-app updater
+        env:
+          INSTALLER: ${{ steps.package.outputs.installer }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          $keyLines = @(Get-Content desktop/src-tauri/updater-public-key.txt | Where-Object { $_.Trim() -and -not $_.Trim().StartsWith('#') })
+          if (-not $env:TAURI_SIGNING_PRIVATE_KEY) {
+            if ($keyLines.Count) { throw 'updater-public-key.txt has a key, but the TAURI_SIGNING_PRIVATE_KEY secret is not set: installed apps could not verify this release.' }
+            Write-Warning 'No signing key secret: publishing without an updater signature (the app offers the release page instead).'
+            exit 0
+          }
+          npx --yes @tauri-apps/cli@2.12.1 signer sign --app-version $env:VERSION $env:INSTALLER
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath "$env:INSTALLER.sig")) { throw 'Signing failed.' }
+          if (-not $keyLines.Count) { Write-Warning 'updater-public-key.txt is empty: this build cannot verify its own updates yet.'; exit 0 }
+          # Verify with the exact code and key the shipped app uses before anything is published.
+          $env:VERSORA_RELEASE_ARTIFACT = $env:INSTALLER
+          $env:VERSORA_RELEASE_VERSION = $env:VERSION
+          Push-Location desktop
+          try { cargo test --locked -p versora-desktop --test update_policy release_artifact_verifies_with_the_committed_key -- --exact --nocapture; if ($LASTEXITCODE -ne 0) { throw 'The signed installer does not verify against updater-public-key.txt.' } } finally { Pop-Location }
+      - name: Publish the GitHub release
+        env:
+          INSTALLER: ${{ steps.package.outputs.installer }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git fetch --force --no-tags origin "refs/tags/$($env:TAG):refs/tags/$($env:TAG)"
+          $notes = Join-Path $env:RUNNER_TEMP 'release-notes.md'
+          $type = (git for-each-ref "refs/tags/$env:TAG" --format='%(objecttype)').Trim()
+          $text = if ($type -eq 'tag') { (git for-each-ref "refs/tags/$env:TAG" --format='%(contents:subject)%0a%0a%(contents:body)') -join "`n" } else { '' }
+          $flags = @()
+          if ($text.Trim()) { [IO.File]::WriteAllText($notes, $text.Trim() + "`n"); $flags += @('--notes-file', $notes) } else { $flags += '--generate-notes' }
+          if ($env:VERSION.Contains('-')) { $flags += '--prerelease' }
+          $assets = @($env:INSTALLER)
+          if (Test-Path -LiteralPath "$env:INSTALLER.sig") { $assets += "$env:INSTALLER.sig" }
+          gh release create $env:TAG --draft --verify-tag --title "Versora $env:VERSION" @flags
+          if ($LASTEXITCODE -ne 0) { throw 'Creating the draft release failed.' }
+          gh release upload $env:TAG @assets
+          if ($LASTEXITCODE -ne 0) { throw 'Uploading release assets failed; the release stays a draft.' }
+          gh release edit $env:TAG --draft=false
+          if ($LASTEXITCODE -ne 0) { throw 'Publishing the draft release failed.' }

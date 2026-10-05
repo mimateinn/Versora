@@ -11,7 +11,7 @@ const motion = new UIMotion();
 const initialCliProbes = new Set();
 const state = {settings:{},providers:[],purposes:[],projects:[],glossary:[],selected:[],job:null,version:'',dataDir:'',testMode:false};
 const view = {page:'translate',pane:'purposes',editingProvider:null,outputDir:null,busy:false,error:null,glossaryDraft:null,orderDraft:null,purposeDraft:null,purposeFrom:'general',pollTimer:null,polling:false,unlisten:[],toastTimer:null,preview:null};
-const updates = new UpdatesPane(()=>{if(view.page==='settings'&&view.pane==='updates')render();});
+const updates = new UpdatesPane(()=>{if(view.page==='settings'&&view.pane==='updates')render();},()=>{captureDrafts();view.page='settings';view.pane='updates';render();});
 // Preserve the live input nodes across navigation. Secret values are never serialized
 // into application state or copied into a draft string.
 const transientProviderInputs = new Map();

@@ -6,7 +6,9 @@ param(
     [Parameter(Mandatory = $true)][ValidatePattern('^[A-Fa-f0-9]{40}$')][string]$SourceSha,
     [Parameter(Mandatory = $true)][ValidatePattern('^[a-z0-9][a-z0-9-]{2,39}$')][string]$BuildId,
     [ValidatePattern('^[a-z0-9][a-z0-9-]{2,39}$')][string]$TestId,
-    [string]$SupplementManifest = (Join-Path $PSScriptRoot 'notices\provenance.json')
+    [string]$SupplementManifest = (Join-Path $PSScriptRoot 'notices\provenance.json'),
+    # CI runners have a different MSVC layout; pass the located dumpbin.exe there.
+    [string]$Dumpbin = 'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.44.35207\bin\Hostx64\x64\dumpbin.exe'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -14,7 +16,7 @@ Set-StrictMode -Version Latest
 $desktopRoot = [IO.Path]::GetFullPath((Split-Path $PSScriptRoot -Parent))
 $repoRoot = Split-Path $desktopRoot -Parent
 $compiler = Join-Path $env:LOCALAPPDATA 'tauri\NSIS\makensis.exe'
-$dumpbin = 'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.44.35207\bin\Hostx64\x64\dumpbin.exe'
+$dumpbin = $Dumpbin
 $nsi = Join-Path $PSScriptRoot 'versora.nsi'
 $runRoot = Join-Path $PSScriptRoot "output\builds\$BuildId"
 $stage = Join-Path $runRoot 'stage'
@@ -93,7 +95,7 @@ $metadata = [ordered]@{
     userDataPreserved = @('%LOCALAPPDATA%\Versora', '%LOCALAPPDATA%\com.mimateinn.versora', 'user-selected output folders', 'unknown files inside program/shortcut directories')
     livePaidProviderTranslation = 'NOT_RUN'
     realCliTranslationAndToolIsolation = 'NOT_RUN'
-    updater = 'Metadata/manual release access only; authenticated automatic install/rollback disabled'
+    updater = 'Signed self-update: packages run only after minisign verification against the compiled updater key (none: manual release page only); no automatic rollback'
     thirdPartySources = $licenseSummary
 }
 Write-Utf8 (Join-Path $stage 'RELEASE-METADATA.json') ($metadata | ConvertTo-Json -Depth 9)
@@ -107,7 +109,7 @@ An existing Microsoft Evergreen WebView2 Runtime is required. This package does 
 API credentials and application data stay outside the program directory. Uninstall preserves the entire app data/cache directories, outputs and unknown files.
 This preview is unsigned. Paid provider translation, real installed CLI translation and complete CLI tool isolation have not been verified; no keys or provider CLI executables are bundled.
 Provider cancellation stops local waiting/native managed processes; it does not recall requests already accepted or billable by an external provider.
-Updater download/install/rollback is disabled pending a reviewed trust key and native recovery implementation; official release access remains available.
+Automatic updates download the signed installer from the official GitHub release, verify its signature against the publisher key built into Versora and install it when you restart or quit. Builds without a publisher key only check for updates and open the official release page. There is no automatic rollback.
 Third-party notices and unchanged locked source archives are included. No project license is inferred from dependency licensing.
 "@
 if ($Mode -eq 'Test') { $readme = "ISOLATED TEST ARTIFACT. DO NOT PUBLISH OR REPOINT THE FORMAL ENTRY.`nSource may be uncommitted; the EXE digest is pinned.`n`n" + $readme }
