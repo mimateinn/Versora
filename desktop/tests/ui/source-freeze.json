@@ -246,8 +246,8 @@
   },
   {
     "path": "desktop\\ui\\updates.js",
-    "sha256": "B250B412E4323F73EE58A815DE70E0022DB0D18C0ED4728DED0052894AB440EB",
-    "bytes": 13200
+    "sha256": "153CB6364C4CCB2FEB4B10615CACC5D849C1DE6E3CA0C2999C3499A9AD8B2928",
+    "bytes": 13237
   },
   {
     "path": "desktop\\ui\\window-chrome.js",

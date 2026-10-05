@@ -15,7 +15,7 @@ export class UpdatesPane {
   async initialize() {
     const [nativeState,preferences]=await Promise.all([backend.updates.state(),backend.updates.preferences()]);
     this.nativeState=nativeState;this.preferences=preferences;this.error=null;
-    this.unlisten=await backend.updates.listen(value=>{this.nativeState=value;if(value.preferences)this.preferences=value.preferences;this.renderPill();this.onChange();});
+    this.unlisten=await backend.updates.listen(value=>{this.nativeState=value;if(value.preferences)this.preferences=value.preferences;if(value.error)this.installing=false;this.renderPill();this.onChange();});
     this.renderPill();this.announce();
   }
   async refresh() {
