@@ -2,7 +2,8 @@
 param(
     [Parameter(Mandatory = $true)][ValidateSet('Install', 'Upgrade', 'RefuseRunningApp', 'RefuseReparse', 'Uninstall', 'Verify')][string]$Phase,
     [Parameter(Mandatory = $true)][string]$PlanPath,
-    [Parameter(Mandatory = $true)][ValidatePattern('^[a-fA-F0-9]{64}$')][string]$ExpectedInstallerSha256
+    [Parameter(Mandatory = $true)][ValidatePattern('^[a-fA-F0-9]{64}$')][string]$ExpectedInstallerSha256,
+    [switch]$FixtureFree
 )
 # Root reviews the concrete compiled plan before Install/Upgrade. Root owns actual
 # native app launch/close between phases. This runner never launches/stops an app.
@@ -45,6 +46,10 @@ $plain = [Text.Encoding]::UTF8.GetBytes('{}')
 Add-Type -AssemblyName System.Security
 $baseKey = [Microsoft.Win32.RegistryKey]::OpenBaseKey([Microsoft.Win32.RegistryHive]::CurrentUser, [Microsoft.Win32.RegistryView]::Registry64)
 function Assert-Preserved {
+    if ($state.fixtureFree) {
+        if ($state.fixtureHashes.Count) { throw 'Fixture-free state unexpectedly contains preservation fixtures.' }
+        return
+    }
     foreach ($relative in $fixtureNames) {
         $path = Scoped (Join-Path $testRoot $relative)
         if (-not (Test-Path -LiteralPath $path -PathType Leaf) -or (Digest $path) -ne $state.fixtureHashes[$relative]) { throw "Preservation failed: $relative" }
@@ -74,7 +79,7 @@ function Assert-Installed {
     $shell = New-Object -ComObject WScript.Shell
     try {
         $link = $shell.CreateShortcut($shortcut)
-        if ($link.TargetPath -ne (Join-Path $target 'versora.exe') -or $link.IconLocation -ne ((Join-Path $target 'icon.ico') + ',0')) { throw 'Private native shortcut target/icon differs.' }
+        if ($link.TargetPath -ne (Join-Path $target 'versora.exe') -or $link.IconLocation -ne ((Join-Path $target 'icon.ico') + ',0') -or $link.WorkingDirectory -ne $target) { throw 'Private native shortcut target/icon/working directory differs.' }
     } finally { $null = [Runtime.InteropServices.Marshal]::ReleaseComObject($shell) }
     Assert-Preserved
 }
@@ -82,6 +87,13 @@ if ($Phase -eq 'Install') {
     if (Test-Path -LiteralPath $testRoot) { throw 'Fresh Install requires a new test directory, never an existing installation/profile.' }
     $key = $baseKey.OpenSubKey($privateKey)
     if ($key) { $key.Dispose(); throw 'Private test key already exists; choose a fresh TestId.' }
+    $hashes = @{}
+    if ($FixtureFree) {
+        # Only the evidence parent exists. The actual program and shortcut
+        # directories must be absent when the real installer starts.
+        $null = New-Item -ItemType Directory -Path $testRoot
+        if ((Test-Path -LiteralPath $target) -or (Test-Path -LiteralPath (Split-Path $shortcut -Parent))) { throw 'Fixture-free installation requires absent program/shortcut directories.' }
+    } else {
     $null = New-Item -ItemType Directory -Path (Join-Path $target 'unknown-user-directory'), (Join-Path $testRoot 'integration'), (Join-Path $testRoot 'external-profile\projects'), (Join-Path $testRoot 'external-profile\data\outputs')
     foreach ($relative in $fixtureNames | Where-Object { $_ -notlike '*credentials.dpapi' -and $_ -notlike '*/.sfts-ui.json' }) { Write-Utf8 (Join-Path $testRoot $relative) 'Owner-independent unknown-file preservation fixture.' }
     Write-Utf8 (Join-Path $testRoot 'external-profile\projects\.sfts-ui.json') '{"theme":"dark","lang":"en"}'
@@ -90,13 +102,16 @@ if ($Phase -eq 'Install') {
     # An unknown nested junction is deliberately preserved and never enumerated
     # by the real installer. Both link and target remain in the reviewed scope.
     $null = New-Item -ItemType Junction -Path $unknownJunction -Target $junctionTarget
-    $hashes = @{}
     foreach ($relative in $fixtureNames) { $hashes[$relative] = Digest (Join-Path $testRoot $relative) }
-    $state = @{ schema = 2; testId = $plan.testId; install = 'NOT_RUN'; upgrade = 'NOT_RUN'; runningAppRefusal = 'NOT_RUN'; reparseRefusal = 'NOT_RUN'; uninstall = 'NOT_RUN'; preservation = 'NOT_RUN'; fixtureHashes = $hashes; appLaunchedByRunner = $false; failures = @() }
+    }
+    $state = @{ schema = 2; testId = $plan.testId; fixtureFree = [bool]$FixtureFree; installTargetAbsentBeforeInstall = [bool]$FixtureFree; install = 'NOT_RUN'; upgrade = 'NOT_RUN'; runningAppRefusal = 'NOT_RUN'; reparseRefusal = 'NOT_RUN'; uninstall = 'NOT_RUN'; preservation = 'NOT_RUN'; fixtureHashes = $hashes; appLaunchedByRunner = $false; failures = @() }
 } else {
+    if ($FixtureFree) { throw 'FixtureFree is selected only for Install; later phases use its saved actual state.' }
     if (-not (Test-Path -LiteralPath $statePath -PathType Leaf)) { throw 'Actual fresh Install state is required.' }
     $state = Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json -AsHashtable
-    if ($state.schema -ne 2 -or $state.testId -ne $plan.testId -or $state.install -ne 'PASS' -or (Compare-Object @($fixtureNames | Sort-Object) @($state.fixtureHashes.Keys | Sort-Object))) { throw 'Preservation state differs from the actual installed test.' }
+    if (-not $state.ContainsKey('fixtureFree')) { $state.fixtureFree = $false }
+    $fixtureMismatch = if ($state.fixtureFree) { $state.fixtureHashes.Count -ne 0 } else { [bool](Compare-Object @($fixtureNames | Sort-Object) @($state.fixtureHashes.Keys | Sort-Object)) }
+    if ($state.schema -ne 2 -or $state.testId -ne $plan.testId -or $state.install -ne 'PASS' -or $fixtureMismatch) { throw 'Preservation state differs from the actual installed test.' }
 }
 try {
     if ($Phase -eq 'Install' -or $Phase -eq 'Upgrade') {
@@ -124,6 +139,7 @@ try {
             if ($process.ExitCode -ne 24) { throw "Running-app refusal expected exit 24, observed $($process.ExitCode)." }
             $state.runningAppRefusal = 'PASS'
         } else {
+            if ($state.fixtureFree) { throw 'Reparse fixture check requires the separate preservation test mode.' }
             Assert-AppClosed
             $knownPath = Scoped (Join-Path $target 'THIRD-PARTY-NOTICES.txt')
             $savedPath = Scoped (Join-Path $testRoot ('refusal-fixtures\' + $plan.buildId + '-THIRD-PARTY-NOTICES.txt'))
@@ -174,8 +190,14 @@ try {
     } else {
         if ($state.currentInstallerSha256 -ne $plan.installerSha256 -or $state.uninstall -ne 'PASS') { throw 'Final Verify requires completed actual Uninstall.' }
         Assert-Preserved
-        $state.preservation = 'PASS'
-        $state.status = if ($state.upgrade -eq 'PASS') { 'PASS_ISOLATED_INSTALL_UPGRADE_UNINSTALL_PRESERVATION' } else { 'PASS_ISOLATED_INSTALL_UNINSTALL_PRESERVATION' }
+        if ($state.fixtureFree) {
+            if (Test-Path -LiteralPath $target) { throw 'Fixture-free uninstall left the program directory behind.' }
+            $state.preservation = 'NOT_APPLICABLE_NO_FIXTURES'
+            $state.status = 'PASS_FIXTURE_FREE_INSTALL_UNINSTALL'
+        } else {
+            $state.preservation = 'PASS'
+            $state.status = if ($state.upgrade -eq 'PASS') { 'PASS_ISOLATED_INSTALL_UPGRADE_UNINSTALL_PRESERVATION' } else { 'PASS_ISOLATED_INSTALL_UNINSTALL_PRESERVATION' }
+        }
     }
     $state.lastPhase = $Phase
 } catch {

@@ -64,3 +64,9 @@ Unknown files, an unknown junction and a real current-user DPAPI empty credentia
 record are verified through install, upgrade and uninstall. Upgrade requires a
 new compiled BuildId using the same TestId. Final evidence distinguishes checks
 actually executed from `NOT_RUN` checks.
+
+For the fresh-target regression, build with a new TestId and run `Install` with
+`-FixtureFree`. The evidence parent is created, but the program/shortcut
+directories remain absent before the real installer runs. Subsequent `Uninstall`
+and `Verify` use the saved mode without the switch; the result reports no
+preservation fixtures rather than implying a DPAPI preservation check occurred.

@@ -96,6 +96,33 @@ Var RollbackFailed
 !include "${PAYLOAD_INCLUDE}"
 
 !macro COMMON_INIT PREFIX
+Function ${PREFIX}ValidateAbsoluteDrivePath
+  Pop $0
+  StrLen $1 $0
+  ${If} $1 < 3
+    Goto absolute_path_bad_${PREFIX}
+  ${EndIf}
+  StrCpy $1 $0 1 1
+  StrCpy $2 $0 1 2
+  ${If} $1 != ":"
+  ${OrIf} $2 != "\"
+    Goto absolute_path_bad_${PREFIX}
+  ${EndIf}
+  StrCpy $1 $0 1
+  StrCpy $2 65
+  ${Do}
+    IntFmt $3 "%c" $2
+    ${If} $1 == $3
+      Return
+    ${EndIf}
+    IntOp $2 $2 + 1
+  ${LoopUntil} $2 > 90
+absolute_path_bad_${PREFIX}:
+  MessageBox MB_OK|MB_ICONSTOP "A nonempty absolute drive path is required. No target files were changed." /SD IDOK
+  SetErrorLevel 20
+  Abort
+FunctionEnd
+
 Function ${PREFIX}ValidateSafePath
   Pop $0
   ${Do}
@@ -127,13 +154,36 @@ Function ${PREFIX}ValidateLocation
     StrCpy $ShortcutDir "$SMPROGRAMS\Versora"
   !endif
   StrCpy $ShortcutPath "$ShortcutDir\Versora.lnk"
-  GetFullPathName $0 "$INSTDIR"
-  GetFullPathName $ExpectedDir "$ExpectedDir"
-  ${If} $0 != $ExpectedDir
+  Push "$INSTDIR"
+  Call ${PREFIX}ValidateAbsoluteDrivePath
+  Push "$ExpectedDir"
+  Call ${PREFIX}ValidateAbsoluteDrivePath
+  Push "$ShortcutDir"
+  Call ${PREFIX}ValidateAbsoluteDrivePath
+  ; The NSIS GetFullPathName instruction requires an existing path. Fresh
+  ; installation targets do not exist, so use the lexical Win32 API instead.
+  System::Call 'kernel32::GetFullPathNameW(w "$INSTDIR", i ${NSIS_MAX_STRLEN}, w .r0, p 0) i.r1'
+  ${If} $1 == 0
+  ${OrIf} $1 >= ${NSIS_MAX_STRLEN}
+  ${OrIf} $0 == ""
+    MessageBox MB_OK|MB_ICONSTOP "The installation path could not be normalized within the checked buffer. No target files were changed." /SD IDOK
+    SetErrorLevel 20
+    Abort
+  ${EndIf}
+  System::Call 'kernel32::GetFullPathNameW(w "$ExpectedDir", i ${NSIS_MAX_STRLEN}, w .r2, p 0) i.r3'
+  ${If} $3 == 0
+  ${OrIf} $3 >= ${NSIS_MAX_STRLEN}
+  ${OrIf} $2 == ""
+    MessageBox MB_OK|MB_ICONSTOP "The fixed per-user path could not be normalized within the checked buffer. No target files were changed." /SD IDOK
+    SetErrorLevel 20
+    Abort
+  ${EndIf}
+  ${If} $0 != $2
     MessageBox MB_OK|MB_ICONSTOP "The installation target differs from the fixed per-user location. /D redirection is refused." /SD IDOK
     SetErrorLevel 20
     Abort
   ${EndIf}
+  StrCpy $ExpectedDir $2
   StrCpy $INSTDIR $ExpectedDir
   Push "$INSTDIR"
   Call ${PREFIX}ValidateSafePath
@@ -281,6 +331,7 @@ Section "Versora"
   ; The program transaction has completed before integration is written.
   ClearErrors
   CreateDirectory "$ShortcutDir"
+  SetOutPath "$INSTDIR"
   CreateShortCut "$ShortcutPath" "$INSTDIR\versora.exe" "" "$INSTDIR\icon.ico" 0 SW_SHOWNORMAL "" "Versora native desktop"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayName" "Versora"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayVersion" "${APP_VERSION}"
