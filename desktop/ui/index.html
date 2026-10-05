@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  <title>Versora</title>
+  <link rel="icon" href="assets/icon.png">
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="icons.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="watermark" aria-hidden="true"><div class="watermark-field" id="watermark"></div></div>
+  <div class="app-shell" data-testid="app-shell">
+    <header class="topbar">
+      <a href="#translate" class="brand" data-action="navigate" data-page="translate" data-testid="brand" aria-label="Versora"><span class="brand-tile"><img src="assets/icon.png" alt=""></span><b>Versora</b></a>
+      <nav class="topnav" aria-label="Main navigation">
+        <button type="button" class="nav-button active" data-action="navigate" data-page="translate" data-testid="nav-translate" data-i18n="nav.translate">Translate</button>
+        <button type="button" class="nav-button" data-action="navigate" data-page="settings" data-testid="nav-settings" data-i18n="nav.settings">Settings</button>
+        <button type="button" class="icon-button theme-toggle" data-action="toggle-theme" data-testid="theme-toggle" aria-label="Change theme"></button>
+      </nav>
+    </header>
+    <div id="connection-error" class="notice error" data-testid="connection-error" role="alert" hidden></div>
+    <main id="content" data-testid="main-content" aria-busy="true"></main>
+    <footer data-testid="app-footer"><span data-i18n="about.footer">Versora · Runs on this computer</span><span id="version" data-testid="app-version"></span></footer>
+  </div>
+  <div id="toast" class="toast" data-testid="toast" role="status" aria-live="polite" hidden></div>
+  <dialog id="confirm-dialog" data-testid="confirm-dialog"><form method="dialog"><h2 id="confirm-title"></h2><p id="confirm-message"></p><div class="actions"><button value="cancel" data-testid="confirm-cancel" data-i18n="svc.keep">Keep it</button><button value="confirm" class="danger" data-testid="confirm-accept" data-i18n="svc.confirm_remove">Yes, remove</button></div></form></dialog>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

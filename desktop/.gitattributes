@@ -1,0 +1,3 @@
+# Preserve reviewed source/font/license bytes and hash manifests across checkouts.
+# The native tree contains locally frozen LF and CRLF files plus binary fonts.
+* -text

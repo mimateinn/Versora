@@ -1,0 +1,20 @@
+# Translator comment stays intact.
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: zh_HK\n"
+
+# Multiline source
+msgctxt "dialogue"
+msgid ""
+"Hello world\n"
+"Second line"
+msgstr ""
+
+msgid "One apple"
+msgid_plural "Many apples"
+msgstr[0] ""
+msgstr[1] ""
+
+msgid "Original source!"
+msgstr "現有譯文！"

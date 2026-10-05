@@ -1,0 +1,242 @@
+[
+  {
+    "path": "desktop\\assets\\fonts\\libron\\COPYRIGHT",
+    "sha256": "F266CFEA9E68F3A159788DA9ECDA72E3FA14D76816C0FCA30442496B6253E12E",
+    "bytes": 314
+  },
+  {
+    "path": "desktop\\assets\\fonts\\libron\\libron.css",
+    "sha256": "8BD044F9C73EB2933CD4CCC08226C1F6529F6C7C4E36842879B1266DC2E2FF88",
+    "bytes": 640
+  },
+  {
+    "path": "desktop\\assets\\fonts\\libron\\LICENSE",
+    "sha256": "CB452A7A6E43D36823B393E6FA2CB1B60FCCB4533BB30DC96D7262DF5DBB477E",
+    "bytes": 4552
+  },
+  {
+    "path": "desktop\\assets\\fonts\\libron\\README.md",
+    "sha256": "7FAC69D09AC361557E94169EF228D57AC35A1AE187B453A780D5778CED705321",
+    "bytes": 1143
+  },
+  {
+    "path": "desktop\\assets\\fonts\\libron\\SOURCE.json",
+    "sha256": "587390EB57DA726C0629152C6206847E912218B813268251E3B95B7F424DF547",
+    "bytes": 6198
+  },
+  {
+    "path": "desktop\\assets\\fonts\\libron\\TOKEN-CONTRACT.md",
+    "sha256": "9CAC59A52F722DE6617AD304AB7EAB7F6D9AD0CB549549BAC36AA38EFE337FAA",
+    "bytes": 1856
+  },
+  {
+    "path": "desktop\\assets\\fonts\\libron\\ttf\\Libron-Bold.ttf",
+    "sha256": "0258C7DEB5326BBCDE76076A457249D41912EA7B7C4A817A2B617E4A95B24A99",
+    "bytes": 214612
+  },
+  {
+    "path": "desktop\\assets\\fonts\\libron\\ttf\\Libron-BoldItalic.ttf",
+    "sha256": "CD3466082C63C3A0C03776C4018091711D1B5D45AC1AC41F3AB7B75AD8507904",
+    "bytes": 230836
+  },
+  {
+    "path": "desktop\\assets\\fonts\\libron\\ttf\\Libron-Italic.ttf",
+    "sha256": "1C229BFCFFCC08FAFD77C7E075B718A78DDE7531CB30B5D212373992FFECB282",
+    "bytes": 229352
+  },
+  {
+    "path": "desktop\\assets\\fonts\\libron\\ttf\\Libron-Regular.ttf",
+    "sha256": "18995BA828982E7A70E92C6A107E182B8358B363AACAC887409B8758042C490B",
+    "bytes": 211620
+  },
+  {
+    "path": "desktop\\assets\\fonts\\libron\\VERSION",
+    "sha256": "A30A043314FA89294FA2C1C989A01FBB5329E5C085A5C5A8D27317656DE24AE0",
+    "bytes": 4
+  },
+  {
+    "path": "desktop\\assets\\fonts\\libron\\woff2\\Libron-Bold.woff2",
+    "sha256": "3997623D5F3852C5797DC8C9D7D6C5CD0D845CA8940110BEA7487E8CC520A66A",
+    "bytes": 82328
+  },
+  {
+    "path": "desktop\\assets\\fonts\\libron\\woff2\\Libron-BoldItalic.woff2",
+    "sha256": "10BA86FE191B9CE16C8DED90750551F1F3E85CED3391F492BD87D0EBCFEB6224",
+    "bytes": 86600
+  },
+  {
+    "path": "desktop\\assets\\fonts\\libron\\woff2\\Libron-Italic.woff2",
+    "sha256": "9EF321C63A77EE7B08E276847346FD34CEE1E4924C592EE6787F7D5DD6419A46",
+    "bytes": 84908
+  },
+  {
+    "path": "desktop\\assets\\fonts\\libron\\woff2\\Libron-Regular.woff2",
+    "sha256": "B25EDA95D6B81C4977217314A088F446448A07126738511E8930A8D3372A5253",
+    "bytes": 80848
+  },
+  {
+    "path": "desktop\\ui\\app.js",
+    "sha256": "1D3AF0C7BFD1AB62C3B02B1299A12392F5D28B37DEDD90A221131DF0E4C20E7C",
+    "bytes": 47767
+  },
+  {
+    "path": "desktop\\ui\\assets\\fonts\\libron\\COPYRIGHT",
+    "sha256": "F266CFEA9E68F3A159788DA9ECDA72E3FA14D76816C0FCA30442496B6253E12E",
+    "bytes": 314
+  },
+  {
+    "path": "desktop\\ui\\assets\\fonts\\libron\\Libron-Bold.woff2",
+    "sha256": "3997623D5F3852C5797DC8C9D7D6C5CD0D845CA8940110BEA7487E8CC520A66A",
+    "bytes": 82328
+  },
+  {
+    "path": "desktop\\ui\\assets\\fonts\\libron\\Libron-BoldItalic.woff2",
+    "sha256": "10BA86FE191B9CE16C8DED90750551F1F3E85CED3391F492BD87D0EBCFEB6224",
+    "bytes": 86600
+  },
+  {
+    "path": "desktop\\ui\\assets\\fonts\\libron\\Libron-Italic.woff2",
+    "sha256": "9EF321C63A77EE7B08E276847346FD34CEE1E4924C592EE6787F7D5DD6419A46",
+    "bytes": 84908
+  },
+  {
+    "path": "desktop\\ui\\assets\\fonts\\libron\\Libron-Regular.woff2",
+    "sha256": "B25EDA95D6B81C4977217314A088F446448A07126738511E8930A8D3372A5253",
+    "bytes": 80848
+  },
+  {
+    "path": "desktop\\ui\\assets\\fonts\\libron\\LICENSE",
+    "sha256": "CB452A7A6E43D36823B393E6FA2CB1B60FCCB4533BB30DC96D7262DF5DBB477E",
+    "bytes": 4552
+  },
+  {
+    "path": "desktop\\ui\\assets\\fonts\\libron\\SOURCE.json",
+    "sha256": "6143C7E959F52200084C78BC1EF73F88670F02BAD869C602A97856295FC15B8A",
+    "bytes": 1461
+  },
+  {
+    "path": "desktop\\ui\\assets\\fonts\\libron\\VERSION",
+    "sha256": "A30A043314FA89294FA2C1C989A01FBB5329E5C085A5C5A8D27317656DE24AE0",
+    "bytes": 4
+  },
+  {
+    "path": "desktop\\ui\\assets\\icon-512.png",
+    "sha256": "A107C581A901F5B7F913AD2027AC98E4343FA459B3224A95D3A2BF723CC5AB19",
+    "bytes": 14274
+  },
+  {
+    "path": "desktop\\ui\\assets\\icon.png",
+    "sha256": "1478FDA4A705502C208F09051DC357BF2F02BD7B2C82E49EA926214E2660A0A8",
+    "bytes": 7015
+  },
+  {
+    "path": "desktop\\ui\\backend.js",
+    "sha256": "88C2FDFF82577519F749B7369A5E060364E45B36F58BB09CE9908177675D51DD",
+    "bytes": 4187
+  },
+  {
+    "path": "desktop\\ui\\fonts.css",
+    "sha256": "BAB9652782E30D53F237344B17A1847D93861C81866D97AE698C502A5C7EBDF3",
+    "bytes": 765
+  },
+  {
+    "path": "desktop\\ui\\i18n.js",
+    "sha256": "896B59C8CC9A970D28930AC16CEF83AB757EE80D767C84247B0FBC8D88F77DA2",
+    "bytes": 11983
+  },
+  {
+    "path": "desktop\\ui\\icons.css",
+    "sha256": "B8735F1ADC364D3F879F257C67CC4CC92572A6BA67B9849C0DDD36979689474C",
+    "bytes": 6217
+  },
+  {
+    "path": "desktop\\ui\\icons.js",
+    "sha256": "6FEF821359803B240584CC895A12C2E5DB1F3D1F4CD20BEE627417AB5E339CD5",
+    "bytes": 9525
+  },
+  {
+    "path": "desktop\\ui\\index.html",
+    "sha256": "C5F8FE1F1A4A2DFFB7E7DF8BF70BC32C351F80DEF61AC0C1B1898B36D0543705",
+    "bytes": 2299
+  },
+  {
+    "path": "desktop\\ui\\locales\\de.json",
+    "sha256": "3094DAA658906B46357D0271E660D4D8BD582A6520993AA2AAC06D5515B3BA94",
+    "bytes": 14744
+  },
+  {
+    "path": "desktop\\ui\\locales\\en.json",
+    "sha256": "6DFEB981484B8B26470E8E7D22E19169BDBE5CE2DD85FB3A642F7FAF63EEFE21",
+    "bytes": 16071
+  },
+  {
+    "path": "desktop\\ui\\locales\\es.json",
+    "sha256": "9936C57869C70DF6E8F7ACE7C9E7828A2096FAAC8F6CA7E18A318BEDA524D3D0",
+    "bytes": 14270
+  },
+  {
+    "path": "desktop\\ui\\locales\\fr.json",
+    "sha256": "1164E2ECE63D24DE0DBE252ED5D5FDAE2B8E553086084F7E9BAA014F9421EDCC",
+    "bytes": 14635
+  },
+  {
+    "path": "desktop\\ui\\locales\\id.json",
+    "sha256": "CCF5FB3ACFC5DBDE9C95FAA9728AC9590847382A480564E58CACE0F0804B11BF",
+    "bytes": 13871
+  },
+  {
+    "path": "desktop\\ui\\locales\\ja.json",
+    "sha256": "A3B42D092295CB9AD811C1184F3685BE08BB22477264C4E2FD32CE4B98E7196A",
+    "bytes": 16028
+  },
+  {
+    "path": "desktop\\ui\\locales\\ko.json",
+    "sha256": "4DACA76CCF2BB4E856943F56A8661FA9AF6F6E68FA51CECECB2AC9E9E9D4A3C3",
+    "bytes": 15109
+  },
+  {
+    "path": "desktop\\ui\\locales\\pt.json",
+    "sha256": "E3CFA18988C5F1F091A9BA361C0E9B0D016377D83A341B9107BAB5D0DA8658FC",
+    "bytes": 14231
+  },
+  {
+    "path": "desktop\\ui\\locales\\th.json",
+    "sha256": "2128F3186B314ED4107D7854174DC46D3994705A658EC71AA7DCA1C0EE3DB1C9",
+    "bytes": 21130
+  },
+  {
+    "path": "desktop\\ui\\locales\\vi.json",
+    "sha256": "03CD9B22C034DE5F31F250A2AD11DADFBE8A7C500582CC2C3CA9D8FB1281E89B",
+    "bytes": 15226
+  },
+  {
+    "path": "desktop\\ui\\locales\\zh-Hans.json",
+    "sha256": "59C72BD4DABCBADBFC4CE9E7CF5E6D255C4AC2FF9C9578E02FB883150FC5CF84",
+    "bytes": 13738
+  },
+  {
+    "path": "desktop\\ui\\locales\\zh-Hant.json",
+    "sha256": "008DF8C4AA83B94FA75CC3742D2162D62C4303782CD9847285D95EBDFAE2450C",
+    "bytes": 16301
+  },
+  {
+    "path": "desktop\\ui\\styles.css",
+    "sha256": "1D257E69538570F8C02B75529D1DAFB70837C3B13F7CEFF2FA8B29B78D4FBC36",
+    "bytes": 16701
+  },
+  {
+    "path": "desktop\\ui\\tokens.css",
+    "sha256": "1A2119D86CB5D57D752429A6E187F2F3A89AE071CEEDF4FF0907EF31E035EAB7",
+    "bytes": 2592
+  },
+  {
+    "path": "desktop\\ui\\updates-i18n.js",
+    "sha256": "DE4E62A309B5AF3CBC7DDEA5BFBEFC33C27990B0EB7AF3DEBFA2244FA17240A3",
+    "bytes": 9539
+  },
+  {
+    "path": "desktop\\ui\\updates.js",
+    "sha256": "43D2846830C7A8618CEF2641EF6A0BCE97188828C5FE0F2877BF60C3056598E3",
+    "bytes": 7649
+  }
+]

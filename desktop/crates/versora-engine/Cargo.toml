@@ -1,0 +1,24 @@
+[package]
+name = "versora-engine"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+versora-core = { path = "../versora-core" }
+serde.workspace = true
+serde_json.workspace = true
+regex.workspace = true
+tokio.workspace = true
+reqwest.workspace = true
+zip.workspace = true
+quick-xml.workspace = true
+web_atoms = "=0.2.6"
+csv = "=1.4.0"
+yaml-rust2 = "=0.13.0"
+pdf-extract = "=0.12.1"
+pdf-writer = "=0.15.0"
+ttf-parser = "=0.25.1"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys.workspace = true

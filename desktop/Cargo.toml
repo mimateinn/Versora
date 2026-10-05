@@ -1,0 +1,23 @@
+[workspace]
+members = ["crates/versora-core", "crates/versora-engine", "src-tauri"]
+resolver = "2"
+
+[workspace.package]
+version = "0.3.0-preview.1"
+edition = "2021"
+rust-version = "1.88"
+
+[workspace.dependencies]
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.151"
+regex = "=1.13.1"
+tokio = { version = "=1.53.1", features = ["rt-multi-thread", "macros", "time", "sync", "process", "io-util", "net"] }
+reqwest = { version = "=0.12.28", default-features = false, features = ["json", "rustls-tls"] }
+zip = { version = "=4.6.1", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+quick-xml = { version = "=0.41.0", features = ["escape-html"] }
+windows-sys = { version = "=0.61.2", features = ["Win32_Foundation", "Win32_Security", "Win32_Security_Cryptography", "Win32_System_JobObjects", "Win32_System_Threading", "Win32_System_Diagnostics_ToolHelp", "Win32_System_Memory", "Win32_Globalization", "Win32_Storage_FileSystem"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true

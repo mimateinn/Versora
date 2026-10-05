@@ -1,0 +1,35 @@
+[package]
+name = "versora-desktop"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+default-run = "versora"
+
+[features]
+default = []
+custom-protocol = ["tauri/custom-protocol"]
+
+[[bin]]
+name = "versora"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = "=2.6.3"
+
+[dependencies]
+tauri = { version = "=2.11.5", features = [] }
+rfd = { version = "=0.16.0", default-features = false }
+versora-core = { path = "../crates/versora-core" }
+versora-engine = { path = "../crates/versora-engine" }
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+reqwest.workspace = true
+semver = "=1.0.28"
+zip.workspace = true
+
+[dev-dependencies]
+sha2 = "=0.10.9"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys.workspace = true

@@ -1,0 +1,194 @@
+{
+  "family": "Libron",
+  "version": "0.25",
+  "tag": "v0.25",
+  "sourceRepository": "https://github.com/nicoverbruggen/libron",
+  "sourceCommit": "46cf11c80a3b3a07c5b509b79d14c0e38feb1b35",
+  "releaseUrl": "https://github.com/nicoverbruggen/libron/releases/tag/v0.25",
+  "publishedUTC": "2026-09-05T08:33:24Z",
+  "downloadedUTC": "2026-10-05T02:34:54.6523184Z",
+  "license": "OFL-1.1",
+  "licensePath": "LICENSE",
+  "copyrightPath": "COPYRIGHT",
+  "modifiedFontBytes": false,
+  "systemInstalled": false,
+  "upstreamBuildScriptsExecuted": false,
+  "archives": [
+    {
+      "name": "Libron.zip",
+      "sourceUrl": "https://github.com/nicoverbruggen/libron/releases/download/v0.25/Libron.zip",
+      "bytes": 474039,
+      "sha256": "A732102B75E6016AE52D39EC22E182BC89365612C906B5898BCD1F8E02B91A57",
+      "publisherDigestMatches": true
+    },
+    {
+      "name": "Libron_Web.zip",
+      "sourceUrl": "https://github.com/nicoverbruggen/libron/releases/download/v0.25/Libron_Web.zip",
+      "bytes": 333504,
+      "sha256": "893EE0D9D84AEEA3EF39C6574A2D6656071819986CCDA74E54816C37EC5349D6",
+      "publisherDigestMatches": true
+    }
+  ],
+  "styles": [
+    {
+      "file": "Libron-Regular.ttf",
+      "bytes": 211620,
+      "sha256": "18995ba828982e7a70e92c6a107e182b8358b363aacac887409b8758042c490b",
+      "family": "Libron",
+      "subfamily": "Regular",
+      "version": "Version 0.25; ttfautohint (v1.8.4)",
+      "postscriptName": "Libron-Regular",
+      "weight": 400,
+      "italic": false,
+      "bold": false,
+      "variable": false,
+      "unicodeGlyphs": 731,
+      "sampleCoverage": {
+        "latin": true,
+        "vietnamese": true,
+        "cjk": false,
+        "thai": false
+      },
+      "woff2Bytes": 80848,
+      "woff2SHA256": "b25eda95d6b81c4977217314a088f446448a07126738511e8930a8d3372a5253"
+    },
+    {
+      "file": "Libron-Italic.ttf",
+      "bytes": 229352,
+      "sha256": "1c229bfcffcc08fafd77c7e075b718a78dde7531cb30b5d212373992ffecb282",
+      "family": "Libron",
+      "subfamily": "Italic",
+      "version": "Version 0.25; ttfautohint (v1.8.4)",
+      "postscriptName": "Libron-Italic",
+      "weight": 400,
+      "italic": true,
+      "bold": false,
+      "variable": false,
+      "unicodeGlyphs": 731,
+      "sampleCoverage": {
+        "latin": true,
+        "vietnamese": true,
+        "cjk": false,
+        "thai": false
+      },
+      "woff2Bytes": 84908,
+      "woff2SHA256": "9ef321c63a77ee7b08e276847346fd34cee1e4924c592ee6787f7d5dd6419a46"
+    },
+    {
+      "file": "Libron-Bold.ttf",
+      "bytes": 214612,
+      "sha256": "0258c7deb5326bbcde76076a457249d41912ea7b7c4a817a2b617e4a95b24a99",
+      "family": "Libron",
+      "subfamily": "Bold",
+      "version": "Version 0.25; ttfautohint (v1.8.4)",
+      "postscriptName": "Libron-Bold",
+      "weight": 700,
+      "italic": false,
+      "bold": true,
+      "variable": false,
+      "unicodeGlyphs": 731,
+      "sampleCoverage": {
+        "latin": true,
+        "vietnamese": true,
+        "cjk": false,
+        "thai": false
+      },
+      "woff2Bytes": 82328,
+      "woff2SHA256": "3997623d5f3852c5797dc8c9d7d6c5cd0d845ca8940110bea7487e8cc520a66a"
+    },
+    {
+      "file": "Libron-BoldItalic.ttf",
+      "bytes": 230836,
+      "sha256": "cd3466082c63c3a0c03776c4018091711d1b5d45ac1ac41f3ab7b75ad8507904",
+      "family": "Libron",
+      "subfamily": "Bold Italic",
+      "version": "Version 0.25; ttfautohint (v1.8.4)",
+      "postscriptName": "Libron-BoldItalic",
+      "weight": 700,
+      "italic": true,
+      "bold": true,
+      "variable": false,
+      "unicodeGlyphs": 731,
+      "sampleCoverage": {
+        "latin": true,
+        "vietnamese": true,
+        "cjk": false,
+        "thai": false
+      },
+      "woff2Bytes": 86600,
+      "woff2SHA256": "10ba86fe191b9ce16c8ded90750551f1f3e85ced3391f492bd87d0ebcfeb6224"
+    }
+  ],
+  "files": [
+    {
+      "path": "COPYRIGHT",
+      "bytes": 314,
+      "sha256": "f266cfea9e68f3a159788da9ecda72e3fa14d76816c0fca30442496b6253e12e"
+    },
+    {
+      "path": "libron.css",
+      "bytes": 640,
+      "sha256": "8bd044f9c73eb2933cd4ccc08226c1f6529f6c7c4e36842879b1266dc2e2ff88"
+    },
+    {
+      "path": "LICENSE",
+      "bytes": 4552,
+      "sha256": "cb452a7a6e43d36823b393e6fa2cb1b60fccb4533bb30dc96d7262df5dbb477e"
+    },
+    {
+      "path": "README.md",
+      "bytes": 1143,
+      "sha256": "7fac69d09ac361557e94169ef228d57ac35a1ae187b453a780d5778ced705321"
+    },
+    {
+      "path": "TOKEN-CONTRACT.md",
+      "bytes": 1856,
+      "sha256": "9cac59a52f722de6617ad304ab7eab7f6d9ad0cb549549bac36aa38efe337faa"
+    },
+    {
+      "path": "ttf/Libron-Bold.ttf",
+      "bytes": 214612,
+      "sha256": "0258c7deb5326bbcde76076a457249d41912ea7b7c4a817a2b617e4a95b24a99"
+    },
+    {
+      "path": "ttf/Libron-BoldItalic.ttf",
+      "bytes": 230836,
+      "sha256": "cd3466082c63c3a0c03776c4018091711d1b5d45ac1ac41f3ab7b75ad8507904"
+    },
+    {
+      "path": "ttf/Libron-Italic.ttf",
+      "bytes": 229352,
+      "sha256": "1c229bfcffcc08fafd77c7e075b718a78dde7531cb30b5d212373992ffecb282"
+    },
+    {
+      "path": "ttf/Libron-Regular.ttf",
+      "bytes": 211620,
+      "sha256": "18995ba828982e7a70e92c6a107e182b8358b363aacac887409b8758042c490b"
+    },
+    {
+      "path": "VERSION",
+      "bytes": 4,
+      "sha256": "a30a043314fa89294fa2c1c989a01fbb5329e5c085a5c5a8d27317656de24ae0"
+    },
+    {
+      "path": "woff2/Libron-Bold.woff2",
+      "bytes": 82328,
+      "sha256": "3997623d5f3852c5797dc8c9d7d6c5cd0d845ca8940110bea7487e8cc520a66a"
+    },
+    {
+      "path": "woff2/Libron-BoldItalic.woff2",
+      "bytes": 86600,
+      "sha256": "10ba86fe191b9ce16c8ded90750551f1f3e85ced3391f492bd87d0ebcfeb6224"
+    },
+    {
+      "path": "woff2/Libron-Italic.woff2",
+      "bytes": 84908,
+      "sha256": "9ef321c63a77ee7b08e276847346fd34cee1e4924c592ee6787f7d5dd6419a46"
+    },
+    {
+      "path": "woff2/Libron-Regular.woff2",
+      "bytes": 80848,
+      "sha256": "b25eda95d6b81c4977217314a088f446448a07126738511e8930a8d3372a5253"
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane xSplit="1" ySplit="1" topLeftCell="B2" state="frozen"/></sheetView></sheetViews><cols><col min="1" max="1" width="25" customWidth="1"/></cols><sheetData>
+<row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1"><v>42.5</v></c><c r="C1" t="s"><v>0</v></c><c r="D1" t="b"><v>1</v></c></row>
+<row r="2"><c r="A2" t="inlineStr"><is><r><rPr><i/></rPr><t>Inline cell </t></r><r><t>text</t></r></is></c><c r="B2" t="str"><f>CONCATENATE(A1," Literal formula text")</f><v>Do not translate formula cache</v></c></row>
+</sheetData><mergeCells count="1"><mergeCell ref="A4:C4"/></mergeCells></worksheet>

@@ -1,0 +1,80 @@
+{
+  "schema": 1,
+  "purpose": "Redistribution license notices for already linked SDK/installed Rust components; no new software installation",
+  "entries": [
+    {
+      "id": "microsoft-webview2-sdk",
+      "file": "Microsoft-WebView2-SDK-1.0.3650.58-LICENSE.txt",
+      "source": "https://www.nuget.org/packages/Microsoft.Web.WebView2/1.0.3650.58/License",
+      "sha256": "024b4e164f8b91fb2148af8fd28f701218d758d09b504a43f9946d6bedfeb771",
+      "sdkVersion": "1.0.3650.58",
+      "sourceHTMLSHA256": "401fe92795bc2ad2c9c7f937b4692160d1499283057ccd0cc00d4d0b5e39e116",
+      "operation": "HTML entities decoded from the official license-file-contents pre element; license wording unchanged"
+    },
+    {
+      "id": "rust-compiler-builtins",
+      "file": "Rust-compiler-builtins-LICENSE.txt",
+      "source": "https://raw.githubusercontent.com/rust-lang/rust/8bab26f4f68e0e26f0bb7960be334d5b520ea452/library/compiler-builtins/LICENSE.txt",
+      "sha256": "ab6eec6caf0fa5775e411c7a8bc6a45c4ef2956b0980b157ab74fc5cd62a928b",
+      "installedRustCommit": "8bab26f4f68e0e26f0bb7960be334d5b520ea452",
+      "modified": false
+    },
+    {
+      "id": "mit-standard-terms",
+      "file": "MIT-standard-template.txt",
+      "source": "https://spdx.org/licenses/MIT.html",
+      "sha256": "b85dcd3e453d05982552c52b5fc9e0bdd6d23c6f8e844b984a88af32570b0cc0",
+      "origin": "Unmodified standard MIT template from the already installed Rust 1.97.1 documentation licenses/MIT.txt. The year/holder placeholders identify template fields, not package copyright. Package authors are retained only as Cargo metadata and original source notices remain in source archives.",
+      "modified": false
+    },
+    {
+      "id": "alloc-stdlib-bsd-3-clause",
+      "file": "alloc-stdlib-BSD-3-Clause-LICENSE.txt",
+      "source": "https://raw.githubusercontent.com/dropbox/rust-alloc-no-stdlib/6032b6a9b20e03737135c55a0270ccffcc1438ef/LICENSE",
+      "origin": "Unmodified LICENSE from the cached sibling alloc-no-stdlib 2.0.4 archive; alloc-stdlib 0.2.4 declares the same upstream repository root and BSD-3-Clause, while its own archive omits the standalone text.",
+      "appliesTo": [
+        "alloc-stdlib@0.2.4"
+      ],
+      "sha256": "c0c56f26d9c051cac4d200c34c84e7ae9aaa853e01a982a1df08b09931e518ae",
+      "modified": false
+    },
+    {
+      "id": "defmt-parser-mit",
+      "file": "defmt-parser-MIT-LICENSE.txt",
+      "source": "https://raw.githubusercontent.com/knurling-rs/defmt/9087a689a32aaae57c7ec2058d15d9c98c12bc81/LICENSE-MIT",
+      "origin": "Unmodified repository-root LICENSE-MIT from cached sibling defmt 1.1.1. defmt-parser 1.0.0 lives in parser/ in the same repository and declares MIT OR Apache-2.0 but omits standalone root texts.",
+      "appliesTo": [
+        "defmt-parser@1.0.0"
+      ],
+      "sha256": "2710a622a896bba67356913d4d0492cab5465f61b2ecce6d880aeb483834fb50",
+      "modified": false
+    },
+    {
+      "id": "defmt-parser-apache",
+      "file": "defmt-parser-APACHE-LICENSE.txt",
+      "source": "https://raw.githubusercontent.com/knurling-rs/defmt/9087a689a32aaae57c7ec2058d15d9c98c12bc81/LICENSE-APACHE",
+      "origin": "Unmodified repository-root LICENSE-APACHE from cached sibling defmt 1.1.1. Original authors and copyright remain as supplied upstream.",
+      "appliesTo": [
+        "defmt-parser@1.0.0"
+      ],
+      "sha256": "8173d5c29b4f956d532781d2b86e4e30f83e6b7878dce18c919451d6ba707c90",
+      "modified": false
+    },
+    {
+      "id": "webview2-rust-bindings-mit",
+      "file": "WebView2-Rust-bindings-MIT-LICENSE.txt",
+      "source": "https://raw.githubusercontent.com/wravery/webview2-rs/b74dc5e2b394044bea5191052868ce7a106c202c/LICENSE",
+      "sha256": "0dcf41516e608bbcb6cdc5229feb7b86fe4a643b85e7df251133c93408fdac73",
+      "sourceCommit": "b74dc5e2b394044bea5191052868ce7a106c202c",
+      "modified": false,
+      "operation": "Exact raw bytes from the recorded upstream LICENSE; no executable or software acquired.",
+      "appliesTo": [
+        "webview2-com@0.38.2",
+        "webview2-com-sys@0.38.2",
+        "webview2-com-macros@0.8.1"
+      ],
+      "macrosLicenseSource": "https://raw.githubusercontent.com/wravery/webview2-rs/dffa41a8a46d3f5565eefbff2de57d38d399f158/LICENSE",
+      "macrosLicenseVerification": "Same full MIT wording and copyright verified by prior read-only browsing; no claim is made about raw-byte hash at this second URL."
+    }
+  ]
+}

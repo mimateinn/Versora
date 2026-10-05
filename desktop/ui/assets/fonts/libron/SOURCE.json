@@ -1,0 +1,49 @@
+{
+  "family": "Libron",
+  "version": "0.25",
+  "tag": "v0.25",
+  "sourceCommit": "46cf11c80a3b3a07c5b509b79d14c0e38feb1b35",
+  "releaseUrl": "https://github.com/nicoverbruggen/libron/releases/tag/v0.25",
+  "license": "OFL-1.1",
+  "licensePath": "LICENSE",
+  "copyrightPath": "COPYRIGHT",
+  "embeddedFormat": "woff2",
+  "modifiedFontBytes": false,
+  "files": [
+    {
+      "path": "COPYRIGHT",
+      "bytes": 314,
+      "sha256": "f266cfea9e68f3a159788da9ecda72e3fa14d76816c0fca30442496b6253e12e"
+    },
+    {
+      "path": "Libron-Bold.woff2",
+      "bytes": 82328,
+      "sha256": "3997623d5f3852c5797dc8c9d7d6c5cd0d845ca8940110bea7487e8cc520a66a"
+    },
+    {
+      "path": "Libron-BoldItalic.woff2",
+      "bytes": 86600,
+      "sha256": "10ba86fe191b9ce16c8ded90750551f1f3e85ced3391f492bd87d0ebcfeb6224"
+    },
+    {
+      "path": "Libron-Italic.woff2",
+      "bytes": 84908,
+      "sha256": "9ef321c63a77ee7b08e276847346fd34cee1e4924c592ee6787f7d5dd6419a46"
+    },
+    {
+      "path": "Libron-Regular.woff2",
+      "bytes": 80848,
+      "sha256": "b25eda95d6b81c4977217314a088f446448a07126738511e8930a8d3372a5253"
+    },
+    {
+      "path": "LICENSE",
+      "bytes": 4552,
+      "sha256": "cb452a7a6e43d36823b393e6fa2cb1b60fccb4533bb30dc96d7262df5dbb477e"
+    },
+    {
+      "path": "VERSION",
+      "bytes": 4,
+      "sha256": "a30a043314fa89294fa2c1c989a01fbb5329e5c085a5c5a8d27317656de24ae0"
+    }
+  ]
+}

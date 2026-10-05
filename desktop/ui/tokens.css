@@ -1,0 +1,37 @@
+@import url("fonts.css");
+/* Versora PR4 theme.py tokens with bundled Libron. No remote font requests. */
+:root {
+  --bg:#FAF8F5; --card:#FFFFFF; --sunken:#F5F0E6; --raised:#FEFDFB;
+  --text:#1A1A1A; --muted:#6B6B6B; --faint:#6E6A63;
+  --line:rgba(15,15,15,.08); --line-strong:rgba(15,15,15,.15);
+  --accent:#4677B5; --accent-strong:#325D8E; --accent-soft:rgba(70,119,181,.09); --accent-ink:#FFFFFF;
+  --ok:#2B7A52; --err:#A81830; --wait:#C9C4BA; --ok-soft:rgba(43,122,82,.08); --err-soft:rgba(168,24,48,.06);
+  --wm-ink:rgba(26,26,26,.04); --shadow:0 8px 22px rgba(15,15,15,.08),0 2px 6px rgba(15,15,15,.05);
+  --shadow-sm:0 2px 6px rgba(15,15,15,.05),0 1px 2px rgba(15,15,15,.04);
+  --toast-bg:#1A1A1A; --toast-ink:#FAF8F5; --seg-on:#FFFFFF;
+  --btn:#4677B5; --btn-hover:#325D8E; --btn-ink:#FFFFFF;
+  --art-fill:rgba(26,26,26,.04); --art-line:rgba(26,26,26,.40);
+  --f-ui:"Libron",Inter,"Segoe UI Variable Text","Segoe UI","Noto Sans TC","Microsoft JhengHei UI","PingFang TC",system-ui,sans-serif;
+  --f-display:"Libron",Poppins,"Space Grotesk","Segoe UI Variable Display","Segoe UI","Noto Sans TC","Microsoft JhengHei UI",sans-serif;
+  --f-mono:"IBM Plex Mono","Cascadia Mono",Consolas,ui-monospace,"Microsoft JhengHei UI",monospace;
+  --ease:cubic-bezier(.22,1,.36,1); --fast:140ms; --normal:220ms; --control-height:42px; --small-height:34px;
+  --body-weight:400; --control-weight:400; --strong-weight:700; --vi-accent:var(--accent);
+  font-synthesis:none;
+  --size-body:14px; --size-small:12px; --size-title:22px; --size-wordmark:15px;
+  --size-heading:18px; --size-detail:13px; --size-caption:11px; --size-watermark:8.5px; --size-title-compact:20px; --backdrop:rgba(0,0,0,.3);
+  --radius-card:12px; --radius-control:10px; --gap:16px; --section-gap:24px;
+  color-scheme:light;
+}
+:root[data-theme="dark"] {
+  --bg:#0E1320; --card:#161D2E; --sunken:#1F2940; --raised:#1A2234;
+  --text:#F2F5FB; --muted:#8F9DB8; --faint:#8A98B4;
+  --line:rgba(242,245,251,.08); --line-strong:rgba(242,245,251,.16);
+  --accent:#7FA6D8; --accent-strong:#A3C0E6; --accent-soft:rgba(127,166,216,.13); --accent-ink:#0E1320;
+  --ok:#5CB287; --err:#E07A8C; --wait:#4A5470; --ok-soft:rgba(92,178,135,.12); --err-soft:rgba(224,122,140,.10);
+  --wm-ink:rgba(242,245,251,.03); --shadow:0 8px 22px rgba(0,0,0,.30),0 2px 6px rgba(0,0,0,.22);
+  --shadow-sm:0 2px 6px rgba(0,0,0,.22),0 1px 2px rgba(0,0,0,.16);
+  --toast-bg:#1F2940; --toast-ink:#F2F5FB; --seg-on:#2A3552;
+  --btn:#4677B5; --btn-hover:#3B69A4; --btn-ink:#FFFFFF;
+  --art-fill:rgba(242,245,251,.04); --art-line:rgba(242,245,251,.45);
+  color-scheme:dark;
+}

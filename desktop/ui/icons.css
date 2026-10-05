@@ -1,0 +1,73 @@
+
+.vi { --vi-ease: cubic-bezier(.22, 1, .36, 1); overflow: visible; transform-origin: 50% 50%; }
+.vi * { transform-box: view-box; transform-origin: 12px 12px; }
+.vi .vi-accent { stroke: var(--vi-accent, currentColor); }
+.vi .vi-accent-fill { fill: var(--vi-accent, currentColor); }
+.vi .vi-track { opacity: .22; }
+
+.vi-rays, .vi-moon-body, .vi-lift, .vi-drop, .vi-swap-a, .vi-swap-b, .vi-flap, .vi-knob-a, .vi-knob-b {
+  transition: transform 300ms var(--vi-ease);
+}
+.vi { transition: transform 140ms var(--vi-ease); }
+.vi-rail-a, .vi-rail-b { transition: stroke-dashoffset 300ms var(--vi-ease); }
+.vi-knob-b, .vi-rail-b { transition-delay: 50ms; }
+:is(.vi-host, button, a, label, [role="button"]):is(:hover, :focus-visible, .is-hover) .vi-rays { transform: rotate(30deg); }
+:is(.vi-host, button, a, label, [role="button"]):is(:hover, :focus-visible, .is-hover) .vi-moon-body { transform: rotate(-18deg); }
+:is(.vi-host, button, a, label, [role="button"]):is(:hover, :focus-visible, .is-hover) .vi-drop { transform: translateY(2.4px); }
+:is(.vi-host, button, a, label, [role="button"]):is(:hover, :focus-visible, .is-hover) .vi-lift, .vi-drag .vi-lift { transform: translateY(-2.4px); }
+:is(.vi-host, button, a, label, [role="button"]):is(:hover, :focus-visible, .is-hover) .vi-swap-a { transform: translateX(2.4px); }
+:is(.vi-host, button, a, label, [role="button"]):is(:hover, :focus-visible, .is-hover) .vi-swap-b { transform: translateX(-2.4px); }
+:is(.vi-host, button, a, label, [role="button"]):is(:hover, :focus-visible, .is-hover) .vi-flap { transform: translateY(-1.6px) skewX(-10deg); }
+:is(.vi-host, button, a, label, [role="button"]):is(:hover, :focus-visible, .is-hover) .vi-knob-a { transform: translateX(1.4px); }
+:is(.vi-host, button, a, label, [role="button"]):is(:hover, :focus-visible, .is-hover) .vi-rail-a { stroke-dashoffset: -1.4; }
+:is(.vi-host, button, a, label, [role="button"]):is(:hover, :focus-visible, .is-hover) .vi-knob-b { transform: translateX(-1.4px); }
+:is(.vi-host, button, a, label, [role="button"]):is(:hover, :focus-visible, .is-hover) .vi-rail-b { stroke-dashoffset: 1.4; }
+:is(.vi-host, button, a, label, [role="button"]):is(:hover, :focus-visible, .is-hover) .vi-retry-arrow { animation: vi-turn 380ms var(--vi-ease) 1; }
+:is(.vi-host, button, a, label, [role="button"]):active:not(.is-press) > .vi,
+:is(.vi-host, button, a, label, [role="button"]):active:not(.is-press) .sfts-ico > .vi { transform: scale(.86); }
+/* Litora's press set, verbatim: each object moves its own way */
+.is-press .vi, .vi.is-press { animation: vi-pop 440ms cubic-bezier(.3, .7, .3, 1) 1; }
+:is(.is-press .vi, .vi.is-press):is(.vi-download, .vi-upload, .vi-folder) { animation-name: vi-drop-press; }
+:is(.is-press .vi, .vi.is-press):is(.vi-settings, .vi-book, .vi-key) { animation-name: vi-lean; transform-origin: 50% 85%; }
+:is(.is-press .vi, .vi.is-press):is(.vi-retry, .vi-swap, .vi-globe) { animation-name: vi-spin-press; animation-duration: 560ms; }
+:is(.is-press .vi, .vi.is-press):is(.vi-folder-open, .vi-file, .vi-zip) { animation-name: vi-open; }
+
+.vi-anim-check .vi-ring { animation: vi-settle 240ms var(--vi-ease) both; }
+.vi-anim-check .vi-tick { animation: vi-draw 300ms var(--vi-ease) 60ms both; }
+.vi-anim-alert .vi-ring { animation: vi-settle 240ms var(--vi-ease) both; }
+.vi-anim-alert .vi-mark { animation: vi-alert 320ms var(--vi-ease) 1; transform-origin: 12px 16px; }
+.vi-anim-in.vi, .vi-anim-in .vi { animation: vi-in 280ms var(--vi-ease) both; }
+.vi-play .vi-swap-g { animation: vi-flip 380ms var(--vi-ease) 1; }
+.vi-play .vi-rays { animation: vi-rays-in 380ms var(--vi-ease) 1; }
+.vi-play .vi-moon-body { animation: vi-moon-in 380ms var(--vi-ease) 1; }
+.vi-spinner .vi-arc { animation: vi-turn 900ms linear infinite; }
+.vi-dot .vi-pulse-ring { animation: vi-ripple 1600ms var(--vi-ease) infinite; }
+
+@keyframes vi-turn { from { transform: rotate(0); } to { transform: rotate(360deg); } }
+@keyframes vi-draw {
+  from { stroke-dasharray: 1 1; stroke-dashoffset: 1; }
+  to { stroke-dasharray: 1 1; stroke-dashoffset: 0; }
+}
+@keyframes vi-settle { from { opacity: 0; transform: scale(.82); } to { opacity: 1; transform: none; } }
+@keyframes vi-alert { from { transform: scaleY(.6); opacity: 0; } to { transform: none; opacity: 1; } }
+/* Litora's nav-pop, verbatim (fired once per click via .is-press, as Litora's popNavIcon does) */
+@keyframes vi-pop { 0% { transform: scale(1); } 30% { transform: scale(.78); } 62% { transform: scale(1.14); } 100% { transform: scale(1); } }
+@keyframes vi-drop-press { 0% { transform: translateY(0); } 30% { transform: translateY(-4px) scale(.94); } 60% { transform: translateY(2px) scale(1.06); } 100% { transform: none; } }
+@keyframes vi-lean { 0% { transform: rotate(0); } 30% { transform: rotate(-14deg) scale(.92); } 64% { transform: rotate(6deg) scale(1.06); } 100% { transform: none; } }
+@keyframes vi-spin-press { 0% { transform: rotate(0) scale(1); } 40% { transform: rotate(200deg) scale(.9); } 100% { transform: rotate(360deg) scale(1); } }
+@keyframes vi-open { 0% { transform: scaleX(1); } 35% { transform: scaleX(.72); } 70% { transform: scaleX(1.12); } 100% { transform: none; } }
+@keyframes vi-in { from { opacity: 0; transform: scale(.78); } to { opacity: 1; transform: none; } }
+@keyframes vi-flip { from { transform: rotate(0); } to { transform: rotate(180deg); } }
+@keyframes vi-rays-in { from { opacity: 0; transform: rotate(-60deg) scale(.7); } to { opacity: 1; transform: none; } }
+@keyframes vi-moon-in { from { opacity: 0; transform: rotate(40deg) scale(.85); } to { opacity: 1; transform: none; } }
+@keyframes vi-ripple {
+  0% { opacity: .5; transform: scale(.55); } 70%, 100% { opacity: 0; transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vi, .vi * { animation: none !important; transition: none !important; transform: none !important; }
+  .vi .vi-rail-a, .vi .vi-rail-b { stroke-dashoffset: 0 !important; }
+  .vi .vi-pulse-ring { opacity: 0; }
+  /* busy icons keep a still cue: the spinner's arc and the dot's core stay drawn, nothing loops */
+  .vi.vi-spinner .vi-arc, .vi.vi-dot .vi-dot-core { opacity: 1 !important; }
+}

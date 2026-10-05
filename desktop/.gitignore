@@ -1,0 +1,14 @@
+/target/
+/src-tauri/gen/schemas/
+/tests/ui/evidence/
+/dist/
+/packaging/stage/
+/packaging/output/
+*.exe
+*.dll
+*.pdb
+*.msi
+*.lnk
+__pycache__/
+.env
+.env.local

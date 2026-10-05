@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<x:xliff xmlns:x="urn:oasis:names:tc:xliff:document:1.2" version="1.2"><x:file original="ui.xml" source-language="en" target-language="zh-HK"><x:body>
+<x:trans-unit id="first"><x:source>Hello <x:g id="b">world</x:g><x:x id="line"/></x:source><x:target state="needs-translation">Old target</x:target></x:trans-unit>
+<x:trans-unit id="second"><x:source>Click here!</x:source></x:trans-unit>
+</x:body></x:file></x:xliff>

@@ -1,134 +1,122 @@
-<img src="assets/icon-animated.svg" width="72" height="72" alt="">
+<p align="center">
+  <img src="docs/brand/versora.png" width="112" height="112" alt="Versora icon">
+</p>
 
-# Versora
+<h1 align="center">Versora</h1>
 
+<p align="center">
 Translate files on your own computer. Drop one file, a folder, or a zip — you get a matching translated file for each input, in the same folder shape.
+</p>
 
-Versora was called Smart File Translation System until v0.1.1. Old links still work.
+<p align="center">Previously called Smart File Translation System. Existing links still work.</p>
 
-![Translate page, light](screenshots/translate-light.png)
-*Pick the languages, drop a file, press Translate.*
+## Related apps
 
-## What it does
+<table>
+  <tr>
+    <td width="50%" align="center" valign="top">
+      <a href="https://github.com/mimateinn/Versora"><img src="docs/brand/versora.png" width="64" height="64" alt="Versora icon"></a>
+      <h3><a href="https://github.com/mimateinn/Versora">Versora</a></h3>
+      <p>Translate files on your own computer, keeping the original folder structure.</p>
+    </td>
+    <td width="50%" align="center" valign="top">
+      <a href="https://github.com/mimateinn/Litora"><img src="docs/brand/litora.png" width="64" height="64" alt="Litora icon"></a>
+      <h3><a href="https://github.com/mimateinn/Litora">Litora</a></h3>
+      <p>A desktop library and reader for your books.</p>
+    </td>
+  </tr>
+</table>
 
-It reads txt, md, docx, pdf, json, csv, tsv, yaml, po, xliff, xlsx, html, srt, and vtt. Game-text mode changes only the words players see. A glossary keeps important terms consistent later.
+## Windows desktop download
 
-The screen comes in 12 languages, light or dark. You pick the model. Folder and zip jobs can run up to 16 files at a time, within the overall and per-translator limits. Finished files go to `data/outputs/`, and you can download them in the browser.
+[Download Versora v0.3.0-preview.1 for Windows x64](https://github.com/mimateinn/Versora/releases/tag/v0.3.0-preview.1)
 
-It uses official developer APIs (OpenAI, Anthropic, Gemini, xAI, and others). If the official Claude Code, Codex CLI or Grok CLI is already installed and signed in on this computer, you can use those too. Chat websites are not supported.
+Choose `Versora-0.3.0-preview.1-win32-x64-setup.exe` under **Assets**. This is an unsigned prerelease: see the release notes and `SHA256SUMS.txt` before installing. The source ZIP from the green **Code** button is for development.
 
-You can check for official updates in the app, or just start it — at most once a day.
+Versora now opens in its own Windows desktop window. The translation engine, file handling and settings are written in Rust; the desktop window uses Tauri and WebView2. Running the installed application does not require Python, Node.js or a local web server.
 
-![A zip being translated](screenshots/translating.png)
-*Each file shows its own state while the job runs. Cancel keeps what is already done.*
+### Install and start
 
-![Zip job finished](screenshots/batch-done.png)
-*Download everything as one zip, open the output folder, or retry the files that failed.*
+1. Use Windows 10 or 11, 64-bit, with the Microsoft Edge WebView2 Evergreen Runtime already installed. The installer checks this prerequisite; it does not download a runtime.
+2. Download the setup file and checksum file from the release above. To compare the setup file's SHA-256, run `Get-FileHash -Algorithm SHA256 .\Versora-0.3.0-preview.1-win32-x64-setup.exe` in PowerShell.
+3. Run the installer. It installs for your current Windows account in `%LOCALAPPDATA%\Programs\Versora`.
+4. Open **Versora** from the installed shortcut.
+5. In **Settings → Translators**, add a supported developer API key, or select an already installed and signed-in official native CLI executable. Choose the translator and model, then return to **Translate**.
 
-![Dark mode](screenshots/translate-dark.png)
-*Dark mode.*
+No provider credentials are included. API translation sends selected text and any relevant glossary/purpose instructions to the provider you choose, and may incur that provider's charges.
 
-[Verification evidence and unverified limits](screenshots/VERIFICATION.md)
+## Translate files
 
-![Settings](screenshots/settings.png)
-*Settings: purposes, translators, order, glossary and appearance.*
+Choose the source and target languages and a purpose, then select files, a folder or a ZIP with the native file picker or drag and drop. Press **Translate**.
 
-## How to use
+Each supported input gets a separate translated output, with relative folders retained for folder and ZIP jobs. Originals are left unchanged. Finished files can be opened, saved with the native **Save As** dialog, or exported together as a ZIP. Existing output names get a new suffix rather than silently overwriting a file.
 
-1. Download this folder from GitHub (green **Code** button → **Download ZIP**) and unzip it.
-2. On Windows, double-click `start.bat`. On Mac or Linux, run `./start.sh` from this folder.
-3. Wait for the browser. The first start can take a few minutes. The starter installs what it needs and opens the app. An existing `.env` is left alone.
-4. If it asks for a key, put the key in `.env` in this folder, save, and start again.
+**Cancel** keeps files that have already been saved. **Retry** runs only failed or unfinished files. File concurrency is configurable from 1–16, with a separate limit for each translator.
 
-To look around without a key, start it with `SFTS_DEMO=1`. A Demo translator appears. It does not translate; it tags each line with the target language.
+Settings include purposes, translator order and models, project glossaries, 12 interface languages, light/dark appearance and reduced motion.
 
-## Keys stay here
+The default Latin interface font is locally bundled [Libron v0.25](https://github.com/nicoverbruggen/libron/releases/tag/v0.25), with its actual Regular, Bold, Italic and Bold Italic styles under the SIL Open Font License 1.1. Existing CJK and other script fallbacks remain available, and code/path displays retain their existing monospace styling. Interface font selection does not change original or translated document fonts; PDF reflow uses the separately bundled Noto font described below.
 
-Keys live only in a local `.env`. The repository has no secrets. For extra options later, add them in that same file.
+### Formats
+
+| Input | Translation behavior |
+| --- | --- |
+| TXT, Markdown (`.md`, `.markdown`) | Text and paragraphs; Markdown syntax and protected code are retained. |
+| DOCX, XLSX | Document text and spreadsheet string cells; review complex layouts after translation. |
+| JSON, CSV, TSV, YAML | Text values/cells while retaining the file's structural fields. |
+| PO/POT, XLIFF (`.xlf`, `.xliff`) | Translation text with message identifiers and inline codes protected. |
+| HTML/HTM, SRT, VTT | Visible text or subtitle text; markup, cue identifiers and timings are retained. |
+| PDF | Extractable text becomes a newly laid-out translated PDF; the original page layout is not reproduced. |
+| Lua, JavaScript, TypeScript, GDScript | **Game-text mode** selects player-facing string literals; review its selection and the output. |
+
+Text-based files must use UTF-8. Jobs are bounded to 400 files and 80 MB of input/expanded ZIP content. Unsupported, malformed or oversized files report an error or skip instead of claiming completion.
+
+CSV/TSV writeback retains UTF-8 BOMs, record endings and untouched cells, with an 80 MB output cap. YAML supports a bounded subset of YAML 1.2; changed output normalizes comments, quoting and anchor presentation. Plain `Null`/`NULL`, signed radix integers and integers outside the supported i64 range are rejected rather than silently changing their types. Use `null`/`~`, supported i64 integer forms, or quoted/`!!str` strings as appropriate. Custom tags, merge keys and explicit non-string tags on quoted/block scalars are rejected. Mapping keys and numeric/boolean/null values are validated after serialization.
+
+PDF support is text extraction and A4 text reflow. Changed PDFs embed the complete Noto Sans CJK TC font (about 16.4 MB per PDF). It does not perform OCR or preserve source graphics, typography, annotations, forms or exact layout. Encrypted PDFs must be decrypted first. Missing glyphs report an error; arbitrary script shaping is not certified. Input/text/output guards do not certify a parser memory ceiling for compressed PDF objects. Office and game-text adapters also do not promise universal format fidelity.
+
+## Translators and current limits
+
+- Developer API adapters: **OpenAI, Anthropic, Gemini and xAI**. Custom base URLs must pass the public HTTPS host allowlist; arbitrary local proxies and chat websites are not supported.
+- CLI adapters: **Claude Code, Codex CLI and Grok CLI**, when an official native executable is already installed and signed in. The app does not run `.cmd`/`.bat` shims; known official Codex installations may resolve to their native executable.
+- Paid/live provider compatibility, live CLI translation and model translation quality have not been verified for this build. Offline Demo and controlled protocol tests are not real-model translation.
+- Controlled Windows process-tree cancellation has been tested. Full CLI tool isolation has not been certified: Codex can retain shell tools and inherited MCP configuration; Grok home isolation is not implemented. Parser/writeback work and external provider activity are not guaranteed to stop instantly.
+- The native preview builds on the latest PR4 UI work. PR4 remains a separate, unmerged pull request; this prerelease does not represent its acceptance.
+- Windows x64 is the packaged target. A clean Windows VM, other operating systems, comprehensive screen-reader journeys and every document layout have not been validated.
+
+For an explicit offline UI check, set `SFTS_DEMO=1` before launching Versora. **Demo** adds target-language tags to test text; it does not translate and is clearly identified in the app.
+
+## Local settings and credentials
+
+The installation directory contains application files. Your separate data directory is `%LOCALAPPDATA%\Versora`: settings, project glossaries, custom prompts, completed outputs and update state live there. The default output location is `%LOCALAPPDATA%\Versora\data\outputs`; you can choose another output folder.
+
+Saved provider credentials are encrypted with Windows user-scope DPAPI in `credentials.dpapi` and are never returned to the interface as plaintext. They remain tied to the Windows account; copying this file to another account is not a credential migration.
+
+Upgrade and uninstall preserve the user-data directory and the separate WebView2 cache at `%LOCALAPPDATA%\com.mimateinn.versora`. The legacy import option copies recognized settings, glossaries and outputs without changing the source folder or replacing existing native data.
 
 ## Updates
 
-### v0.2.0
+**Settings → Updates** can check official GitHub release metadata and open the download page. Startup and periodic checks are configurable while the app is running.
 
-- New name: Versora. New look, light and dark.
-- Pick From / To languages and swap them right on the Translate page. The translator and model show next to them.
-- Your last languages, file type and text mode are remembered, also after visiting Settings.
-- Progress while translating, file by file, with Cancel.
-- Folder and zip jobs: download everything as one zip, open the output folder, retry only the failed files. Failed and skipped files are listed apart, in plain words.
-- A file with the same name is no longer overwritten; the new one gets a time stamp.
-- Fixes: glossary rows no longer shift when one is deleted; the update check shows that it is working; temporary files are cleaned up.
-- Needs Streamlit 1.65 or newer.
+Automatic package downloading, signed installation and recovery are disabled in this preview. Install updates manually from the official release page. A SHA-256 checksum checks file integrity; it is not a publisher signature.
 
-### v0.1.1
+## Build the native desktop source
 
-- One-click start: `start.bat` (Windows) and `start.sh` (Mac / Linux).
-- Folder and zip jobs write one output per input file, same folder shape.
-- More types: json, csv, tsv, yaml, po, xliff, xlsx, html, srt, vtt.
-- Game-text mode, plus a glossary for consistent terms.
-- Official developer APIs only. Optional official Grok CLI / Codex CLI if already installed and signed in. No chat websites.
-- Pick a model. Folder and zip jobs can run 1–8 files at a time (default 2).
-- Official-package updates from the app or on start (at most once a day).
-- Settings: Translate / Settings tabs, Appearance / Translation / Keys / Glossary, light and dark.
+Use the [source at the native release tag](https://github.com/mimateinn/Versora/tree/v0.3.0-preview.1/desktop). The historical root `start.bat`/`start.sh` and Python code belong to the browser application, rather than the native build.
 
-### v0.1.0
+On the provisioned Windows build host, with the locked crates available, installed Rust 1.97.1 MSVC, Visual Studio 2022 Build Tools and Windows SDK:
 
-- First public version.
+```powershell
+cd desktop
+.\scripts\Invoke-Rust.ps1 -CargoArgs @('test', '--offline', '--locked', '--workspace')
+$env:CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS = '-C target-feature=+crt-static'
+.\scripts\Invoke-Rust.ps1 -CargoArgs @('build', '--offline', '--locked', '--release', '-p', 'versora-desktop', '--features', 'custom-protocol')
+```
 
----
+The compiler wrapper selects the audited toolchain paths; configure those paths for another build host. The native frontend is bundled local content and has no separate Node build step. Release packaging uses NSIS, an allowlisted payload and recorded checksums; generated binaries, test profiles and user data must stay out of source Git.
 
-# Versora
+See [the native feature map](https://github.com/mimateinn/Versora/blob/v0.3.0-preview.1/desktop/FEATURE_MAP.md) and [updater contract](https://github.com/mimateinn/Versora/blob/v0.3.0-preview.1/desktop/UPDATE-ADAPTER.md) for source boundaries. Third-party license notices and required source archives accompany the installer. The repository does not declare a license for the application itself.
 
-在你自己的電腦上翻譯檔案。丟一個檔案、整個資料夾，或一個 zip——每個輸入檔都會得到對應的譯文，資料夾形狀相同。
+## Earlier downloads
 
-Versora 在 v0.1.1 之前叫「智能檔案翻譯系統」。舊連結仍然有效。
-
-![翻譯頁（淺色）](screenshots/translate-light.png)
-*選好語言，丟一個檔案，按「翻譯」。*
-
-## 能做什麼
-
-支援 txt、md、docx、pdf、json、csv、tsv、yaml、po、xliff、xlsx、html、srt、vtt。遊戲文字模式只改玩家會看到的字。用語表讓重要用詞之後保持一致。
-
-畫面有 12 種語言，淺色或深色。可選模型。資料夾／zip 一次最多可跑 16 個檔，受整體及各翻譯服務的上限限制。譯文在 `data/outputs/`，也可以在瀏覽器下載。
-
-用官方開發者 API（OpenAI、Anthropic、Gemini、xAI 等）。如果這台電腦已安裝並已登入官方 Claude Code、Codex CLI 或 Grok CLI，也可以用。不支援聊天網站。
-
-可在程式裡檢查官方更新，或直接啟動——一天最多查一次。
-
-![翻譯中的 zip](screenshots/translating.png)
-*翻譯時每個檔案各自顯示進度。按「取消」會保留已完成的檔案。*
-
-![zip 完成](screenshots/batch-done.png)
-*可一次下載全部（zip）、打開輸出資料夾，或只重試失敗的檔案。*
-
-![深色模式](screenshots/translate-dark.png)
-*深色模式。*
-
-![設定](screenshots/settings.png)
-*設定：用途、翻譯服務、順序、用語表與外觀。*
-
-## 怎麼用
-
-1. 從 GitHub 下載這個資料夾（綠色 **Code** 按鈕 → **Download ZIP**），解壓縮。
-2. Windows：連按兩下 `start.bat`。Mac 或 Linux：在這個資料夾執行 `./start.sh`。
-3. 等瀏覽器打開。第一次可能要幾分鐘。啟動檔會裝好需要的東西並打開程式。已有的 `.env` 不會被覆蓋。
-4. 如果要你填金鑰，把金鑰寫進這個資料夾的 `.env`，存檔後再啟動一次。
-
-沒有金鑰也想先看看：用 `SFTS_DEMO=1` 啟動，會多一個「示範」翻譯服務。它不會真的翻譯，只會在每行前面標上目標語言。
-
-## 金鑰留在這台電腦
-
-金鑰只放本機 `.env`，倉庫不含密鑰。之後要改更多選項，寫在同一個檔就好。
-
-## 更新
-
-### v0.2.0
-
-- 改名 Versora，換新外觀，有淺色和深色。
-- 在翻譯頁直接選「原文／譯成」語言，也可以對調；旁邊顯示用哪個翻譯服務和模型。
-- 會記住上次的語言、檔案類型和文字模式，去過設定頁回來也不會變。
-- 翻譯時逐個檔案顯示進度，可以取消。
-- 資料夾／zip：一次下載全部、打開輸出資料夾、只重試失敗的檔案。失敗和略過分開列出，用白話說明。
-- 同名檔案不再被覆蓋，新檔會加上時間。
-- 修正：刪除用語不會再令其他行錯位；檢查更新時會顯示進行中；暫存檔會清走。
-- 需要 Streamlit 1.65 或以上。
+[v0.2.0-preview.1](https://github.com/mimateinn/Versora/releases/tag/v0.2.0-preview.1) remains available as the historical **Browser preview**. Its Python/browser launcher and local `.env` behavior are separate from this Rust desktop version.
