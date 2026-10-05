@@ -245,8 +245,10 @@ FunctionEnd
 ; In-app update handoff (`setup.exe /S /UPDATE [/RELAUNCH]`, started by the verified Versora
 ; updater just before it exits): wait up to 30 seconds for the closing app to release
 ; versora.exe instead of refusing at once. Every other safety check is unchanged.
+; $R3 is 1 when the executable is free (or absent), 0 when it is still locked.
 Function WaitForExecutableRelease
   StrCpy $R2 0
+  StrCpy $R3 1
   ${Do}
     IfFileExists "$INSTDIR\versora.exe" 0 release_done
     System::Call 'kernel32::CreateFileW(w "$INSTDIR\versora.exe", i 0x40000000, i 7, p 0, i 3, i 0, p 0) p.r0'
@@ -256,11 +258,24 @@ Function WaitForExecutableRelease
     ${EndIf}
     IntOp $R2 $R2 + 1
     ${If} $R2 >= 60
-      Goto release_done ; CheckExecutableNotInUse reports the refusal.
+      StrCpy $R3 0
+      Goto release_done
     ${EndIf}
     Sleep 500
   ${Loop}
 release_done:
+FunctionEnd
+
+; The app exited for this update. When the update is refused before anything changes and the
+; user asked to restart (/RELAUNCH), reopen the owned, unchanged program so they still have it.
+Function RelaunchUnchangedProgram
+  ${If} $Relaunch == 1
+  ${AndIf} $ExistingOwned == 1
+    IfFileExists "$INSTDIR\versora.exe" 0 unchanged_done
+    SetOutPath "$INSTDIR"
+    Exec '"$INSTDIR\versora.exe"'
+  ${EndIf}
+unchanged_done:
 FunctionEnd
 
 Function .onInit
@@ -317,6 +332,12 @@ Function .onInit
   ${EndIf}
   ${If} $UpdateMode == 1
     Call WaitForExecutableRelease
+    ${If} $R3 == 0
+      Call RelaunchUnchangedProgram
+      MessageBox MB_OK|MB_ICONSTOP "Close Versora before installing/removing it. The existing executable is preserved." /SD IDOK
+      SetErrorLevel 24
+      Abort
+    ${EndIf}
   ${EndIf}
   Call CheckExecutableNotInUse
   StrCpy $StageDir "$INSTDIR\.versora-stage-${BUILD_ID}"
@@ -337,6 +358,7 @@ unowned_collision:
   SetErrorLevel 28
   Abort
 transaction_exists:
+  Call RelaunchUnchangedProgram
   MessageBox MB_OK|MB_ICONSTOP "A previous transaction directory exists. Its files are preserved for recovery; no overwrite was attempted." /SD IDOK
   SetErrorLevel 29
   Abort

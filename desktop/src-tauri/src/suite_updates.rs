@@ -209,6 +209,12 @@ struct Runtime {
     /// Version whose package and signature on disk verified against the trust key.
     package: Option<String>,
     just_updated: Option<Value>,
+    /// A metadata check is running. Kept apart from `status` so a ready package stays ready.
+    checking: bool,
+    /// Consecutive failed background downloads of the current candidate, and when the next
+    /// automatic attempt is due (epoch ms) on the metadata backoff ladder.
+    download_failures: u8,
+    download_retry_at: Option<u64>,
 }
 
 pub struct UpdateService {
@@ -311,6 +317,9 @@ impl UpdateService {
                 }),
                 package: None,
                 just_updated: None,
+                checking: false,
+                download_failures: 0,
+                download_retry_at: None,
             }),
             active: AtomicBool::new(false),
             cancellation: AtomicU64::new(0),
@@ -324,7 +333,8 @@ impl UpdateService {
             if service.trust.is_some() && service.verify_ready_package_in(&state).is_ok() {
                 state.package = state.saved.candidate.as_ref().map(|c| c.version.clone());
             }
-            state.status = if interrupted {
+            // An interrupted check never hides a package that still verifies.
+            state.status = if interrupted && !package_ready(&state) {
                 "cancelled"
             } else {
                 status_for(&state)
@@ -364,10 +374,12 @@ impl UpdateService {
         OFFICIAL_RELEASE_URL
     }
 
+    #[allow(dead_code)] // used by tests/update_policy.rs
     pub fn installed(&self) -> bool {
         self.installed
     }
 
+    #[allow(dead_code)] // used by tests/update_policy.rs
     pub fn trusted(&self) -> bool {
         self.trust.is_some()
     }
@@ -408,7 +420,7 @@ impl UpdateService {
         let state = self.lock();
         let saved = &state.saved;
         let capable = self.capability_reason().is_none();
-        let ready = state.status == "ready";
+        let ready = package_ready(&state);
         json!({ "status": state.status, "currentVersion": self.version.to_string(),
             "candidateVersion": saved.candidate.as_ref().map(|c| c.version.as_str()), "candidate": saved.candidate,
             "preferences": saved.preferences, "channel": saved.preferences.channel,
@@ -421,7 +433,7 @@ impl UpdateService {
             "installCapabilities": capable, "downloadCapability": capable,
             "capabilityReason": self.capability_reason(), "officialReleaseUrl": OFFICIAL_RELEASE_URL,
             "recoveryCapability": false, "packageDownloaded": ready,
-            "installOnQuit": ready && saved.preferences.auto_download,
+            "installOnQuit": ready, "checking": state.checking,
             "releaseNotes": state.extra.release_notes, "justUpdated": state.just_updated })
     }
 
@@ -561,20 +573,36 @@ impl UpdateService {
 
     /// True when the shell should start a background download now.
     pub fn auto_download_due(&self) -> bool {
+        self.auto_download_due_at(now_ms())
+    }
+
+    /// A new candidate downloads at once; after a failed background download the next
+    /// attempt waits on the metadata backoff ladder (1, 2, 4 … 60 min) instead of the next check.
+    pub fn auto_download_due_at(&self, at: u64) -> bool {
         if self.capability_reason().is_some() || self.active.load(Ordering::Acquire) {
             return false;
         }
         let state = self.lock();
-        state.saved.preferences.auto_download && state.status == "available"
+        if !state.saved.preferences.auto_download
+            || state.saved.candidate.is_none()
+            || package_ready(&state)
+        {
+            return false;
+        }
+        match state.download_retry_at {
+            Some(due) => at >= due,
+            None => state.status == "available",
+        }
     }
 
-    /// True when a verified package should be installed silently as the app quits.
+    /// True when a verified package should be installed silently as the app quits. This
+    /// follows the package, not the auto-download toggle: a manual download installs too.
+    /// The shell cancels any running update operation before asking.
     pub fn install_on_quit_ready(&self) -> bool {
         if self.capability_reason().is_some() || self.active.load(Ordering::Acquire) {
             return false;
         }
-        let state = self.lock();
-        state.saved.preferences.auto_download && state.status == "ready"
+        package_ready(&self.lock())
     }
 
     pub fn cancel(&self) -> Result<Value, String> {
@@ -586,7 +614,7 @@ impl UpdateService {
         let _operation = self.begin()?;
         let mut state = self.lock();
         self.refresh(&mut state)?;
-        state.status = if state.status == "ready" {
+        state.status = if package_ready(&state) {
             "ready"
         } else {
             "cancelled"
@@ -701,6 +729,7 @@ impl UpdateService {
     }
 
     /// Re-reads and verifies the candidate package and signature from disk.
+    #[allow(dead_code)] // used by tests/update_policy.rs
     pub fn verify_ready_package(&self) -> Result<VerifiedPackage, String> {
         let state = self.lock();
         self.verify_ready_package_in(&state)
@@ -892,7 +921,10 @@ impl UpdateService {
         saved.in_progress = true;
         self.save(&saved)?;
         state.saved = saved;
-        state.status = "checking";
+        state.checking = true;
+        if !package_ready(&state) {
+            state.status = "checking";
+        }
         state.error = None;
         self.started.store(true, Ordering::Release);
         Ok(self.cancellation.load(Ordering::Acquire))
@@ -916,7 +948,8 @@ impl UpdateService {
             }
         };
         let mut saved = state.saved.clone();
-        if saved.candidate != candidate {
+        let changed = saved.candidate != candidate;
+        if changed {
             saved.deferred = false;
         }
         saved.candidate = candidate;
@@ -926,6 +959,11 @@ impl UpdateService {
         saved.next_check_at = periodic_due(&saved.preferences, at);
         self.save(&saved)?;
         state.saved = saved;
+        state.checking = false;
+        if changed {
+            state.download_failures = 0;
+            state.download_retry_at = None;
+        }
         if state.package.is_some()
             && state.saved.candidate.as_ref().map(|c| &c.version) != state.package.as_ref()
         {
@@ -975,7 +1013,15 @@ impl UpdateService {
         if write.is_ok() {
             state.saved = saved;
         }
-        state.status = if cancelled { "cancelled" } else { "failed" };
+        state.checking = false;
+        // A failed or cancelled check never takes away a verified package.
+        state.status = if package_ready(&state) {
+            "ready"
+        } else if cancelled {
+            "cancelled"
+        } else {
+            "failed"
+        };
         state.error = Some(write.err().unwrap_or_else(|| error.clone()));
         if cancelled {
             Ok(())
@@ -1086,6 +1132,8 @@ impl UpdateService {
         match result {
             Ok(()) => {
                 state.package = Some(candidate.version.clone());
+                state.download_failures = 0;
+                state.download_retry_at = None;
                 state.error = None;
                 state.status = status_for(&state);
                 self.prune_packages(Some(&candidate.version));
@@ -1095,6 +1143,15 @@ impl UpdateService {
                 state.package = None;
                 state.status = if cancelled { "cancelled" } else { "failed" };
                 state.error = Some(error.clone());
+                if cancelled {
+                    // An explicit cancel is not retried automatically.
+                    state.download_retry_at = None;
+                } else {
+                    state.download_failures = state.download_failures.saturating_add(1).min(8);
+                    state.download_retry_at = Some(
+                        now_ms().saturating_add(backoff_seconds(state.download_failures) * 1000),
+                    );
+                }
                 if cancelled {
                     Ok(())
                 } else {
@@ -1208,6 +1265,15 @@ impl UpdateService {
     }
 
     #[cfg(test)]
+    pub fn failed_check_fixture(&self, error: &str, at: u64) -> Result<Value, String> {
+        let operation = self.begin()?;
+        let generation = self.start_check()?;
+        let result = self.finish_error(error.into(), at, generation);
+        drop(operation);
+        result.map(|_| self.get_state())
+    }
+
+    #[cfg(test)]
     pub async fn delayed_fixture(&self, releases: Value) -> Result<Value, String> {
         let operation = self.begin()?;
         let generation = self.start_check()?;
@@ -1220,10 +1286,16 @@ impl UpdateService {
     }
 }
 
+/// The candidate's package and signature verified on disk (readiness never depends on the
+/// transient `status`).
+fn package_ready(state: &Runtime) -> bool {
+    matches!((&state.package, &state.saved.candidate), (Some(package), Some(candidate)) if *package == candidate.version)
+}
+
 fn status_for(state: &Runtime) -> &'static str {
     match &state.saved.candidate {
         None => "idle",
-        Some(candidate) if state.package.as_ref() == Some(&candidate.version) => "ready",
+        Some(_) if package_ready(state) => "ready",
         Some(_) => "available",
     }
 }
@@ -1235,12 +1307,18 @@ struct Operation<'a> {
 impl Drop for Operation<'_> {
     fn drop(&mut self) {
         let mut state = self.service.lock();
-        if state.status == "checking" {
+        if state.checking {
+            state.checking = false;
             state.saved.in_progress = false;
-            state.status = "cancelled";
-            state.error = Some("Metadata operation interrupted; no package was downloaded".into());
+            if !package_ready(&state) {
+                state.status = "cancelled";
+                state.error =
+                    Some("Metadata operation interrupted; no package was downloaded".into());
+            }
             if let Err(error) = self.service.save(&state.saved) {
-                state.status = "failed";
+                if !package_ready(&state) {
+                    state.status = "failed";
+                }
                 state.error = Some(error);
             }
         } else if state.status == "downloading" {
@@ -1588,6 +1666,7 @@ pub fn verify_reader(
     Ok(total)
 }
 
+#[allow(dead_code)] // used by tests/update_policy.rs
 pub fn verify_package_bytes(
     public_key: &str,
     data: &[u8],

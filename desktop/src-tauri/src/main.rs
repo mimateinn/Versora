@@ -151,8 +151,9 @@ async fn auto_download(handle:tauri::AppHandle){loop{let state=handle.state::<De
 async fn download_update(handle:tauri::AppHandle){let progress={let handle=handle.clone();move||emit_updates(&handle)};let _=handle.state::<DesktopState>().updates.download(&progress).await;emit_updates(&handle);}
 /// Safe exit: cancel the owned job, wait for its cleanup and every pending save, then exit. A verified
 /// update package is handed to its installer here: on request (with relaunch) or silently on quit.
-fn finish_exit(handle:tauri::AppHandle,install:bool){let state=handle.state::<DesktopState>();if let Some(id)=state.jobs.active(){let _=state.jobs.cancel(&id);}if install{let _=state.updates.cancel();}
-    tauri::async_runtime::spawn(async move{loop{let state=handle.state::<DesktopState>();if state.jobs.active().is_none()&&state.pending.load(Ordering::SeqCst)==0&&!(install&&state.updates.is_active()){break;}tokio::time::sleep(std::time::Duration::from_millis(50)).await;}
+fn finish_exit(handle:tauri::AppHandle,install:bool){let state=handle.state::<DesktopState>();if let Some(id)=state.jobs.active(){let _=state.jobs.cancel(&id);}let _=state.updates.cancel();
+    // A running check or download is cancelled (again if one started meanwhile) so a ready package still installs on quit.
+    tauri::async_runtime::spawn(async move{loop{let state=handle.state::<DesktopState>();if state.updates.is_active(){let _=state.updates.cancel();}if state.jobs.active().is_none()&&state.pending.load(Ordering::SeqCst)==0&&!state.updates.is_active(){break;}tokio::time::sleep(std::time::Duration::from_millis(50)).await;}
         let state=handle.state::<DesktopState>();
         if install||state.updates.install_on_quit_ready(){match state.updates.launch_installer(install){Ok(())=>{handle.exit(0);return;}Err(_) if install=>{state.closing.store(false,Ordering::SeqCst);emit_updates(&handle);return;}Err(_)=>{}}}
         let _=state.updates.cancel();handle.exit(0);});}

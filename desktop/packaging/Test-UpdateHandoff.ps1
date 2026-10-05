@@ -39,14 +39,34 @@ $code = Wait-Installer $update 90
 if ($code -ne 0) { throw "/UPDATE failed after the executable was released (exit $code)." }
 Write-Host ("PASS /UPDATE waited {0:N1} s for the executable, then installed" -f $watch.Elapsed.TotalSeconds)
 
+function Wait-Relaunched([int]$Seconds) {
+    $deadline = (Get-Date).AddSeconds($Seconds)
+    while ((Get-Date) -lt $deadline) {
+        $process = Get-Process -Name versora -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $exe } | Select-Object -First 1
+        if ($process) { return $process }
+        Start-Sleep -Milliseconds 500
+    }
+    $null
+}
+
 $code = Wait-Installer (Start-Installer @('/S', '/UPDATE', '/RELAUNCH')) 120
 if ($code -ne 0) { throw "/UPDATE /RELAUNCH failed (exit $code)." }
-$deadline = (Get-Date).AddSeconds(30)
-$started = $null
-while (-not $started -and (Get-Date) -lt $deadline) {
-    $started = Get-Process -Name versora -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $exe } | Select-Object -First 1
-    if (-not $started) { Start-Sleep -Milliseconds 500 }
-}
+$started = Wait-Relaunched 30
 if (-not $started) { throw '/RELAUNCH did not start the installed versora.exe.' }
 Write-Host "PASS /RELAUNCH started $exe (pid $($started.Id))"
+Stop-Process -Id $started.Id -Force
+$started.WaitForExit(10000) | Out-Null
+
+# An update refused after the 30 s wait changes nothing; with /RELAUNCH the unchanged
+# program is reopened so the user is not left without the app.
+$before = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash
+$lock = [IO.File]::Open($exe, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
+try {
+    $code = Wait-Installer (Start-Installer @('/S', '/UPDATE', '/RELAUNCH')) 90
+    if ($code -ne 24) { throw "A still-locked executable must be refused after the /UPDATE wait (exit $code)." }
+    $started = Wait-Relaunched 30
+    if (-not $started) { throw 'A refused /UPDATE /RELAUNCH did not reopen the unchanged program.' }
+} finally { $lock.Dispose() }
+if ((Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash -ne $before) { throw 'A refused update changed versora.exe.' }
+Write-Host "PASS refused /UPDATE /RELAUNCH (exit 24) reopened the unchanged program (pid $($started.Id))"
 Stop-Process -Id $started.Id -Force

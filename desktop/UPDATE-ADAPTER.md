@@ -15,7 +15,7 @@ This adapts the suite semantics in the other task's `UPDATE-CONTRACT.md`; it doe
 | Event | `suite-update-state-changed`, state JSON (also emitted with throttled download progress); GUI uses text, SVG and aria-live |
 | Fixed source | owner `mimateinn`, repo `Versora`; HTTPS GitHub releases API, app-specific fixed official Releases page; no arbitrary renderer URLs/commands |
 | Policy | startup/manual/periodic while app runs, 1-168h; default **periodic every 4 h, first check ~10 s after the UI is healthy, stable, auto download+install on**; strictly newer SemVer and highest healthy-startup marker. Profiles still on the old default (startup/24 h) migrate once; explicit manual/periodic and channel choices are kept, and the never-enabled download toggle turns on |
-| Safe exit | Cancel owned job, wait for actual cleanup/output persistence, then exit. Busy or unsaved work needs the user's in-app confirmation (`confirmed`); pending persistence always refuses. The verified installer is started from this path only: on request with `/S /UPDATE /RELAUNCH`, or silently on quit (`/S /UPDATE`) when a verified package is ready and auto updates are on |
+| Safe exit | Cancel owned job, wait for actual cleanup/output persistence, then exit. Busy or unsaved work needs the user's in-app confirmation (`confirmed`); pending persistence always refuses. The verified installer is started from this path only: on request with `/S /UPDATE /RELAUNCH`, or silently on quit (`/S /UPDATE`) whenever a verified package is ready, however it was downloaded; a running check or download is cancelled first |
 | Health hook | UI explicitly ACKs after successful state restore and first render; marker is not advanced by discovery/download. The ACK also reports `justUpdated` once (previous last-seen version < current) for the "已更新到 {v}" notice and prunes obsolete packages |
 | Trust | Tauri signer (minisign) public key compiled from `src-tauri/updater-public-key.txt`. **Shipped empty: no download/install capability until the key is committed.** Unpackaged/dev builds (no production `.versora-installation` marker beside `versora.exe`) never contact the network |
 
@@ -27,7 +27,8 @@ This adapts the suite semantics in the other task's `UPDATE-CONTRACT.md`; it doe
 - **Download** (only with a trust key, only in the installed app): `<asset>.sig` first (16 KiB cap; missing = error,
   release page offered), then the package streamed into an owned `updates/.download-*.part` file. The stream is
   bounded by the release size, cancellable (`updates_cancel`), stalls fail after 60 s, redirects only follow HTTPS
-  GitHub hosts. Any failure deletes the partial file.
+  GitHub hosts. Any failure deletes the partial file. A failed background download is retried on the metadata
+  backoff ladder (1, 2, 4 … 60 min); an explicit cancel is not retried.
 - **Verification**: `minisign-verify` 0.2.5 (the major used by `tauri-plugin-updater` 2.13.1), prehashed Ed25519
   only. The `.pub`/`.sig` files are base64 of minisign text, exactly as `tauri signer` writes them. After the global
   signature verifies, the signed trusted comment must name `version:<v>` (signed with `--app-version`) and, if it
@@ -36,7 +37,11 @@ This adapts the suite semantics in the other task's `UPDATE-CONTRACT.md`; it doe
   that denies write/delete sharing held until the installer process exists. The installer runs detached with
   `/S /UPDATE` (+ `/RELAUNCH`); `versora.nsi` then waits up to 30 s for `versora.exe` to be released (without
   `/UPDATE` it still refuses at once), installs through its unchanged transaction/rollback code and, with
-  `/RELAUNCH`, starts the installed app as the user (after a failed update it reopens the restored version).
+  `/RELAUNCH`, starts the installed app as the user (after a failed update it reopens the restored version; when
+  the update is refused before anything changed, such as `versora.exe` still locked after 30 s, it reopens the
+  unchanged program).
+- **Readiness**: a verified package stays ready (pill, install button, install on quit) through later metadata
+  checks, failed or running; only a different candidate or a failed re-verification clears it.
 - **State**: `updates/state.json` keeps schema 1 byte-compatible so an older build can still start after a manual
   downgrade. New facts (`lastSeenVersion`, release notes, migration marker) live in `updates/updater.json`.
 - Not provided: Authenticode signing, automatic rollback after a bad update, delta updates.

@@ -694,12 +694,145 @@ async fn verified_download_is_ready_restarts_ready_and_approves_install() {
     let approved = restarted.request_install(clean()).unwrap();
     assert_eq!(approved["installApproved"], true);
     assert_eq!(approved["appRemainsOpen"], false);
-    // Turning automatic updates off keeps the package but no longer installs it on quit.
+    // Install-on-quit follows the verified package, not the auto-download toggle (B5).
     restarted
         .set_preferences(json!({"autoDownload":false}))
         .unwrap();
     assert_eq!(restarted.get_state()["status"], "ready");
-    assert!(!restarted.install_on_quit_ready());
+    assert_eq!(restarted.get_state()["installOnQuit"], true);
+    assert!(restarted.install_on_quit_ready());
+}
+
+#[tokio::test]
+async fn manually_downloaded_package_installs_on_quit_without_auto_download() {
+    let temp = Temp::new();
+    let service = discovered(&temp);
+    service
+        .set_preferences(json!({"autoDownload":false}))
+        .unwrap();
+    assert!(!service.auto_download_due());
+    let state = service
+        .download_fixture(chunks(PACKAGE, 5000, 0), Some(SIGNATURE))
+        .await
+        .unwrap();
+    assert_eq!(state["status"], "ready");
+    assert_eq!(state["installOnQuit"], true);
+    assert!(service.install_on_quit_ready());
+}
+
+#[tokio::test]
+async fn a_ready_package_survives_failed_and_running_checks() {
+    let temp = Temp::new();
+    let service = discovered(&temp);
+    service
+        .download_fixture(chunks(PACKAGE, 5000, 0), Some(SIGNATURE))
+        .await
+        .unwrap();
+    // A failed check reports its error but keeps the verified package ready.
+    let failed = service
+        .failed_check_fixture("GitHub returned HTTP 503", 2000)
+        .unwrap_err();
+    assert_eq!(failed, "GitHub returned HTTP 503");
+    let state = service.get_state();
+    assert_eq!(state["status"], "ready");
+    assert_eq!(state["packageDownloaded"], true);
+    assert_eq!(state["installOnQuit"], true);
+    assert_eq!(state["error"], "GitHub returned HTTP 503");
+    assert!(service.install_on_quit_ready());
+    // A check that finds the same release keeps it ready.
+    let same = service
+        .check_fixture(json!([release_sized("9.9.9", PACKAGE.len())]), 3000)
+        .unwrap();
+    assert_eq!(same["status"], "ready");
+    // While a check runs the package stays ready; quitting cancels the check and installs.
+    let quit = async {
+        tokio::time::sleep(Duration::from_millis(150)).await;
+        let running = service.get_state();
+        assert_eq!(running["status"], "ready");
+        assert_eq!(running["checking"], true);
+        assert_eq!(running["packageDownloaded"], true);
+        assert!(!service.install_on_quit_ready()); // the shell cancels first
+        service.cancel().unwrap();
+    };
+    let (checked, ()) = tokio::join!(
+        service.delayed_fixture(json!([release_sized("9.9.9", PACKAGE.len())])),
+        quit
+    );
+    assert_eq!(checked.unwrap()["status"], "ready");
+    assert!(!service.is_active());
+    assert_eq!(service.get_state()["checking"], false);
+    assert!(service.install_on_quit_ready());
+    // A check interrupted by a crash does not hide the package after restart either.
+    let mut state = temp.value();
+    state["inProgress"] = json!(true);
+    fs::write(temp.file(), serde_json::to_vec(&state).unwrap()).unwrap();
+    let restarted = temp.trusted("1.0.0");
+    assert_eq!(restarted.get_state()["status"], "ready");
+    assert!(restarted.install_on_quit_ready());
+}
+
+#[tokio::test]
+async fn failed_background_downloads_retry_on_the_backoff_ladder() {
+    let temp = Temp::new();
+    let service = discovered(&temp);
+    assert!(service.auto_download_due());
+    let before = now();
+    assert!(service
+        .download_fixture(chunks(PACKAGE, 5000, 0), Some(SIGNATURE_OTHER_KEY))
+        .await
+        .is_err());
+    assert_eq!(service.get_state()["status"], "failed");
+    assert!(!service.auto_download_due());
+    assert!(!service.auto_download_due_at(before + 59_000));
+    assert!(service.auto_download_due_at(now() + 61_000));
+    let before = now();
+    assert!(service
+        .download_fixture(chunks(&PACKAGE[..1000], 1000, 0), Some(SIGNATURE))
+        .await
+        .is_err());
+    assert!(!service.auto_download_due_at(before + 119_000));
+    assert!(service.auto_download_due_at(now() + 121_000));
+    // Turning automatic downloads off stops the retries.
+    service
+        .set_preferences(json!({"autoDownload":false}))
+        .unwrap();
+    assert!(!service.auto_download_due_at(now() + 3_600_000));
+    service
+        .set_preferences(json!({"autoDownload":true}))
+        .unwrap();
+    // Success ends the ladder; nothing more is due.
+    service
+        .download_fixture(chunks(PACKAGE, 5000, 0), Some(SIGNATURE))
+        .await
+        .unwrap();
+    assert!(!service.auto_download_due_at(now() + 3_600_000));
+}
+
+#[tokio::test]
+async fn a_cancelled_download_is_not_retried_automatically() {
+    let temp = Temp::new();
+    let service = discovered(&temp);
+    assert!(service
+        .download_fixture(chunks(PACKAGE, 5000, 0), Some(SIGNATURE_OTHER_KEY))
+        .await
+        .is_err());
+    let cancel = async {
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        service.cancel().unwrap();
+    };
+    let (cancelled, ()) = tokio::join!(
+        service.download_fixture(chunks(PACKAGE, 1024, 20), Some(SIGNATURE)),
+        cancel
+    );
+    assert_eq!(cancelled.unwrap()["status"], "cancelled");
+    assert!(!service.auto_download_due_at(now() + 3_600_000));
+}
+
+fn now() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as u64
 }
 
 #[tokio::test]
