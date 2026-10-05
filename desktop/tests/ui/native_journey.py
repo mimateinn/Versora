@@ -18,6 +18,15 @@ from pathlib import Path
 
 from playwright.async_api import async_playwright
 
+
+async def navigate(page, where):
+    """Open a page through the corner coin; the current page's own control is hidden."""
+    target = page.get_by_test_id(f"nav-{where}")
+    if await target.is_visible():
+        await target.click()
+    await page.wait_for_function("p => document.querySelector(`[data-testid=nav-${p}]`).getAttribute('aria-current') === 'page'", arg=where)
+
+
 def comparable_path(value):
     path = str(Path(value).resolve())
     if path.startswith('\\\\?\\UNC\\'):
@@ -46,7 +55,7 @@ async def run(args):
         evidence["url"] = page.url
         page.on("pageerror", lambda error: evidence["errors"].append(str(error)))
         await page.emulate_media(reduced_motion="reduce")
-        await page.get_by_test_id("nav-translate").click()
+        await navigate(page, "translate")
         await page.get_by_test_id("translate-card").wait_for()
         assert await page.title() == "Versora"
         assert not await page.get_by_test_id("connection-error").is_visible()
@@ -63,9 +72,10 @@ async def run(args):
         source = await page.get_by_test_id("source-language").input_value()
         target_language = await page.get_by_test_id("target-language").input_value()
         for theme in ["light", "dark"]:
-            await page.get_by_test_id("nav-settings").click()
+            await navigate(page, "settings")
             await page.get_by_test_id("settings-pane-appearance").click()
-            await page.get_by_test_id("appearance-theme").select_option(theme)
+            await page.get_by_test_id("appearance-theme-standard").click()
+            await page.get_by_test_id(f"appearance-tone-{theme}").click()
             await page.wait_for_function("theme => document.documentElement.dataset.theme === theme", arg=theme)
             for pane in ["purposes", "keys", "order", "glossary", "appearance", "updates"]:
                 await page.get_by_test_id(f"settings-pane-{pane}").click()
@@ -85,7 +95,8 @@ async def run(args):
         evidence["checks"].append("Every interface locale loaded and appearance heading matches its preserved catalog")
         await page.get_by_test_id("interface-language").select_option("en")
         await page.wait_for_function("() => document.documentElement.lang === 'en'")
-        await page.get_by_test_id("appearance-theme").select_option("light")
+        await page.get_by_test_id("appearance-theme-standard").click()
+        await page.get_by_test_id("appearance-tone-light").click()
         await page.wait_for_function("() => document.documentElement.dataset.theme === 'light'")
 
         # Missing publisher trust/capability must keep the app alive and block download/install.
@@ -115,7 +126,7 @@ async def run(args):
         await page.get_by_test_id(f"order-model-{first_provider}").fill("native-regression-model")
         await page.get_by_test_id("global-limit").select_option("3" if original_limit != "3" else "2")
         await page.wait_for_function("id => document.querySelector(`[data-testid=order-model-${id}]`)?.value === 'native-regression-model'", arg=first_provider)
-        await page.get_by_test_id("theme-toggle").click()
+        await page.get_by_test_id("theme-choice-standard").click()
         await page.wait_for_function("() => document.documentElement.dataset.theme === 'dark'")
         assert await page.get_by_test_id(f"order-model-{first_provider}").input_value() == "native-regression-model"
         await page.get_by_test_id(f"order-model-{first_provider}").fill(original_model)
@@ -127,7 +138,7 @@ async def run(args):
         # Real glossary and prompt edits must survive subsequent native state reload.
         await page.get_by_test_id("settings-pane-glossary").click()
         await page.get_by_test_id("new-project").fill("retained-project-draft")
-        await page.get_by_test_id("theme-toggle").click()
+        await page.get_by_test_id("theme-choice-standard").click()
         await page.wait_for_function("() => document.documentElement.dataset.theme === 'light'")
         await page.get_by_test_id("settings-pane-appearance").click()
         await page.get_by_test_id("settings-pane-glossary").click()
@@ -157,11 +168,11 @@ async def run(args):
         await page.get_by_test_id("settings-pane-keys").click()
         await page.get_by_test_id("edit-provider-openai").click()
         await page.get_by_test_id("provider-key-openai").fill("unsent-native-credential-draft")
-        await page.get_by_test_id("theme-toggle").click()
+        await page.get_by_test_id("theme-choice-standard").click()
         await page.wait_for_function("() => document.documentElement.dataset.theme === 'dark'")
         assert await page.get_by_test_id("provider-key-openai").input_value() == "unsent-native-credential-draft"
-        await page.get_by_test_id("nav-translate").click()
-        await page.get_by_test_id("nav-settings").click()
+        await navigate(page, "translate")
+        await navigate(page, "settings")
         assert await page.get_by_test_id("provider-key-openai").input_value() == "unsent-native-credential-draft"
         await page.get_by_test_id("keep-provider-openai").click()
         await page.get_by_test_id("edit-provider-openai").click()
@@ -175,22 +186,22 @@ async def run(args):
         secret_state = await page.evaluate("window.__TAURI__.core.invoke('get_state')")
         assert all("apiKey" not in item and "key" not in item and "secret" not in item for item in secret_state["providers"])
         evidence["checks"].append("Blank credential boundary and no full secrets returned to frontend")
-        await page.get_by_test_id("nav-translate").click()
+        await navigate(page, "translate")
         assert await page.get_by_test_id("toast").is_hidden()
         evidence["checks"].append("Credential-validation feedback clears when leaving its page")
 
         durations = []
         for _ in range(3):
-            await page.get_by_test_id("nav-translate").click()
+            await navigate(page, "translate")
             started = time.perf_counter()
-            await page.get_by_test_id("nav-settings").click()
+            await navigate(page, "settings")
             await page.get_by_test_id("settings-layout").wait_for()
             durations.append((time.perf_counter() - started) * 1000)
         evidence["perf"]["navigation_median_ms"] = round(statistics.median(durations), 2)
         evidence["perf"]["productionBuild"] = bool(args.release_build)
         if args.release_build:
             assert statistics.median(durations) <= 500
-        await page.get_by_test_id("nav-translate").click()
+        await navigate(page, "translate")
         assert await page.get_by_test_id("source-language").input_value() == source
         assert await page.get_by_test_id("target-language").input_value() == target_language
         evidence["checks"].append("Translation choices retained across settings and median-of-three navigation measurement")

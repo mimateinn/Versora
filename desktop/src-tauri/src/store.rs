@@ -483,7 +483,7 @@ fn default_config(id: &str) -> ProviderConfig {
     }
 }
 fn default_preferences() -> Value {
-    json!({"theme":"light","ui_lang":"zh-Hant","ui_lang_follow":true,"reduced_motion":false,"provider":"auto","model_by_provider":{},"chain":IDS.iter().map(|id|json!({"id":id,"model":"","effort":"","enabled":true})).collect::<Vec<_>>(),"concurrency":3,"per_provider":1,"purpose":"general","project":"default","source_type":"file","content_mode":"document","target_lang":"en","source_choice":"auto","target_other":""})
+    json!({"theme":"light","hologram_tone":"light","ui_lang":"zh-Hant","ui_lang_follow":true,"reduced_motion":false,"provider":"auto","model_by_provider":{},"chain":IDS.iter().map(|id|json!({"id":id,"model":"","effort":"","enabled":true})).collect::<Vec<_>>(),"concurrency":3,"per_provider":1,"purpose":"general","project":"default","source_type":"file","content_mode":"document","target_lang":"en","source_choice":"auto","target_other":""})
 }
 fn safe_model(value: &str) -> bool {
     value.is_empty() || (!value.starts_with('-') && versora_core::names::valid_model_id(value))
@@ -513,7 +513,8 @@ fn merge_preferences(mut current: Value, patch: Value) -> Result<Value, String> 
         .as_object_mut()
         .ok_or("Preferences must be a JSON object")?;
     for (key, alias, allowed) in [
-        ("theme", "theme", vec!["light", "dark"]),
+        ("theme", "theme", vec!["light", "dark", "hologram"]),
+        ("hologram_tone", "hologramTone", vec!["light", "dark"]),
         ("ui_lang", "uiLang", LANGS.to_vec()),
         (
             "provider",

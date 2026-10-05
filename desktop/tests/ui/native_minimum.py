@@ -6,6 +6,14 @@ from pathlib import Path
 from playwright.async_api import async_playwright
 
 
+async def navigate(page, where):
+    """Open a page through the corner coin; the current page's own control is hidden."""
+    target = page.get_by_test_id(f"nav-{where}")
+    if await target.is_visible():
+        await target.click()
+    await page.wait_for_function("p => document.querySelector(`[data-testid=nav-${p}]`).getAttribute('aria-current') === 'page'", arg=where)
+
+
 async def run(args):
     directory=Path(args.evidence).resolve()
     directory.mkdir(parents=True,exist_ok=True)
@@ -25,7 +33,7 @@ async def run(args):
             dimensions=await page.evaluate('() => ({width:window.innerWidth,height:window.innerHeight})')
             if dimensions['width']!=800:
                 raise RuntimeError('Resize the actual native window to its 800 logical pixel minimum before this check.')
-            await page.get_by_test_id('nav-settings').click()
+            await navigate(page, "settings")
             for pane in ['purposes','keys','order','glossary','appearance','updates']:
                 await page.get_by_test_id('settings-pane-'+pane).click()
                 dimensions=await page.evaluate('() => ({width:window.innerWidth,scrollWidth:document.documentElement.scrollWidth})')

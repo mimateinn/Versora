@@ -22,9 +22,9 @@ export class UIMotion {
       delete this.root.dataset.themeTransition;
     }
   }
-  theme(theme,reduced) {
+  theme(theme,reduced,tone='light') {
     this.root.dataset.reducedMotion=String(Boolean(reduced));
-    const changed=this.root.dataset.theme!==theme;
+    const changed=this.root.dataset.theme!==theme||this.root.dataset.hologramTone!==tone;
     if(!changed){if(reduced||this.reduced.matches)this.settleTheme();this.initialized=true;return;}
     clearTimeout(this.themeTimer);
     const generation=++this.themeGeneration;
@@ -32,6 +32,7 @@ export class UIMotion {
     if(animate){this.root.dataset.themeTransition='running';void this.root.offsetWidth;}
     else this.settleTheme();
     this.root.dataset.theme=theme;
+    this.root.dataset.hologramTone=tone;
     void this.root.offsetWidth;
     this.initialized=true;
     if(animate)this.themeTimer=setTimeout(()=>{if(generation!==this.themeGeneration)return;delete this.root.dataset.themeTransition;this.themeTimer=null;},280);

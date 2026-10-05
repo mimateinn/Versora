@@ -8,6 +8,14 @@ from playwright.async_api import async_playwright
 from native_journey import comparable_path
 
 
+async def navigate(page, where):
+    """Open a page through the corner coin; the current page's own control is hidden."""
+    target = page.get_by_test_id(f"nav-{where}")
+    if await target.is_visible():
+        await target.click()
+    await page.wait_for_function("p => document.querySelector(`[data-testid=nav-${p}]`).getAttribute('aria-current') === 'page'", arg=where)
+
+
 async def run(args):
     directory=Path(args.evidence).resolve()
     directory.mkdir(parents=True,exist_ok=True)
@@ -24,21 +32,22 @@ async def run(args):
         state=await page.evaluate("window.__TAURI__.core.invoke('get_state')")
         if not state.get('testMode') or comparable_path(state['dataDir'])!=comparable_path(args.data_dir):
             raise RuntimeError('Explicit Demo and the expected isolated profile are required.')
-        await page.get_by_test_id('nav-settings').click()
+        await navigate(page, "settings")
         await page.get_by_test_id('settings-pane-appearance').click()
         await page.get_by_test_id('interface-language').select_option('en')
         await page.wait_for_function("() => document.documentElement.lang==='en'")
-        await page.get_by_test_id('appearance-theme').select_option(args.theme)
+        await page.get_by_test_id("appearance-theme-standard").click()
+        await page.get_by_test_id(f'appearance-tone-{args.theme}').click()
         await page.wait_for_function("theme => document.documentElement.dataset.theme===theme",arg=args.theme)
-        await page.get_by_test_id('nav-translate').click()
+        await navigate(page, "translate")
         if args.stage=='demo':
             # Exercise the real negative boundary, then prove context clears its alert.
-            await page.get_by_test_id('nav-settings').click()
+            await navigate(page, "settings")
             await page.get_by_test_id('settings-pane-keys').click()
             await page.get_by_test_id('edit-provider-openai').click()
             await page.get_by_test_id('save-provider-openai').click()
             await page.wait_for_function("() => document.querySelector('[data-testid=main-content]')?.getAttribute('aria-busy')==='false'")
-            await page.get_by_test_id('nav-translate').click()
+            await navigate(page, "translate")
             assert await page.get_by_test_id('toast').is_hidden()
             assert state['selected']
             original={item['path']:hashlib.sha256(Path(item['path']).read_bytes()).hexdigest() for item in state['selected']}
