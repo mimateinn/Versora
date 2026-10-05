@@ -100,7 +100,7 @@ function paintToneChoices(group) {
 const indicatorMemory = new Map();
 function placeIndicators() {
   const still = state.settings.reduced_motion || motion.reduced.matches;
-  for (const group of document.querySelectorAll('.segments,.page-dock')) {
+  for (const group of content.querySelectorAll('.segments')) {
     const active = group.querySelector('button.active'),key = group.dataset.testid;
     if (!active) {delete group.dataset.ind;continue;}
     const next = {x:active.offsetLeft,y:active.offsetTop,w:active.offsetWidth,h:active.offsetHeight};
@@ -124,7 +124,7 @@ function renderChrome() {
   paintThemeChoices(content.querySelector('#appearance-theme'));
   paintToneChoices(content.querySelector('#appearance-tone'));
   document.querySelector('#route-name').textContent = t(view.page === 'settings' ? 'nav.settings' : 'nav.translate');
-  document.querySelectorAll('.nav-button').forEach(node => {node.classList.toggle('active',node.dataset.page === view.page);node.setAttribute('aria-current',node.dataset.page === view.page ? 'page' : 'false');});
+  document.querySelectorAll('.nav-button').forEach(node => {node.title = t(`nav.${node.dataset.page}`);node.classList.toggle('active',node.dataset.page === view.page);node.setAttribute('aria-current',node.dataset.page === view.page ? 'page' : 'false');});
   document.querySelector('#version').textContent = state.version ? `v${state.version.replace(/^v/,'')}` : '';
 }
 const dropArt = `<svg viewBox="0 0 168 96" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 86h140" stroke-opacity=".5"/><rect x="40" y="14" width="50" height="66" rx="4" fill="var(--art-fill)"/><path d="M50 30h30M50 40h30M50 50h22M50 60h26" stroke-opacity=".6"/><rect x="80" y="22" width="50" height="62" rx="4" fill="var(--art-fill)" stroke="var(--accent)" stroke-dasharray="4 4"/><path d="M90 38h28M90 48h24M90 58h28M64 6c10-4 22-2 30 6M90 6l4 6-7 1" stroke="var(--accent)"/></svg>`;

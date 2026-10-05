@@ -27,6 +27,14 @@ from playwright.async_api import async_playwright
 from native_journey import comparable_path
 
 
+async def navigate(page, where):
+    """Open a page through the corner coin; the current page's own control is hidden."""
+    target = page.get_by_test_id(f"nav-{where}")
+    if await target.is_visible():
+        await target.click()
+    await page.wait_for_function("p => document.querySelector(`[data-testid=nav-${p}]`).getAttribute('aria-current') === 'page'", arg=where)
+
+
 TEST_ROOT = Path(__file__).resolve().parent
 CLOSE_TEXT = "\u4ef2\u6709\u672a\u5132\u5b58\u5605\u7de8\u8f2f\u3002\u96e2\u958b\u6703\u653e\u68c4\u5462\u6b21\u7de8\u8f2f\u3002"
 RESIZE = {
@@ -524,8 +532,9 @@ async def chrome_geometry(page):
 
 
 async def verify_interactive_hits(page):
-    samples = await page.evaluate("""() => ['brand','nav-translate','nav-settings','theme-switcher',
-      'window-minimize','window-maximize','window-close'].map(id=>{
+    # Only the corner coin for the page you are not on is shown, so sample the visible one.
+    samples = await page.evaluate("""() => ['brand','theme-switcher','window-minimize','window-maximize','window-close',
+      ...[...document.querySelectorAll('.page-dock .nav-button')].filter(n=>n.getClientRects().length).map(n=>n.dataset.testid)].map(id=>{
         const nodes=[...document.querySelectorAll(`[data-testid=${id}]`)];
         if(nodes.length!==1)return {id,count:nodes.length,points:[]};
         const node=nodes[0],r=node.getBoundingClientRect();
@@ -610,9 +619,9 @@ def validate_shell(record, reference=None):
             abs(content["width"]-min(912, size["width"]-24)) <= 1,
             "Full-window scroller/gutters or original centered 912px content width differs.")
     dock = record["dock"]
-    require(abs(dock["x"]+dock["width"]/2-size["width"]/2) <= 1 and
-            abs(dock["y"]+dock["height"]-(footer["y"]-14)) <= 1,
-            "Page dock must float centered 14px above the footer.")
+    require(abs(dock["x"]+dock["width"]-(size["width"]-28)) <= 1 and
+            abs(dock["y"]+dock["height"]-(footer["y"]-20)) <= 1,
+            "Corner navigation coin must sit 28px from the right, 20px above the footer.")
     bar = record["scrollbar"]
     require(bar == {"width": "12px", "height": "12px", "thumbBorder": "4px",
                     "thumbRadius": "999px", "thumbClip": "padding-box", "minHeight": "36px"},
@@ -757,7 +766,7 @@ async def inspect_motion(page, native):
     finally:
         await page.mouse.up()
     native.guard()
-    await page.get_by_test_id("nav-translate").click()
+    await navigate(page, "translate")
     route = await page.evaluate(measure)
     if not os_reduce:
         require(route["route"]["name"] == "route-enter" and route["route"]["duration"] == "0.22s" and
@@ -765,7 +774,7 @@ async def inspect_motion(page, native):
                 "Actual navigation must trigger the 220ms route and 200ms card entry.")
     else:
         require(route["route"]["name"] == "none", "OS reduced motion must suppress route animation.")
-    await page.get_by_test_id("nav-settings").click()
+    await navigate(page, "settings")
     await page.get_by_test_id("settings-pane-appearance").click()
     theme = await page.get_by_test_id("appearance-theme").get_attribute("data-value")
     native.guard()
@@ -790,14 +799,14 @@ async def inspect_motion(page, native):
     await page.wait_for_function("() => document.documentElement.dataset.reducedMotion==='true'")
     await wait_idle(page)
     native.guard()
-    await page.get_by_test_id("nav-translate").click()
+    await navigate(page, "translate")
     reduced = await page.evaluate(measure)
     require(reduced["route"]["name"] == ("none" if os_reduce else "route-fade") and
             (os_reduce or (reduced["route"]["duration"] == "0.16s" and reduced["route"]["timing"] == "linear")) and
             reduced["card"]["name"] == "none" and
             all(float(v.removesuffix("s")) == 0 for v in reduced["button"]["durations"].split(", ")),
             "App reduced motion must retain only its 160ms opacity fade; OS reduction disables it.")
-    await page.get_by_test_id("nav-settings").click()
+    await navigate(page, "settings")
     await page.get_by_test_id("settings-pane-appearance").click()
     await page.get_by_test_id("settings-pane-appearance").hover()
     native.guard()
@@ -809,7 +818,7 @@ async def inspect_motion(page, native):
                 "Reduced motion must remove active control transform and transitions.")
     finally:
         await page.mouse.up()
-    await page.get_by_test_id("nav-settings").click()
+    await navigate(page, "settings")
     await page.get_by_test_id("settings-pane-appearance").click()
     await page.get_by_test_id("appearance-theme-standard").click()
     await page.get_by_test_id(f"appearance-tone-{theme}").click()
@@ -1034,7 +1043,7 @@ async def run(args):
             # caption. Preserve style bits as evidence, rather than rejecting them.
             receipt["nativeDecorated"] = decorated
             receipt["initialInteractiveHits"] = await verify_interactive_hits(page)
-            await page.get_by_test_id("nav-settings").click()
+            await navigate(page, "settings")
             await page.get_by_test_id("settings-pane-appearance").click()
             await page.get_by_test_id("interface-language").select_option("en")
             await page.wait_for_function("() => document.documentElement.lang === 'en'")
@@ -1125,12 +1134,13 @@ async def run(args):
             await asyncio.to_thread(native.pointer, await point_for(page, native, brand.locator("b")), (12, 0))
             await settled(page)
             require(native.snapshot()["window"] == before, "Nested interactive brand text dragged the window.")
-            navigation = page.get_by_test_id("nav-settings")
+            navigation = page.locator(".page-dock .nav-button:visible")
             await asyncio.to_thread(native.pointer, await point_for(page, native, navigation), (12, 0))
             await settled(page)
             require(native.snapshot()["window"] == before, "Interactive navigation unexpectedly dragged the window.")
             native.guard()
             await navigation.click()
+            await navigate(page, "settings")
             await page.get_by_test_id("settings-pane-appearance").click()
             require(native.snapshot()["window"] == before, "Interactive navigation moved native placement.")
             receipt["checks"].append({"name": "interactive brand/nested text/nav do not drag", "window": before})
@@ -1220,9 +1230,9 @@ async def run(args):
                     all(row["ready"] == (next(p for p in order_proofs if p["id"]==row["id"])["transportVerified"] is True)
                         for row in order_dots), "Order connected dots must match native transport verification.")
             validate_shell(await shell_geometry(page), shell_reference)
-            await page.get_by_test_id("nav-translate").click()
+            await navigate(page, "translate")
             validate_shell(await shell_geometry(page), shell_reference)
-            await page.get_by_test_id("nav-settings").click()
+            await navigate(page, "settings")
             await page.get_by_test_id("settings-pane-keys").click()
             receipt["checks"].append({"name": "Order status proof and footer stable across real routes", "orderDots": order_dots})
             receipt["phase"] = "fixed caption while content scrolls"

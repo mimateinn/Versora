@@ -7,6 +7,14 @@ from playwright.async_api import async_playwright
 from native_journey import comparable_path
 
 
+async def navigate(page, where):
+    """Open a page through the corner coin; the current page's own control is hidden."""
+    target = page.get_by_test_id(f"nav-{where}")
+    if await target.is_visible():
+        await target.click()
+    await page.wait_for_function("p => document.querySelector(`[data-testid=nav-${p}]`).getAttribute('aria-current') === 'page'", arg=where)
+
+
 async def run(args):
     directory=Path(args.evidence).resolve()
     if (directory/'native-font-journey.json').exists():
@@ -70,7 +78,7 @@ async def run(args):
                 if any(font['familyName']=='Libron' for font in used):
                     raise RuntimeError('Heading probe incorrectly inherits Libron.')
             await page.evaluate('() => document.querySelector("#native-font-probes").remove()')
-            await page.get_by_test_id('nav-settings').click()
+            await navigate(page, "settings")
             await page.get_by_test_id('settings-pane-appearance').click()
             await page.get_by_test_id('interface-language').select_option('en')
             await page.wait_for_function("() => document.documentElement.lang==='en'")
@@ -134,12 +142,12 @@ async def run(args):
                         if dimensions['scrollWidth']>dimensions['width'] or dimensions['issues']:
                             await page.screenshot(path=str(directory/f'failure-{theme}-{locale}-{pane}.png'))
                             raise RuntimeError(f'Native font layout failed: {record}')
-                    await page.get_by_test_id('nav-translate').click()
+                    await navigate(page, "translate")
                     dimensions=await page.evaluate(measure)
                     result['layouts'].append({'theme':theme,'locale':locale,'pane':'translate',**dimensions})
                     if dimensions['scrollWidth']>dimensions['width'] or dimensions['issues']:
                         raise RuntimeError(f'Translation controls overflow for {theme}/{locale}: {dimensions}')
-                    await page.get_by_test_id('nav-settings').click()
+                    await navigate(page, "settings")
                     if locale in ('en','zh-Hant','vi','th'):
                         await page.get_by_test_id('settings-pane-appearance').click()
                         await page.screenshot(path=str(directory/f'native-libron-{theme}-{locale}-client.png'))
@@ -148,7 +156,7 @@ async def run(args):
             await page.get_by_test_id('interface-language').select_option('en')
             await page.get_by_test_id("appearance-theme-standard").click()
             await page.get_by_test_id('appearance-tone-light').click()
-            await page.get_by_test_id('nav-translate').click()
+            await navigate(page, "translate")
             result['status']='PASS'
         except Exception as error:
             result.update(status='FAIL',error=str(error))
