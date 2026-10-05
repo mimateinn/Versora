@@ -5,7 +5,7 @@ This adapts the suite semantics in the other task's `UPDATE-CONTRACT.md`; it doe
 | Required fact | Native desktop contract |
 | --- | --- |
 | Framework | Tauri **2.11.5**, WebView2; static embedded frontend; Rust IO/providers; no Python or HTTP server |
-| App version | Cargo workspace **0.3.0-preview.1**, `env!("CARGO_PKG_VERSION")`; Tauri config must match |
+| App version | Cargo workspace **0.3.0**, `env!("CARGO_PKG_VERSION")`; Tauri config must match |
 | Windows distribution | Existing NSIS produces `Versora-<strict-semver>-win32-x64-setup.exe`; EXE `versora.exe` |
 | Executable installation | Per-user `%LOCALAPPDATA%/Programs/Versora`; application files only |
 | User data | `%LOCALAPPDATA%/Versora`; isolated `VERSORA_DATA_DIR` only for tests/explicit local profile |

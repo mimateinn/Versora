@@ -3,7 +3,7 @@ members = ["crates/versora-core", "crates/versora-engine", "src-tauri"]
 resolver = "2"
 
 [workspace.package]
-version = "0.3.0-preview.1"
+version = "0.3.0"
 edition = "2021"
 rust-version = "1.88"
 
