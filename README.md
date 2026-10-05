@@ -55,7 +55,7 @@ Each supported input gets a separate translated output, with relative folders re
 
 **Cancel** keeps files that have already been saved. **Retry** runs only failed or unfinished files. File concurrency is configurable from 1–16, with a separate limit for each translator.
 
-Settings include purposes, translator order and models, project glossaries, 12 interface languages, the seven Litora series palettes (Dusk, Ivory, Sepia, Grove, Onyx, Opal and Auto; press Opal again to switch its light and dark tones) and reduced motion.
+Settings include purposes, translator order and models, project glossaries, 12 interface languages, two Litora-style modes (Standard and Opal) with a light or dark tone; press the active mode again to switch tones and reduced motion.
 
 Litora-style 12 px scrollbars show a subdued thumb at rest, a stronger thumb over the scrolling area, and accent feedback (iridescent in Opal) when hovering over or dragging the thumb. Theme changes animate colors; page changes use short entry transitions. **Reduce motion** removes movement and theme transitions while retaining a brief page fade; the Windows reduced-motion preference disables the animations. The app version stays visible in the bottom footer while content scrolls.
 

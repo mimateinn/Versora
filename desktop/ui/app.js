@@ -64,28 +64,36 @@ async function confirmRemoval(name) {
   dialog.returnValue = 'cancel';
   return new Promise(resolve => {dialog.addEventListener('close',() => resolve(dialog.returnValue === 'confirm'),{once:true});dialog.showModal();});
 }
-// Litora series palettes, in Litora's order; Opal (hologram) flips light/dark when pressed again.
-const themes = ['dark','light','sepia','forest','black','hologram','system'];
-const systemDark = window.matchMedia('(prefers-color-scheme: dark)');
-const themeId = () => themes.includes(state.settings.theme) ? state.settings.theme : 'light';
-const hologramTone = () => state.settings.hologram_tone === 'dark' ? 'dark' : 'light';
-const resolvedTheme = () => themeId() === 'system' ? (systemDark.matches ? 'dark' : 'light') : themeId();
-function themeTitle(id) {
-  const name = t(`theme.name.${id}`);
-  return id === 'hologram' ? `${name} · ${t(hologramTone() === 'dark' ? 'theme.dark' : 'theme.light')} · ${t('theme.opal_hint')}` : name;
-}
-const themeChoice = (id,testid,lead='') => `<button type="button" class="theme-choice" data-action="set-theme" data-id="${id}" data-testid="${attr(testid)}" aria-pressed="false">${lead}${id === 'hologram' ? `<span class="holo-mode-mark" aria-hidden="true">${icon('sun')}${icon('moon')}</span>` : ''}<span class="theme-name"></span></button>`;
-function paintThemeChoices(group) {
+// Two modes share one light/dark tone: Standard (Ivory or Dusk) and Opal (hologram).
+// Pressing the active mode again flips the tone; switching modes keeps it.
+const modes = ['standard','hologram'];
+const themeMode = () => state.settings.theme === 'hologram' ? 'hologram' : 'standard';
+const themeTone = () => (themeMode() === 'hologram' ? state.settings.hologram_tone : state.settings.theme) === 'dark' ? 'dark' : 'light';
+const resolvedTheme = () => themeMode() === 'hologram' ? 'hologram' : themeTone();
+const themePatch = (mode,tone) => mode === 'hologram' ? {theme:'hologram',hologram_tone:tone} : {theme:tone};
+const modeTitle = id => `${t(`theme.name.${id}`)} · ${t(themeTone() === 'dark' ? 'theme.dark' : 'theme.light')} · ${t('theme.flip_hint')}`;
+const themeChoice = (id,testid,action,lead='') => `<button type="button" class="theme-choice" data-action="${action}" data-id="${id}" data-testid="${attr(testid)}" aria-pressed="false">${lead}${lead ? '' : `<span class="mode-mark" aria-hidden="true">${icon('sun')}${icon('moon')}</span>`}<span class="theme-name"></span></button>`;
+function paintThemeChoices(group,titled=false) {
   if (!group) return;
-  const current = themeId(),tone = hologramTone(),busy = controlsBusy();
-  group.dataset.value = current;
+  const mode = themeMode(),tone = themeTone(),busy = controlsBusy();
+  group.dataset.value = resolvedTheme();
   for (const node of group.querySelectorAll('.theme-choice')) {
-    const id = node.dataset.id,title = themeTitle(id);
-    node.setAttribute('aria-pressed',String(id === current));
-    if (id === 'hologram') node.dataset.hologramTone = tone;
-    node.title = title;node.setAttribute('aria-label',title);
+    const id = node.dataset.id;
+    node.setAttribute('aria-pressed',String(id === mode));
+    node.dataset.tone = tone;
+    if (titled) {const title = id === mode ? modeTitle(id) : t(`theme.name.${id}`);node.title = title;node.setAttribute('aria-label',title);}
     node.querySelector('.theme-name').textContent = t(`theme.name.${id}`);
     node.disabled = busy;
+  }
+}
+function paintToneChoices(group) {
+  if (!group) return;
+  const tone = themeTone(),busy = controlsBusy();
+  group.dataset.value = tone;
+  for (const node of group.querySelectorAll('button')) {
+    const active = node.dataset.id === tone;
+    node.classList.toggle('active',active);node.setAttribute('aria-pressed',String(active));node.disabled = busy;
+    node.querySelector('.tone-name').textContent = t(`theme.${node.dataset.id}`);
   }
 }
 // Segmented controls carry one sliding pill; its last position survives a re-render so it glides.
@@ -107,19 +115,15 @@ function placeIndicators() {
 const windowChrome = new WindowChrome(message => toast(message,'error'),async()=>{captureDrafts();await backend.unsaved(workSnapshot().unsaved);});
 function renderChrome() {
   windowChrome.render();
-  motion.theme(resolvedTheme(),state.settings.reduced_motion,hologramTone());
+  motion.theme(resolvedTheme(),state.settings.reduced_motion,themeTone());
   translateDocument();
   const strip = document.querySelector('.theme-switcher');
-  if (!strip.children.length) strip.innerHTML = themes.map(id => themeChoice(id,`theme-choice-${id}`)).join('');
+  if (!strip.children.length) strip.innerHTML = modes.map(id => themeChoice(id,`theme-choice-${id}`,'set-theme')).join('');
   strip.setAttribute('aria-label',t('card.theme'));
-  paintThemeChoices(strip);
-  // On narrow windows the strip scrolls; keep the active palette in view.
-  const pressed = strip.querySelector('[aria-pressed="true"]');
-  if (pressed && strip.scrollWidth > strip.clientWidth) {
-    const box = strip.getBoundingClientRect(),own = pressed.getBoundingClientRect();
-    if (own.left < box.left || own.right > box.right) strip.scrollLeft += own.left - box.left - (box.width - own.width) / 2;
-  }
+  paintThemeChoices(strip,true);
   paintThemeChoices(content.querySelector('#appearance-theme'));
+  paintToneChoices(content.querySelector('#appearance-tone'));
+  document.querySelector('#route-name').textContent = t(view.page === 'settings' ? 'nav.settings' : 'nav.translate');
   document.querySelectorAll('.nav-button').forEach(node => {node.classList.toggle('active',node.dataset.page === view.page);node.setAttribute('aria-current',node.dataset.page === view.page ? 'page' : 'false');});
   document.querySelector('#version').textContent = state.version ? `v${state.version.replace(/^v/,'')}` : '';
 }
@@ -270,7 +274,7 @@ function glossaryView() {
 }
 function appearanceView() {
   const s = state.settings,busy=controlsBusy();
-  return `<div class="card pane-card" data-testid="appearance-card"><div class="field"><span class="field-label" id="appearance-theme-label">${L('card.theme')}</span><div class="theme-row" role="group" id="appearance-theme" data-testid="appearance-theme" aria-labelledby="appearance-theme-label">${themes.map(id => themeChoice(id,`appearance-theme-${id}`,'<span class="theme-dot" aria-hidden="true"></span>')).join('')}</div><p class="note theme-hint" data-testid="appearance-theme-hint">${themeId() === 'hologram' ? L('theme.opal_hint') : ''}</p></div>${field('interface-language',L('sidebar.language'),select('interface-language',s.ui_lang_follow !== false ? 'system' : s.ui_lang || systemLanguage(),[{value:'system',label:t('lang.follow_system',{name:nativeLanguageNames[systemLanguage()]})},...languages.map(value => ({value,label:nativeLanguageNames[value]}))],{disabled:busy}))}<p class="note">${L('card.lang_count')} · ${L('desktop.os_language')}</p><label class="limits-line"><input type="checkbox" id="reduce-motion" data-testid="reduce-motion" data-setting="reduced_motion" ${s.reduced_motion ? 'checked' : ''} ${busy ? 'disabled' : ''}>${L('desktop.motion')}</label><hr class="divider"><p class="eyebrow">${L('desktop.data')}</p><p class="output-path" data-testid="data-directory" title="${attr(displayPath(state.dataDir))}">${escape(displayPath(state.dataDir))}</p><div class="actions spread">${button('import-legacy',t('desktop.import'),'import-legacy',{icon:'folder_open',disabled:busy})}${button('open-data',t('batch.open_folder'),'open-data',{icon:'folder',disabled:busy})}</div></div>`;
+  return `<div class="card pane-card" data-testid="appearance-card"><div class="field"><span class="field-label" id="appearance-theme-label">${L('card.theme')}</span><div class="theme-row" role="group" id="appearance-theme" data-testid="appearance-theme" aria-labelledby="appearance-theme-label">${modes.map(id => themeChoice(id,`appearance-theme-${id}`,'set-mode','<span class="theme-dot" aria-hidden="true"></span>')).join('')}</div></div><div class="field"><span class="field-label" id="appearance-tone-label">${L('theme.tone')}</span><div class="segments tone-choices" role="group" id="appearance-tone" data-testid="appearance-tone" aria-labelledby="appearance-tone-label">${['light','dark'].map(id => `<button type="button" data-action="set-tone" data-id="${id}" data-testid="appearance-tone-${id}" aria-pressed="false">${icon(id === 'light' ? 'sun' : 'moon')}<span class="tone-name"></span></button>`).join('')}</div></div>${field('interface-language',L('sidebar.language'),select('interface-language',s.ui_lang_follow !== false ? 'system' : s.ui_lang || systemLanguage(),[{value:'system',label:t('lang.follow_system',{name:nativeLanguageNames[systemLanguage()]})},...languages.map(value => ({value,label:nativeLanguageNames[value]}))],{disabled:busy}))}<p class="note">${L('card.lang_count')} · ${L('desktop.os_language')}</p><label class="limits-line"><input type="checkbox" id="reduce-motion" data-testid="reduce-motion" data-setting="reduced_motion" ${s.reduced_motion ? 'checked' : ''} ${busy ? 'disabled' : ''}>${L('desktop.motion')}</label><hr class="divider"><p class="eyebrow">${L('desktop.data')}</p><p class="output-path" data-testid="data-directory" title="${attr(displayPath(state.dataDir))}">${escape(displayPath(state.dataDir))}</p><div class="actions spread">${button('import-legacy',t('desktop.import'),'import-legacy',{icon:'folder_open',disabled:busy})}${button('open-data',t('batch.open_folder'),'open-data',{icon:'folder',disabled:busy})}</div></div>`;
 }
 function render() {
   rememberProviderInputs();
@@ -343,8 +347,7 @@ function patchProviderRows() {
 }
 function syncAppearanceControls() {
   const theme=document.querySelector('#appearance-theme'),reduced=document.querySelector('#reduce-motion');
-  paintThemeChoices(theme);
-  const hint=document.querySelector('.theme-hint');if(hint)hint.textContent=themeId()==='hologram'?t('theme.opal_hint'):'';
+  paintThemeChoices(theme);paintToneChoices(document.querySelector('#appearance-tone'));placeIndicators();
   if(reduced)reduced.checked=Boolean(state.settings.reduced_motion);
 }
 function captureDrafts() {
@@ -409,7 +412,11 @@ async function runAction(action,node) {
     case 'settings-pane':captureDrafts();view.pane=id;render();return;
     case 'manage-providers':captureDrafts();view.page='settings';view.pane='keys';render();return;
     case 'manage-purpose':captureDrafts();view.page='settings';view.pane='purposes';render();return;
-    case 'set-theme':if(activeJob())return;captureDrafts();await saveSettings(id === 'hologram' && themeId() === 'hologram' ? {hologram_tone:hologramTone() === 'dark' ? 'light' : 'dark'} : {theme:id});renderChrome();syncAppearanceControls();return;
+    case 'set-theme':case 'set-mode':case 'set-tone':{
+      if(activeJob())return;captureDrafts();
+      const flip=action==='set-theme'&&id===themeMode(),tone=action==='set-tone'?id:flip?(themeTone()==='dark'?'light':'dark'):themeTone();
+      await saveSettings(themePatch(action==='set-tone'?themeMode():id,tone));renderChrome();syncAppearanceControls();return;
+    }
     case 'source-type':if(activeJob())return;await backend.clearSelection();state.selected=[];state.job=null;view.preview=null;view.error=null;await saveSettings({source_type:id});render();return;
     case 'swap':await saveSettings({source_choice:state.settings.target_lang,target_lang:state.settings.source_choice});render();return;
     case 'pick':state.selected=await backend.pick(effectiveSourceType() === 'file' ? 'files' : effectiveSourceType());state.job=null;view.preview=null;view.error=null;render();return;
@@ -473,7 +480,7 @@ document.addEventListener('click',async event => {
   event.preventDefault();
   const action=node.dataset.action;
   if(view.busy && !immediateActions.has(action))return;
-  const ownsBusy=!immediateActions.has(action),preserveContent=action==='set-theme';
+  const ownsBusy=!immediateActions.has(action),preserveContent=['set-theme','set-mode','set-tone'].includes(action);
   if(ownsBusy)beginOperation();
   try {await runAction(action,node);} catch(error) {view.error=String(error?.message || error);toast(view.error,'error');if(view.page==='translate'&&!preserveContent)render();}
   finally {if(ownsBusy)finishOperation(preserveContent);}
@@ -523,13 +530,13 @@ document.addEventListener('input',event=>{
   if(event.target.id.startsWith('order-model-'))captureOrder();
   reportUnsaved();
 });
-systemDark.addEventListener('change',() => {if (themeId() === 'system') renderChrome();});
 window.addEventListener('resize',placeIndicators,{passive:true});
 // Native drag/drop paths are validated and registered by Rust before this event.
 window.addEventListener('beforeunload',() => {clearTimeout(view.pollTimer);clearTimeout(view.toastTimer);updates.dispose();motion.dispose();for(const unlisten of view.unlisten)unlisten();});
 async function initialize() {
   const words=['VERSORA','TRANSLATE','翻譯','TRADUIRE','ÜBERSETZEN','翻訳','TRADUCIR','번역'];
   document.querySelector('#watermark').innerHTML=['a','b'].map((layer,n)=>`<div class="watermark-layer ${layer}">${Array.from({length:30},(_,index)=>`<div>${escape((words.slice((index+n)%words.length).concat(words.slice(0,(index+n)%words.length)).join(' · ')+' · ').repeat(12))}</div>`).join('')}</div>`).join('');
+  document.querySelectorAll('.nav-button').forEach(node=>node.insertAdjacentHTML('afterbegin',icon(node.dataset.page==='settings'?'settings':'swap')));
   content.innerHTML=`<div class="loading" data-testid="loading">${icon('spinner')}Versora</div>`;
   try {
     view.unlisten.push(await windowChrome.initialize());

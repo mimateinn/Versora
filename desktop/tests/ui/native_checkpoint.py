@@ -28,7 +28,8 @@ async def run(args):
         await page.get_by_test_id('settings-pane-appearance').click()
         await page.get_by_test_id('interface-language').select_option('en')
         await page.wait_for_function("() => document.documentElement.lang==='en'")
-        await page.get_by_test_id(f'appearance-theme-{args.theme}').click()
+        await page.get_by_test_id("appearance-theme-standard").click()
+        await page.get_by_test_id(f'appearance-tone-{args.theme}').click()
         await page.wait_for_function("theme => document.documentElement.dataset.theme===theme",arg=args.theme)
         await page.get_by_test_id('nav-translate').click()
         if args.stage=='demo':

@@ -126,11 +126,11 @@ fn preferences_roundtrip_merge_aliases_and_argv_sanitization() {
 }
 
 #[test]
-fn preferences_accept_litora_palettes_and_opal_tone() {
+fn preferences_accept_standard_and_opal_modes_with_tone() {
     let temp = TestDirectory::new();
     let store = temp.store();
     assert_eq!(store.preferences()["hologram_tone"], "light");
-    for theme in ["sepia", "forest", "black", "system", "hologram"] {
+    for theme in ["dark", "light", "hologram"] {
         assert_eq!(
             store.save_preferences(json!({"theme":theme})).unwrap()["theme"],
             theme
@@ -141,7 +141,7 @@ fn preferences_accept_litora_palettes_and_opal_tone() {
         .unwrap();
     assert_eq!(saved["hologram_tone"], "dark");
     let saved = store
-        .save_preferences(json!({"theme":"neon","hologram_tone":"dim"}))
+        .save_preferences(json!({"theme":"sepia","hologram_tone":"dim"}))
         .unwrap();
     assert_eq!(saved["theme"], "hologram");
     assert_eq!(saved["hologram_tone"], "dark");

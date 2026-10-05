@@ -1,9 +1,9 @@
 @import url("fonts.css");
 /* Versora PR4 theme.py tokens with bundled Libron. No remote font requests.
-   Palettes follow Litora (the series' design source): Dusk, Ivory, Sepia, Grove,
-   Onyx, Opal and Auto, with Litora's page and chooser colors. Versora keeps its own
-   ink-blue accent inside them, as Litora keeps its orange. Auto resolves to
-   Ivory or Dusk in JS; data-theme always names the painted palette. */
+   Modes follow Litora (the series' design source): Standard paints Litora's Ivory
+   (light) or Dusk (dark) palette, and Opal paints its foil palette in either tone.
+   Versora keeps its own ink-blue accent inside them, as Litora keeps its orange.
+   data-theme always names the painted palette. */
 :root {
   --bg:#FAF8F5; --card:#FFFFFF; --card-solid:#FFFFFF; --sunken:#F5F0E6; --raised:#FEFDFB;
   --text:#1A1A1A; --muted:#6B6B6B; --faint:#6E6A63;
@@ -52,49 +52,6 @@
   --sb-thumb:rgba(220,228,242,.08); --sb-thumb-area:rgba(220,228,242,.24);
   --sb-hover:linear-gradient(180deg,#A3C0E6,#7FA6D8); --sb-hover-x:linear-gradient(90deg,#A3C0E6,#7FA6D8); --sb-active:linear-gradient(180deg,#7FA6D8,#4677B5);
   --lamp:rgba(127,166,216,.07);
-  color-scheme:dark;
-}
-:root[data-theme="sepia"] {
-  --bg:#F4ECD8; --card:#FAF4E4; --card-solid:#FAF4E4; --sunken:#EBDFC4; --raised:#FAF4E4;
-  --text:#2E2416; --muted:#6B5A40; --faint:#7A6A50;
-  --line:rgba(67,52,34,.13); --line-strong:rgba(67,52,34,.24);
-  --accent-soft:rgba(70,119,181,.10);
-  --ok:#256A47; --err:#A53B24; --wait:#CDBB95; --ok-soft:rgba(37,106,71,.09); --err-soft:rgba(165,59,36,.08);
-  --wm-ink:rgba(67,52,34,.05);
-  --toast-bg:#33281A; --toast-ink:#F4ECD8; --seg-on:#FAF4E4;
-  --art-fill:rgba(67,52,34,.05); --art-line:rgba(46,36,22,.42);
-  --sb-thumb:rgba(67,52,34,.14); --sb-thumb-area:rgba(67,52,34,.32);
-}
-:root[data-theme="forest"] {
-  --bg:#0F1E18; --card:#16281F; --card-solid:#16281F; --sunken:#1E3529; --raised:#1A2E24;
-  --text:#E6F2EA; --muted:#8BAE9A; --faint:#7C9F8B;
-  --line:rgba(207,227,214,.09); --line-strong:rgba(207,227,214,.17);
-  --accent:#7FA6D8; --accent-strong:#A3C0E6; --accent-soft:rgba(127,166,216,.13); --accent-ink:#0F1E18; --accent-rgb:127,166,216;
-  --ok:#5CB287; --err:#E97958; --wait:#356047; --ok-soft:rgba(92,178,135,.12); --err-soft:rgba(233,121,88,.11);
-  --wm-ink:rgba(207,227,214,.035); --shadow:0 8px 22px rgba(0,0,0,.30),0 2px 6px rgba(0,0,0,.22);
-  --shadow-sm:0 2px 6px rgba(0,0,0,.22),0 1px 2px rgba(0,0,0,.16);
-  --toast-bg:#1E3529; --toast-ink:#E6F2EA; --seg-on:#274536;
-  --btn:#4677B5; --btn-hover:#3B69A4; --btn-ink:#FFFFFF;
-  --art-fill:rgba(207,227,214,.04); --art-line:rgba(207,227,214,.45);
-  --sb-thumb:rgba(207,227,214,.08); --sb-thumb-area:rgba(207,227,214,.24);
-  --sb-hover:linear-gradient(180deg,#A3C0E6,#7FA6D8); --sb-hover-x:linear-gradient(90deg,#A3C0E6,#7FA6D8); --sb-active:linear-gradient(180deg,#7FA6D8,#4677B5);
-  --lamp:rgba(139,220,175,.06);
-  color-scheme:dark;
-}
-:root[data-theme="black"] {
-  --bg:#000000; --card:#0B0B0B; --card-solid:#0B0B0B; --sunken:#151515; --raised:#101010;
-  --text:#F0F0F0; --muted:#8E8E8E; --faint:#8A8A8A;
-  --line:rgba(255,255,255,.08); --line-strong:rgba(255,255,255,.16);
-  --accent:#7FA6D8; --accent-strong:#A3C0E6; --accent-soft:rgba(127,166,216,.12); --accent-ink:#000000; --accent-rgb:127,166,216;
-  --ok:#5CB287; --err:#E07A8C; --wait:#3C3C3C; --ok-soft:rgba(92,178,135,.11); --err-soft:rgba(224,122,140,.10);
-  --wm-ink:rgba(255,255,255,.03); --shadow:0 8px 22px rgba(0,0,0,.6),0 2px 6px rgba(0,0,0,.4);
-  --shadow-sm:0 0 0 1px rgba(255,255,255,.03),0 2px 6px rgba(0,0,0,.5);
-  --toast-bg:#1C1C1C; --toast-ink:#F0F0F0; --seg-on:#262626;
-  --btn:#4677B5; --btn-hover:#3B69A4; --btn-ink:#FFFFFF;
-  --art-fill:rgba(255,255,255,.04); --art-line:rgba(255,255,255,.42);
-  --sb-thumb:rgba(255,255,255,.08); --sb-thumb-area:rgba(255,255,255,.22);
-  --sb-hover:linear-gradient(180deg,#A3C0E6,#7FA6D8); --sb-hover-x:linear-gradient(90deg,#A3C0E6,#7FA6D8); --sb-active:linear-gradient(180deg,#7FA6D8,#4677B5);
-  --lamp:rgba(255,255,255,.04);
   color-scheme:dark;
 }
 /* Opal (幻彩): opaque pastel foil, not emitted light. Glass surfaces over a slow

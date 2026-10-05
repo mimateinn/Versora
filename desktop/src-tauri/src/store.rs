@@ -513,13 +513,7 @@ fn merge_preferences(mut current: Value, patch: Value) -> Result<Value, String> 
         .as_object_mut()
         .ok_or("Preferences must be a JSON object")?;
     for (key, alias, allowed) in [
-        (
-            "theme",
-            "theme",
-            vec![
-                "light", "dark", "sepia", "forest", "black", "hologram", "system",
-            ],
-        ),
+        ("theme", "theme", vec!["light", "dark", "hologram"]),
         ("hologram_tone", "hologramTone", vec!["light", "dark"]),
         ("ui_lang", "uiLang", LANGS.to_vec()),
         (

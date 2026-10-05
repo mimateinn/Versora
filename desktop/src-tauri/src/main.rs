@@ -51,8 +51,8 @@ fn register_paths(paths:Vec<PathBuf>,kind:&str)->Result<Vec<SelectedInput>,Strin
 #[tauri::command] fn choose_output_dir(state:State<DesktopState>)->Result<Option<String>,String>{
     if let Some(path)=rfd::FileDialog::new().pick_folder(){let path=path.canonicalize().map_err(|e|e.to_string())?;state.output_dirs.lock().unwrap().push(path.clone());Ok(Some(path.to_string_lossy().into()))}else{Ok(None)}
 }
-/// Native frame tone for a Litora palette; "system" hands the choice back to Windows.
-fn native_theme(preferences:&Value)->Option<tauri::Theme>{match preferences["theme"].as_str(){Some("system")=>None,Some("dark"|"forest"|"black")=>Some(tauri::Theme::Dark),Some("hologram") if preferences["hologram_tone"]=="dark"=>Some(tauri::Theme::Dark),_=>Some(tauri::Theme::Light)}}
+/// Native frame tone: Standard's dark palette and Opal's dark tone use the dark frame.
+fn native_theme(preferences:&Value)->Option<tauri::Theme>{let dark=preferences["theme"]=="dark"||(preferences["theme"]=="hologram"&&preferences["hologram_tone"]=="dark");Some(if dark{tauri::Theme::Dark}else{tauri::Theme::Light})}
 #[tauri::command] fn save_settings(state:State<DesktopState>,app:tauri::AppHandle,settings:Value)->Result<Value,String>{let _pending=Persistence::new(&state.pending);let result=state.store.save_preferences(settings)?;
     if let Some(window)=app.get_webview_window("main"){let _=window.set_theme(native_theme(&result));}Ok(result)}
 #[tauri::command] fn save_provider(state:State<DesktopState>,provider:Value)->Result<Value,String>{let _pending=Persistence::new(&state.pending);let id=provider["id"].as_str().unwrap_or("").to_owned();let result=state.store.save_provider(provider)?;state.statuses.lock().unwrap().remove(&id);state.proofs.lock().unwrap().remove(&id);Ok(result)}

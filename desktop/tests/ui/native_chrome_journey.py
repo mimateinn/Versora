@@ -587,6 +587,7 @@ async def shell_geometry(page):
       const style=getComputedStyle(shell), sb=getComputedStyle(shell,'::-webkit-scrollbar');
       const thumb=getComputedStyle(shell,'::-webkit-scrollbar-thumb');
       return {viewport:{width:innerWidth,height:innerHeight},shell:rect(shell),content:rect(inner),footer:rect(footer),
+        rail:rect(document.querySelector('[data-testid=side-nav]')),
         footerOutsideScroller:!shell.contains(footer),gutter:style.scrollbarGutter,
         shellClientWidth:shell.clientWidth,scrollTop:shell.scrollTop,
         contentMaxWidth:getComputedStyle(inner).maxWidth,
@@ -601,13 +602,17 @@ def validate_shell(record, reference=None):
             abs(footer["x"]) <= .5 and abs(footer["width"]-size["width"]) <= .5 and
             abs(footer["y"]+footer["height"]-size["height"]) <= .5,
             "Footer must reserve 36px at the client bottom outside the scroller.")
-    require(record["gutter"] == "stable both-edges" and abs(shell["x"]) <= .5 and
-            abs(shell["width"]-size["width"]) <= .5 and abs(shell["y"]-48) <= .5 and
+    rail = record["rail"]
+    require(abs(rail["x"]) <= .5 and abs(rail["width"]-72) <= .5 and abs(rail["y"]-48) <= .5 and
+            abs(rail["y"]+rail["height"]-footer["y"]) <= .5,
+            "Main navigation rail must fill the 72px left column between header and footer.")
+    require(record["gutter"] == "stable both-edges" and abs(shell["x"]-72) <= .5 and
+            abs(shell["width"]-(size["width"]-72)) <= .5 and abs(shell["y"]-48) <= .5 and
             abs(shell["y"]+shell["height"]-footer["y"]) <= .5 and
             record["contentMaxWidth"] == "912px" and
-            abs(content["x"]+content["width"]/2-size["width"]/2) <= 1 and
-            abs(content["width"]-min(912, size["width"]-24)) <= 1,
-            "Full-window scroller/gutters or original centered 912px content width differs.")
+            abs(content["x"]+content["width"]/2-(shell["x"]+shell["width"]/2)) <= 1 and
+            abs(content["width"]-min(912, shell["width"]-24)) <= 1,
+            "Scroller beside the rail, its gutters, or the centered 912px content width differs.")
     bar = record["scrollbar"]
     require(bar == {"width": "12px", "height": "12px", "thumbBorder": "4px",
                     "thumbRadius": "999px", "thumbClip": "padding-box", "minHeight": "36px"},
@@ -764,7 +769,8 @@ async def inspect_motion(page, native):
     await page.get_by_test_id("settings-pane-appearance").click()
     theme = await page.get_by_test_id("appearance-theme").get_attribute("data-value")
     native.guard()
-    await page.get_by_test_id(f'appearance-theme-{"light" if theme == "dark" else "dark"}').click()
+    await page.get_by_test_id("appearance-theme-standard").click()
+    await page.get_by_test_id(f'appearance-tone-{"light" if theme == "dark" else "dark"}').click()
     await page.wait_for_function("theme => document.documentElement.dataset.theme!==theme", arg=theme)
     theme_motion = await page.evaluate("""() => {
       const s=getComputedStyle(document.body);
@@ -805,7 +811,8 @@ async def inspect_motion(page, native):
         await page.mouse.up()
     await page.get_by_test_id("nav-settings").click()
     await page.get_by_test_id("settings-pane-appearance").click()
-    await page.get_by_test_id(f"appearance-theme-{theme}").click()
+    await page.get_by_test_id("appearance-theme-standard").click()
+    await page.get_by_test_id(f"appearance-tone-{theme}").click()
     await page.wait_for_function("theme => document.documentElement.dataset.theme===theme", arg=theme)
     await wait_idle(page)
     reduced_theme = await page.evaluate("""() => ({active:document.documentElement.dataset.themeTransition||null,
@@ -825,7 +832,7 @@ async def inspect_motion(page, native):
 async def wait_idle(page):
     # Theme destination can be painted before finishOperation restores controls.
     await page.wait_for_function("""() => document.querySelector('[data-testid=main-content]').getAttribute('aria-busy')==='false' &&
-      !document.querySelector('[data-testid=theme-choice-dark]').disabled""")
+      !document.querySelector('[data-testid=theme-choice-standard]').disabled""")
 
 
 async def inspect_retained_theme_and_rail(page, native):
@@ -849,7 +856,7 @@ async def inspect_retained_theme_and_rail(page, native):
         native.guard()
         # DOM click invokes the real delegated product action and Rust save. It
         # preserves the existing input focus so DOM replacement is observable.
-        await page.evaluate("theme => document.querySelector(`[data-testid=theme-choice-${theme}]`).click()", target)
+        await page.evaluate("() => document.querySelector('[data-testid=theme-choice-standard]').click()")
         await page.wait_for_function("theme=>document.documentElement.dataset.theme===theme", arg=target)
         await wait_idle(page)
         retained = await handle.evaluate("""n=>({same:n.isConnected&&n===document.querySelector('[data-testid=purpose-instructions]'),
@@ -862,10 +869,10 @@ async def inspect_retained_theme_and_rail(page, native):
         cycles.append({"theme": target, "focusedDraftNodeRetained": True, "selection": [2, 8]})
     native.guard()
     target = "light" if theme == "dark" else "dark"
-    await page.evaluate("""theme => {
-      document.querySelector(`[data-testid=theme-choice-${theme}]`).click();
+    await page.evaluate("""() => {
+      document.querySelector('[data-testid=theme-choice-standard]').click();
       document.querySelector('[data-testid=settings-pane-glossary]').click();
-    }""", target)
+    }""")
     await page.wait_for_function("theme=>document.documentElement.dataset.theme===theme", arg=target)
     await wait_idle(page)
     require(await page.get_by_test_id("new-project").is_enabled() and
@@ -893,7 +900,8 @@ async def inspect_retained_theme_and_rail(page, native):
             "Real theme/pane race lost the prior isolated purpose draft.")
     await page.get_by_test_id("purpose-instructions").fill(original)
     await page.get_by_test_id("settings-pane-appearance").click()
-    await page.get_by_test_id(f"appearance-theme-{theme}").click()
+    await page.get_by_test_id("appearance-theme-standard").click()
+    await page.get_by_test_id(f"appearance-tone-{theme}").click()
     await wait_idle(page)
     await page.wait_for_function("() => !document.documentElement.dataset.themeTransition")
     return {"cycles": cycles, "sameTaskThemePaneRace": "PASS", "railNodesRetained": True, "markers": markers,
@@ -1135,7 +1143,8 @@ async def run(args):
             validate_shell(shell_reference)
             for theme in ("light", "dark"):
                 native.guard()
-                await page.get_by_test_id(f"appearance-theme-{theme}").click()
+                await page.get_by_test_id("appearance-theme-standard").click()
+                await page.get_by_test_id(f"appearance-tone-{theme}").click()
                 await page.wait_for_function("theme => document.documentElement.dataset.theme === theme", arg=theme)
                 await wait_idle(page)
                 await settled(page)
