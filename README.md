@@ -71,6 +71,8 @@ The default Latin interface font is locally bundled [Libron v0.25](https://githu
 
 Text-based files must use UTF-8. Jobs are bounded to 400 files and 80 MB of input/expanded ZIP content. Unsupported, malformed or oversized files report an error or skip instead of claiming completion.
 
+Structured-text extraction is conservative: identifier-like values, URLs, filenames and numbers may stay unchanged. Review the selected text and output, especially single-word labels and game strings. A file containing no selected text can be saved byte-for-byte without contacting a translator.
+
 CSV/TSV writeback retains UTF-8 BOMs, record endings and untouched cells, with an 80 MB output cap. YAML supports a bounded subset of YAML 1.2; changed output normalizes comments, quoting and anchor presentation. Plain `Null`/`NULL`, signed radix integers and integers outside the supported i64 range are rejected rather than silently changing their types. Use `null`/`~`, supported i64 integer forms, or quoted/`!!str` strings as appropriate. Custom tags, merge keys and explicit non-string tags on quoted/block scalars are rejected. Mapping keys and numeric/boolean/null values are validated after serialization.
 
 PDF support is text extraction and A4 text reflow. Changed PDFs embed the complete Noto Sans CJK TC font (about 16.4 MB per PDF). It does not perform OCR or preserve source graphics, typography, annotations, forms or exact layout. Encrypted PDFs must be decrypted first. Missing glyphs report an error; arbitrary script shaping is not certified. Input/text/output guards do not certify a parser memory ceiling for compressed PDF objects. Office and game-text adapters also do not promise universal format fidelity.
