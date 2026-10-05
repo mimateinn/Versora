@@ -26,6 +26,8 @@ serde_json.workspace = true
 tokio.workspace = true
 reqwest.workspace = true
 semver = "=1.0.28"
+minisign-verify = "=0.2.5"
+base64 = "=0.22.1"
 zip.workspace = true
 
 [dev-dependencies]

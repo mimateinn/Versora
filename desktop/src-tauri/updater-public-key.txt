@@ -1,0 +1,8 @@
+# Versora updater trust anchor (Tauri signer / minisign public key).
+#
+# Paste the single line from the .pub file written by
+#   npx @tauri-apps/cli signer generate -w %USERPROFILE%\.versora\updater.key
+# below these comments and commit it. Lines starting with # are ignored.
+#
+# While no key line is present, this build checks for updates and offers the official
+# release page, but never downloads or runs an update package by itself.
