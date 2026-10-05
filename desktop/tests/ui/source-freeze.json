@@ -241,13 +241,13 @@
   },
   {
     "path": "desktop\\ui\\updates.css",
-    "sha256": "DA40EBEA52312BFBCE5F6C32C60452BEBB82F628E9688779EE33D2ACF485D036",
-    "bytes": 2203
+    "sha256": "6CFDB73FF3FDEE6AF85BEA60E2FAA483B970CB57AD4D1996BC3FA2718466A41F",
+    "bytes": 2367
   },
   {
     "path": "desktop\\ui\\updates.js",
-    "sha256": "153CB6364C4CCB2FEB4B10615CACC5D849C1DE6E3CA0C2999C3499A9AD8B2928",
-    "bytes": 13237
+    "sha256": "191E1567BD75EF823AF1C18B8DA1BD3607F9FA8F6D68FE6A914C08F8E99310CB",
+    "bytes": 13422
   },
   {
     "path": "desktop\\ui\\window-chrome.js",

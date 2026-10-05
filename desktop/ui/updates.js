@@ -11,7 +11,7 @@ const when=value=>{const date=new Date(Number(value));return Number.isFinite(dat
 const percent=s=>Number(s.totalBytes)>0?Math.min(100,Math.floor(Number(s.bytesReceived)*100/Number(s.totalBytes))):0;
 
 export class UpdatesPane {
-  constructor(onChange,onOpen=()=>{}) {this.onChange=onChange;this.onOpen=onOpen;this.nativeState=null;this.preferences=null;this.error=null;this.watching=false;this.pollTimer=null;this.polling=false;this.unlisten=null;this.pending=new Set();this.pillDismissed=false;this.installing=false;this.announced=false;this.toastTimer=null;}
+  constructor(onChange,onOpen=()=>{}) {this.onChange=onChange;this.onOpen=onOpen;this.nativeState=null;this.preferences=null;this.error=null;this.watching=false;this.pollTimer=null;this.polling=false;this.unlisten=null;this.pending=new Set();this.pillDismissed=null;this.installing=false;this.announced=false;this.toastTimer=null;}
   async initialize() {
     const [nativeState,preferences]=await Promise.all([backend.updates.state(),backend.updates.preferences()]);
     this.nativeState=nativeState;this.preferences=preferences;this.error=null;
@@ -52,12 +52,12 @@ export class UpdatesPane {
     const heading={available:label('available_v',{v}),downloading:label('downloading_p',{p:percent(s)}),ready:label('ready_v',{v}),failed:label('failed_e',{e:s.error||this.error||''})}[status]||label(status);
     const checked=when(s.lastCheckAt);
     const error=status!=='failed'&&(s.error||this.error);
-    const showDownload=capable&&!p.autoDownload&&status==='available',showInstall=capable&&status==='ready';
+    const showDownload=capable&&!p.autoDownload&&status==='available',showInstall=capable&&s.packageDownloaded===true;
     return `<div class="card pane-card" data-testid="updates-card"><div class="update-state" data-testid="updates-state" data-status="${escape(status)}" role="status" aria-live="polite">${icon(glyph)}<div><h2>${heading}</h2><p class="hint" data-testid="updates-current">${label('current')}: ${escape(s.currentVersion||'—')} · ${label('last_checked')}: <span data-testid="updates-last-checked">${escape(checked||t('updates.never'))}</span></p></div></div>${status==='downloading'?`<progress data-testid="updates-progress" max="${Math.max(1,Number(s.totalBytes)||1)}" value="${Math.max(0,Number(s.bytesReceived)||0)}" aria-label="${label('downloading_p',{p:percent(s)})}"></progress><p class="hint" data-testid="updates-bytes">${bytes(s.bytesReceived)} / ${s.totalBytes?bytes(s.totalBytes):'—'}</p>`:''}${showInstall&&s.installOnQuit?`<p class="hint" data-testid="updates-install-on-quit">${label('install_on_quit')}</p>`:''}${error?`<p class="notice error" role="alert" data-testid="updates-error">${escape(error)}</p>`:''}${!installed?`<div class="notice" data-testid="updates-capability-reason">${icon('alert')}<p>${label('not_installed')}</p></div>`:!capable?`<div class="notice" data-testid="updates-capability-reason">${icon('alert')}<p>${label('no_trust')}</p></div>`:''}${this.notesView(s)}<div class="actions spread"><div class="actions">${btn('check','check',busy||!installed,'retry')}${active?btn('cancel','cancel',this.pending.has('cancel'),'stop'):''}</div><div class="actions">${!capable||status==='failed'?btn('official','official',workBusy,'folder_open'):''}${btn('download','download',busy||!showDownload,'download',false,!showDownload)}${btn('install','install',busy||!showInstall||this.installing,'retry',true,!showInstall)}</div></div><hr class="divider"><label class="limits-line"><input type="checkbox" data-testid="updates-autoDownload" data-update-preference="autoDownload" ${p.autoDownload?'checked':''} ${busy||!installed?'disabled':''}>${label('auto_download')}</label><div class="inline-fields"><div class="field"><label for="updates-channel">${label('channel')}</label>${select('channel',p.channel,[['stable','stable'],['preview','preview']],busy||!installed)}</div><div class="field"><label for="updates-policy">${label('policy')}</label>${select('policy',p.policy,[['periodic','periodic'],['startup','startup'],['manual','manual']],busy||!installed)}</div></div>${p.policy==='periodic'?`<div class="field"><label for="updates-intervalHours">${label('interval')} · ${label('hours')}</label><input type="number" id="updates-intervalHours" data-testid="updates-intervalHours" data-update-preference="intervalHours" min="1" max="168" step="1" value="${escape(p.intervalHours)}" ${busy||!installed?'disabled':''}></div>`:''}</div>`;
   }
-  // B3/B5: persistent accent pill beside the settings entry once a verified package is ready.
+  // B3/B5: persistent accent pill beside the settings entry once a verified package is ready. "Later" hides it for that version only; Settings > Updates hides it with CSS (its own install button is there).
   renderPill() {
-    const s=this.nativeState,show=Boolean(s&&s.status==='ready'&&s.installCapabilities===true&&s.candidateVersion&&!this.pillDismissed);
+    const s=this.nativeState,show=Boolean(s&&s.packageDownloaded===true&&s.installCapabilities===true&&s.candidateVersion&&this.pillDismissed!==s.candidateVersion);
     let pill=document.querySelector('#update-pill');
     if(!show){pill?.remove();return;}
     if(!pill){pill=document.createElement('div');pill.id='update-pill';pill.className='update-pill';pill.dataset.testid='update-pill';pill.setAttribute('role','group');}
@@ -101,7 +101,7 @@ export class UpdatesPane {
     this.preferences=result.preferences||result;await this.refresh();
   }
   async action(name,workSnapshot) {
-    if(name==='dismiss'){this.pillDismissed=true;this.renderPill();return;}
+    if(name==='dismiss'){this.pillDismissed=this.nativeState?.candidateVersion||null;this.renderPill();return;}
     if(name==='toast-close'){this.hideToast();return;}
     if(name==='whatsnew'){this.hideToast();this.onOpen();return;}
     const calls={check:()=>backend.updates.check(),download:()=>backend.updates.download(),cancel:()=>backend.updates.cancel(),later:()=>backend.updates.later(),install:()=>this.install(workSnapshot),official:()=>backend.updates.officialRelease()};
