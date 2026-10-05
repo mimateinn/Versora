@@ -76,7 +76,7 @@ and official WOFF2 signatures using the standard library. `native_font_journey.p
 attaches to the actual native WebView2, loads all four bundled Libron faces and
 records rendered platform-font evidence. It checks twelve locales across all six
 Settings panes and translation controls in light/dark at an actually resized
-800px window, including visible button text bounds. Offscreen glyph probes are
+800 logical-pixel client window, including visible button text bounds. Offscreen glyph probes are
 removed before product screenshots. No viewport/DPI emulation is used. Record
 actual Windows DPI separately; unavailable monitor scales remain NOT_RUN.
 Capture/resize helpers accept the exact approved production install outside the
@@ -110,6 +110,10 @@ action positions are reserved so status updates do not move buttons.
 
 The UI uses the traced local Litora 12px capsule scrollbar, 280ms color-only theme
 transition, 180ms control release/80ms press, 220ms route entry and 200ms card
-fade. The explicit Reduce Motion preference keeps a 160ms route-only fade;
+fade. Theme changes retain the current page, draft controls and focus. The existing
+HTML confirmation uses a 200ms backdrop and 380ms sheet entrance; native Windows
+close confirmations retain their own platform behavior. Settings selection markers
+interpolate for 180ms on retained rail controls. The reserved footer wraps naturally
+without entering the content scroller. The explicit Reduce Motion preference keeps a 160ms route-only fade;
 the OS reduced-motion request disables it. Runtime evidence and screenshots
 belong in the ignored evidence directory, not the source package.
