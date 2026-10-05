@@ -2,8 +2,12 @@ import {backend} from './backend.js';
 import {icon} from './icons.js';
 import {languages,nativeLanguageNames,setLanguage,systemLanguage,t,translateDocument} from './i18n.js';
 import {UpdatesPane} from './updates.js';
+import {WindowChrome} from './window-chrome.js';
+import {UIMotion} from './motion.js';
 
 const content = document.querySelector('#content');
+const motion = new UIMotion();
+const initialCliProbes = new Set();
 const state = {settings:{},providers:[],purposes:[],projects:[],glossary:[],selected:[],job:null,version:'',dataDir:'',testMode:false};
 const view = {page:'translate',pane:'purposes',editingProvider:null,outputDir:null,busy:false,error:null,glossaryDraft:null,orderDraft:null,purposeDraft:null,purposeFrom:'general',pollTimer:null,polling:false,unlisten:[],toastTimer:null,preview:null};
 const updates = new UpdatesPane(()=>{if(view.page==='settings'&&view.pane==='updates')render();});
@@ -60,9 +64,10 @@ async function confirmRemoval(name) {
   dialog.returnValue = 'cancel';
   return new Promise(resolve => {dialog.addEventListener('close',() => resolve(dialog.returnValue === 'confirm'),{once:true});dialog.showModal();});
 }
+const windowChrome = new WindowChrome(message => toast(message,'error'),async()=>{captureDrafts();await backend.unsaved(workSnapshot().unsaved);});
 function renderChrome() {
-  document.documentElement.dataset.theme = state.settings.theme === 'dark' ? 'dark' : 'light';
-  document.documentElement.dataset.reducedMotion = String(Boolean(state.settings.reduced_motion));
+  windowChrome.render();
+  motion.theme(state.settings.theme === 'dark' ? 'dark' : 'light',state.settings.reduced_motion);
   translateDocument();
   document.querySelector('.theme-toggle').innerHTML = icon(state.settings.theme === 'dark' ? 'sun' : 'moon');
   document.querySelector('.theme-toggle').disabled = controlsBusy();
@@ -161,10 +166,36 @@ function purposesView() {
   return `<form class="card pane-card" data-form="purpose" data-testid="purpose-form"><p class="note">${L('purpose.hint')}</p><div class="picker-line">${field('purpose-from',L('purpose.start_from'),select('purpose-from',view.purposeFrom,purposeOptions(false),{disabled:controlsBusy()}))}${button('copy-purpose',t('purpose.copy'),'copy-purpose',{disabled:controlsBusy()})}</div>${field('purpose-instructions',L('purpose.instructions'),`<textarea id="purpose-instructions" name="purpose-instructions" data-testid="purpose-instructions" maxlength="131072" ${controlsBusy() ? 'disabled' : ''}>${escape(view.purposeDraft ?? purpose.instructions)}</textarea>`)}<div class="actions spread"><span class="hint" data-testid="purpose-version">${L('purpose.version',{v:purpose.version || 0})}</span><button type="submit" class="primary" data-testid="save-purpose" ${controlsBusy() ? 'disabled' : ''}>${L('purpose.save')}</button></div></form>`;
 }
 function providerStatus(provider) {
-  if (provider.configured && ['ready','configured','connected'].includes(provider.status)) return t('st.ready');
-  if (provider.configured) return provider.detail || t('st.unchecked');
-  if (['signed_out','signedOut','login_required'].includes(provider.status)) return t('st.signed_out');
-  return provider.detail || t('st.setup');
+  if(provider.id==='demo')return t('desktop.demo');
+  if(provider.transportVerified===true)return t('desktop.provider_connected');
+  const local=provider.kind==='cli'||String(provider.id).endsWith('_cli');
+  if(local){
+    if(provider.probePerformed!==true)return t('desktop.provider_unprobed');
+    if(provider.nativeDetected===false)return t('desktop.provider_missing');
+    if(provider.signedIn===true)return t('desktop.provider_signed_in');
+    if(provider.signedIn===false||['signed_out','signedOut','login_required'].includes(provider.status))return t('st.signed_out');
+    return t('st.unchecked');
+  }
+  return provider.configured?t('desktop.provider_configured'):t('st.setup');
+}
+function sanitizedProviderDetail(value) {
+  return String(value??'').slice(0,2048)
+    .replace(/\b(?:sk-|xai-)[A-Za-z0-9_-]{8,}/g,'[redacted]')
+    .replace(/(bearer\s+)[^\s"']+/ig,'$1[redacted]')
+    .replace(/([?&](?:api[-_]?key|key|token)=)[^&\s]+/ig,'$1[redacted]');
+}
+function providerDetail(provider) {
+  if(provider.probePerformed!==true||provider.availableForAttempt===true||!provider.detail)return '';
+  return `<div class="provider-check-detail" data-testid="provider-detail-${attr(provider.id)}">${L('main.details')}: ${escape(sanitizedProviderDetail(provider.detail))}</div>`;
+}
+function providerActions(provider) {
+  if(provider.id==='demo')return '';
+  const busy=controlsBusy();
+  const remove=button('remove-provider',t('svc.remove'),`remove-provider-${provider.id}`,{id:provider.id,class:'link',disabled:busy||!provider.keyPresent});
+  return button('probe-provider',t('svc.recheck'),`probe-provider-${provider.id}`,{id:provider.id,class:'link',disabled:busy})+
+    button('test-provider',t('svc.test'),`test-provider-${provider.id}`,{id:provider.id,class:'small',disabled:busy||provider.availableForAttempt!==true})+
+    button('edit-provider',t(provider.configured?'svc.replace':'order.set_up'),`edit-provider-${provider.id}`,{id:provider.id,class:'link',disabled:busy})+
+    (provider.keyPresent?remove:remove.replace('class="link"','class="link action-unavailable" aria-hidden="true" tabindex="-1"'));
 }
 function providerEdit(provider) {
   const local = provider.kind === 'cli' || provider.id.endsWith('_cli'),busy=controlsBusy();
@@ -175,12 +206,12 @@ function providersView() {
   return `<div class="card" data-testid="providers-card">${groups.map(([kind,label]) => {
     const list = state.providers.filter(provider => kind === 'cli' ? provider.id.endsWith('_cli') : kind === 'demo' ? provider.id === 'demo' : !provider.id.endsWith('_cli') && provider.id !== 'demo');
     if (!list.length) return '';
-    return `<div class="provider-group"><p class="eyebrow">${L(label)}</p>${list.map(provider => `<div class="provider-row" data-testid="provider-${attr(provider.id)}"><div><div class="provider-heading"><span class="status-dot ${provider.configured ? 'ready' : ''}" aria-hidden="true"></span><h3>${escape(provider.name)}</h3></div><div class="provider-status" data-testid="provider-status-${attr(provider.id)}">${escape(providerStatus(provider))}${provider.id === 'demo' ? ` · ${L('desktop.demo')}` : ''}</div></div><div class="provider-actions">${provider.id !== 'demo' ? button('probe-provider',t('svc.recheck'),`probe-provider-${provider.id}`,{id:provider.id,class:'link',disabled:controlsBusy()}) : ''}${provider.configured && provider.id !== 'demo' ? button('test-provider',t('svc.test'),`test-provider-${provider.id}`,{id:provider.id,class:'small',disabled:controlsBusy()}) : ''}${provider.id !== 'demo' ? button('edit-provider',t(provider.configured ? 'svc.replace' : 'order.set_up'),`edit-provider-${provider.id}`,{id:provider.id,class:'link',disabled:controlsBusy()}) : ''}${provider.keyPresent ? button('remove-provider',t('svc.remove'),`remove-provider-${provider.id}`,{id:provider.id,class:'link',disabled:controlsBusy()}) : ''}</div>${view.editingProvider === provider.id ? providerEdit(provider) : ''}</div>`).join('')}</div>`;
+    return `<div class="provider-group"><p class="eyebrow">${L(label)}</p>${list.map(provider => `<div class="provider-row" data-testid="provider-${attr(provider.id)}"><div><div class="provider-heading"><span class="status-dot ${provider.transportVerified===true ? 'ready' : ''}" aria-hidden="true"></span><h3>${escape(provider.name)}</h3></div><div class="provider-status" data-testid="provider-status-${attr(provider.id)}" data-probe-performed="${provider.probePerformed===true}" data-signed-in="${provider.signedIn===true}" data-transport-verified="${provider.transportVerified===true}">${escape(providerStatus(provider))}</div>${providerDetail(provider)}</div><div class="provider-actions" data-testid="provider-actions-${attr(provider.id)}">${providerActions(provider)}</div>${view.editingProvider === provider.id ? providerEdit(provider) : ''}</div>`).join('')}</div>`;
   }).join('')}<p class="key-notice">${L('desktop.keys')}</p><p class="hint" style="margin-top:8px">${L('desktop.transport_note')}</p></div>`;
 }
 function orderView() {
   const providers = providersInOrder(),busy = controlsBusy();
-  return `<div class="card pane-card" data-testid="order-card"><p class="note">${L('order.hint')}</p><div><div class="order-header"><span>${L('order.col_name')}</span><span>${L('order.model')}</span><span class="order-effort">${L('order.effort')}</span><span>${L('order.col_on')}</span><span></span><span></span></div>${providers.map((provider,index) => `<div class="order-row" data-testid="order-row-${attr(provider.id)}"><div class="order-name"><span class="ordinal">${index+1}</span><span class="status-dot ${provider.configured ? 'ready' : ''}" aria-hidden="true"></span><span title="${attr(provider.name)}">${escape(provider.name)}</span></div>${input(`order-model-${provider.id}`,provider.model || '',{placeholder:t('order.model_default'),maxLength:64,disabled:busy})}<div class="order-effort">${select(`order-effort-${provider.id}`,provider.effort || '',[{value:'',label:t('order.effort_default')},...['low','medium','high'].map(value => ({value,label:t(`order.${value}`)}))],{disabled:busy})}</div><label class="toggle" title="${attr(t('order.on'))}"><input type="checkbox" data-testid="order-enabled-${attr(provider.id)}" data-order="enabled" data-id="${attr(provider.id)}" aria-label="${attr(`${t('order.on')}: ${provider.name}`)}" ${provider.enabled !== false ? 'checked' : ''} ${busy ? 'disabled' : ''}><span class="toggle-track"></span></label>${button('move-up',null,`order-up-${provider.id}`,{id:provider.id,icon:'upload',class:'icon-button',title:t('order.up'),disabled:busy || index === 0})}${button('move-down',null,`order-down-${provider.id}`,{id:provider.id,icon:'download',class:'icon-button',title:t('order.down'),disabled:busy || index === providers.length-1})}</div>`).join('')}</div><hr class="divider"><div class="limits-line"><label for="global-limit">${L('order.files')}</label>${select('global-limit',state.settings.concurrency || 3,Array.from({length:16},(_,i) => ({value:i+1,label:String(i+1)})),{setting:'concurrency',disabled:busy})}</div><details class="advanced" data-testid="order-advanced"><summary data-testid="order-advanced-toggle">${L('order.advanced')}</summary><div class="advanced-content stack"><div class="limits-line"><label for="provider-limit">${L('order.per')}</label>${select('provider-limit',state.settings.per_provider || 1,Array.from({length:8},(_,i) => ({value:i+1,label:String(i+1)})),{setting:'per_provider',disabled:busy})}</div><p class="hint">${L('order.limits_hint')}</p></div></details><div class="actions">${button('save-order',t('desktop.save_settings'),'save-order',{class:'primary',disabled:busy})}</div></div>`;
+  return `<div class="card pane-card" data-testid="order-card"><p class="note">${L('order.hint')}</p><div><div class="order-header"><span>${L('order.col_name')}</span><span>${L('order.model')}</span><span class="order-effort">${L('order.effort')}</span><span>${L('order.col_on')}</span><span></span><span></span></div>${providers.map((provider,index) => `<div class="order-row" data-testid="order-row-${attr(provider.id)}"><div class="order-name"><span class="ordinal">${index+1}</span><span class="status-dot ${provider.transportVerified===true ? 'ready' : ''}" aria-hidden="true"></span><span title="${attr(provider.name)}">${escape(provider.name)}</span></div>${input(`order-model-${provider.id}`,provider.model || '',{placeholder:t('order.model_default'),maxLength:64,disabled:busy})}<div class="order-effort">${select(`order-effort-${provider.id}`,provider.effort || '',[{value:'',label:t('order.effort_default')},...['low','medium','high'].map(value => ({value,label:t(`order.${value}`)}))],{disabled:busy})}</div><label class="toggle" title="${attr(t('order.on'))}"><input type="checkbox" data-testid="order-enabled-${attr(provider.id)}" data-order="enabled" data-id="${attr(provider.id)}" aria-label="${attr(`${t('order.on')}: ${provider.name}`)}" ${provider.enabled !== false ? 'checked' : ''} ${busy ? 'disabled' : ''}><span class="toggle-track"></span></label>${button('move-up',null,`order-up-${provider.id}`,{id:provider.id,icon:'upload',class:'icon-button',title:t('order.up'),disabled:busy || index === 0})}${button('move-down',null,`order-down-${provider.id}`,{id:provider.id,icon:'download',class:'icon-button',title:t('order.down'),disabled:busy || index === providers.length-1})}</div>`).join('')}</div><hr class="divider"><div class="limits-line"><label for="global-limit">${L('order.files')}</label>${select('global-limit',state.settings.concurrency || 3,Array.from({length:16},(_,i) => ({value:i+1,label:String(i+1)})),{setting:'concurrency',disabled:busy})}</div><details class="advanced" data-testid="order-advanced"><summary data-testid="order-advanced-toggle">${L('order.advanced')}</summary><div class="advanced-content stack"><div class="limits-line"><label for="provider-limit">${L('order.per')}</label>${select('provider-limit',state.settings.per_provider || 1,Array.from({length:8},(_,i) => ({value:i+1,label:String(i+1)})),{setting:'per_provider',disabled:busy})}</div><p class="hint">${L('order.limits_hint')}</p></div></details><div class="actions">${button('save-order',t('desktop.save_settings'),'save-order',{class:'primary',disabled:busy})}</div></div>`;
 }
 function glossaryView() {
   const project = state.settings.project || 'default',busy = controlsBusy();
@@ -195,13 +226,29 @@ function appearanceView() {
 }
 function render() {
   rememberProviderInputs();
-  renderChrome();
   content.innerHTML = view.page === 'settings' ? settingsView() : translateView();
   restoreProviderInputs();
+  renderChrome();
+  motion.enter(content,view.page==='settings'?`settings:${view.pane}`:view.page);
   document.querySelector('#output-folder')?.setAttribute('title',displayPath(view.outputDir));
   content.setAttribute('aria-busy',String(view.busy));
   updates.watchPane(view.page==='settings'&&view.pane==='updates');
   reportUnsaved();
+  if(view.page==='settings'&&view.pane==='keys')void recheckInitialCliProviders();
+}
+async function recheckInitialCliProviders() {
+  if(controlsBusy())return;
+  const pending=state.providers.filter(provider=>String(provider.id).endsWith('_cli')&&provider.probePerformed!==true&&!initialCliProbes.has(provider.id));
+  if(!pending.length)return;
+  pending.forEach(provider=>initialCliProbes.add(provider.id));
+  // Native probes read installed versions/login status. They never call Test or translate.
+  const results=await Promise.allSettled(pending.map(provider=>backend.probeProvider(provider.id)));
+  try {
+    captureDrafts();await refresh();
+    if(view.page==='settings'&&view.pane==='keys')render();
+    const failed=results.find(result=>result.status==='rejected');
+    if(failed&&view.page==='settings'&&view.pane==='keys')toast(String(failed.reason?.message||failed.reason),'error');
+  }catch(error){if(view.page==='settings'&&view.pane==='keys')toast(String(error?.message||error),'error');}
 }
 function captureDrafts() {
   if (view.page !== 'settings') return;
@@ -257,6 +304,7 @@ async function loadJob(result) {
 }
 async function runAction(action,node) {
   if(['navigate','settings-pane','manage-providers','manage-purpose','source-type','translate','retry'].includes(action))clearToast();
+  if(['navigate','settings-pane','manage-providers','manage-purpose'].includes(action))document.querySelector('.app-shell').scrollTop=0;
   const id=node.dataset.id;
   if(action.startsWith('updates-')){await updates.action(action.slice('updates-'.length),workSnapshot());return;}
   switch(action) {
@@ -287,7 +335,14 @@ async function runAction(action,node) {
     case 'close-provider-editor':clearProviderInputs(view.editingProvider);view.editingProvider=null;render();return;
     case 'remove-provider':if(await confirmRemoval(state.providers.find(p=>p.id===id)?.name || id)){await backend.deleteProvider(id);clearProviderInputs(id);await refresh();toast(t('svc.removed'));render();}return;
     case 'probe-provider':{const result=await backend.probeProvider(id);await refresh();toast(result?.detail || providerStatus(state.providers.find(p=>p.id===id) || {}));render();return;}
-    case 'test-provider':{const result=await backend.testProvider(id);await refresh();toast(result?.detail || (result?.success === false ? t('svc.test_fail',{msg:result.message || ''}) : t('svc.test_ok',{secs:result?.secs || '',time:new Date().toLocaleTimeString()})),result?.success === false ? 'error' : 'success');render();return;}
+    case 'test-provider':{
+      const provider=state.providers.find(provider=>provider.id===id);
+      if(provider)provider.transportVerified=false;
+      render();
+      try{const result=await backend.testProvider(id);await refresh();toast(result?.success===false?t('svc.test_fail',{msg:sanitizedProviderDetail(result.message)}):t('svc.test_ok',{secs:result?.secs || '',time:new Date().toLocaleTimeString()}),result?.success===false?'error':'success');}
+      catch(error){await refresh();toast(t('svc.test_fail',{msg:sanitizedProviderDetail(error?.message || error)}),'error');}
+      render();return;
+    }
     case 'copy-purpose':view.purposeDraft=state.purposes.find(p=>p.id===view.purposeFrom)?.instructions || '';render();return;
     case 'move-up':case 'move-down': {captureOrder();const chain=view.orderDraft,index=chain.findIndex(row=>row.id===id),to=index+(action==='move-up'?-1:1);if(index>=0&&to>=0&&to<chain.length){[chain[index],chain[to]]=[chain[to],chain[index]];await saveSettings({chain});view.orderDraft=null;render();}return;}
     case 'save-order':captureOrder();await saveSettings({chain:view.orderDraft,concurrency:state.settings.concurrency,per_provider:state.settings.per_provider});view.orderDraft=null;await refresh();toast(t('desktop.save_settings'));render();return;
@@ -359,12 +414,13 @@ document.addEventListener('input',event=>{
   reportUnsaved();
 });
 // Native drag/drop paths are validated and registered by Rust before this event.
-window.addEventListener('beforeunload',() => {clearTimeout(view.pollTimer);clearTimeout(view.toastTimer);updates.dispose();for(const unlisten of view.unlisten)unlisten();});
+window.addEventListener('beforeunload',() => {clearTimeout(view.pollTimer);clearTimeout(view.toastTimer);updates.dispose();motion.dispose();for(const unlisten of view.unlisten)unlisten();});
 async function initialize() {
   const words=['VERSORA','TRANSLATE','翻譯','TRADUIRE','ÜBERSETZEN','翻訳','TRADUCIR','번역'];
   document.querySelector('#watermark').innerHTML=['a','b'].map((layer,n)=>`<div class="watermark-layer ${layer}">${Array.from({length:30},(_,index)=>`<div>${escape((words.slice((index+n)%words.length).concat(words.slice(0,(index+n)%words.length)).join(' · ')+' · ').repeat(12))}</div>`).join('')}</div>`).join('');
   content.innerHTML=`<div class="loading" data-testid="loading">${icon('spinner')}Versora</div>`;
   try {
+    view.unlisten.push(await windowChrome.initialize());
     await refresh();render();
     // Healthy startup is acknowledged only after the real backend state and first render.
     try{await backend.updates.healthAck();await updates.initialize();}catch(error){updates.error=String(error?.message||error);}

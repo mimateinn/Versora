@@ -15,6 +15,9 @@
   --f-display:"Libron",Poppins,"Space Grotesk","Segoe UI Variable Display","Segoe UI","Noto Sans TC","Microsoft JhengHei UI",sans-serif;
   --f-heading:"Poppins","Space Grotesk","Noto Sans TC",system-ui,sans-serif;
   --f-mono:"IBM Plex Mono","Cascadia Mono",Consolas,ui-monospace,"Microsoft JhengHei UI",monospace;
+  --theme-duration:280ms; --theme-ease:cubic-bezier(.4,0,.2,1); --theme-colors:--versora-theme-idle 0s;
+  --control-release:180ms; --control-press:80ms; --control-scale:.985; --control-ease:cubic-bezier(.2,.7,.3,1);
+  --sb-thumb:rgba(15,15,15,.10); --sb-thumb-area:rgba(15,15,15,.26); --sb-orange-400:#F08A4B; --sb-orange-500:#E85D04; --sb-orange-600:#C94F03;
   --ease:cubic-bezier(.22,1,.36,1); --fast:140ms; --normal:220ms; --control-height:42px; --small-height:34px;
   --body-weight:400; --control-weight:400; --strong-weight:700; --vi-accent:var(--accent);
   font-synthesis:none;
@@ -34,5 +37,6 @@
   --toast-bg:#1F2940; --toast-ink:#F2F5FB; --seg-on:#2A3552;
   --btn:#4677B5; --btn-hover:#3B69A4; --btn-ink:#FFFFFF;
   --art-fill:rgba(242,245,251,.04); --art-line:rgba(242,245,251,.45);
+  --sb-thumb:rgba(220,228,242,.08); --sb-thumb-area:rgba(220,228,242,.24);
   color-scheme:dark;
 }

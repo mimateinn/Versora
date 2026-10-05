@@ -89,3 +89,27 @@ Keep run-specific checkpoints under the excluded `evidence/` directory. Retain
 failed checkpoints, then increment the evidence directory on a retry. Evidence profiles,
 WebView data, fixture outputs and machine-specific process records are local test
 material and must be excluded from source commits and downloadable packages.
+
+## Custom titlebar regression
+
+`native_chrome_journey.py --cdp <loopback-endpoint> --launch-proof <launch-proof.json>
+--evidence <private-output-folder>` validates the actual Tauri window: minimize,
+maximize/restore, monitor work area, blank-header drag/double-click, interactive
+drag exclusions, eight native resize directions and the configured 800x640
+minimum. It also checks the reserved bottom-left footer and scrolling content,
+light/dark chrome and the native unsaved-close Cancel/confirm path. Each Win32
+input action checks the owned executable digest, creation time and HWND.
+Captures use real PrintWindow pixels. Windows Snap Layout hover is not certified
+for the HTML caption buttons.
+
+The first Translators-pane entry performs only native CLI version/login probes.
+Manual Recheck remains available. A successful login does not establish a
+transport connection; only a successful explicit Test can display the connected
+status. Test may use provider quota and is never called automatically. Four
+action positions are reserved so status updates do not move buttons.
+
+The UI uses the traced local Litora 12px capsule scrollbar, 280ms color-only theme
+transition, 180ms control release/80ms press, 220ms route entry and 200ms card
+fade. The explicit Reduce Motion preference keeps a 160ms route-only fade;
+the OS reduced-motion request disables it. Runtime evidence and screenshots
+belong in the ignored evidence directory, not the source package.

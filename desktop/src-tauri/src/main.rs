@@ -2,6 +2,7 @@
 mod store;
 mod jobs;
 mod suite_updates;
+mod provider_state;
 
 use jobs::{JobManager, SelectedInput, TranslationRequest};
 use serde_json::{json, Value};
@@ -22,10 +23,9 @@ impl Drop for Persistence<'_>{fn drop(&mut self){self.0.fetch_sub(1,Ordering::Se
 fn demo_enabled()->bool{["SFTS_DEMO","VERSORA_DEMO"].iter().any(|v|std::env::var(v).as_deref()==Ok("1"))}
 
 #[tauri::command] fn get_state(state:State<DesktopState>)->Result<Value,String>{
-    let prefs=state.store.preferences();let mut rows=state.store.provider_states();let statuses=state.statuses.lock().unwrap();
+    let prefs=state.store.preferences();let mut rows=state.store.provider_states();let statuses=state.statuses.lock().unwrap();let proofs=state.proofs.lock().unwrap();
     for row in &mut rows{if let Some(status)=row["id"].as_str().and_then(|id|statuses.get(id)){
-        row["configured"]=json!(status.usable);row["status"]=json!(if status.usable{"available"}else if status.signed_in==Some(false){"signed-out"}else{"unavailable"});
-        row["detail"]=json!(status.detail);row["models"]=json!(status.models);row["limitations"]=json!(status.limitations);
+        provider_state::apply_probe(row,status,proofs.get(&status.id).copied());
     }}
     let last=state.last_job.lock().unwrap().clone();let job=last.as_deref().and_then(|id|state.jobs.snapshot(id).ok());
     Ok(json!({"settings":prefs,"providers":rows,"purposes":state.store.purposes(),"projects":state.store.projects()?,
@@ -61,7 +61,7 @@ fn provider(state:&DesktopState,id:&str)->Result<ProviderConfig,String>{state.st
     state.statuses.lock().unwrap().insert(id,status.clone());serde_json::to_value(status).map_err(|e|e.to_string())
 }
 #[tauri::command] async fn test_provider(state:State<'_,DesktopState>,id:String)->Result<Value,String>{
-    let config=provider(&state,&id)?;let cancel=Arc::new(AtomicBool::new(false));
+    let config=provider(&state,&id)?;state.proofs.lock().unwrap().remove(&id);let cancel=Arc::new(AtomicBool::new(false));
     let text=providers::complete(&config,"Reply with only OK. Do not use any tools.","Connection test: reply OK.",&cancel).await.map_err(|e|e.to_string())?;
     let mut status=providers::probe(&config,true,&cancel).await;status.usable=true;status.detail="The explicit transport Test succeeded; translation quality is not certified.".into();state.statuses.lock().unwrap().insert(id,status);
     state.proofs.lock().unwrap().insert(config.id.clone(),std::time::Instant::now());

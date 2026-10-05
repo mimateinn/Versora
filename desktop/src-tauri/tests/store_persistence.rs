@@ -10,6 +10,36 @@ use std::{
 };
 use store::Store;
 use versora_core::Term;
+use versora_engine::providers::ProviderConfig;
+
+#[test]
+fn saved_provider_configuration_is_not_detection_login_or_connection_proof() {
+    for (config, eligible_for_attempt) in [
+        (ProviderConfig {
+            id: "codex_cli".into(),
+            cli_path: "C:/tools/codex.exe".into(),
+            ..Default::default()
+        }, false),
+        (ProviderConfig {
+            id: "openai".into(),
+            api_key: "unit-test-key".into(),
+            ..Default::default()
+        }, true),
+        (ProviderConfig {
+            id: "openai".into(),
+            ..Default::default()
+        }, false),
+    ] {
+        let row = store::masked_provider_state(&config);
+        assert_eq!(row["probePerformed"], false);
+        assert!(row["nativeDetected"].is_null());
+        assert!(row["signedIn"].is_null());
+        assert_eq!(row["transportVerified"], false);
+        assert_eq!(row["availableForAttempt"], eligible_for_attempt);
+        assert!(row.get("apiKey").is_none());
+        assert!(!row.to_string().contains("unit-test-key"));
+    }
+}
 
 static NEXT: AtomicU64 = AtomicU64::new(0);
 struct TestDirectory {

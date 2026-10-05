@@ -464,7 +464,7 @@ pub fn masked_provider_state(config: &ProviderConfig) -> Value {
         "demo" => "Offline demo",
         _ => "Unknown",
     };
-    json!({"id":config.id,"name":name,"kind":if cli {"cli"} else {"api"},"configured":configured,"status":if configured {"configured"} else {"unconfigured"},"model":config.model,"effort":config.effort,"enabled":true,"keyPresent":key,"cliPath":config.cli_path,"baseUrl":config.base_url,"detail":if config.id=="demo" {"Explicit offline demonstration; does not translate"} else {"Native availability and live translation require a separate probe/test"}})
+    json!({"id":config.id,"name":name,"kind":if cli {"cli"} else {"api"},"configured":configured,"status":if configured {"configured"} else {"unconfigured"},"model":config.model,"effort":config.effort,"enabled":true,"keyPresent":key,"cliPath":config.cli_path,"baseUrl":config.base_url,"probePerformed":false,"nativeDetected":null,"signedIn":null,"transportVerified":false,"availableForAttempt":configured && (!cli || config.id=="demo"),"detail":if config.id=="demo" {"Explicit offline demonstration; does not translate"} else {"Native availability and live translation require a separate probe/test"}})
 }
 fn demo_enabled() -> bool {
     ["VERSORA_DEMO", "SFTS_DEMO"]

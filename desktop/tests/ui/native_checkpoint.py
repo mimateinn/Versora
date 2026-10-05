@@ -53,7 +53,7 @@ async def run(args):
             assert all(hashlib.sha256(Path(path).read_bytes()).hexdigest()==digest for path,digest in original.items())
             await page.get_by_test_id('job-card').scroll_into_view_if_needed()
         else:
-            await page.evaluate('() => window.scrollTo(0,0)')
+            await page.evaluate('() => {document.querySelector("[data-testid=app-shell]").scrollTop=0;}')
         screenshot=directory/f'native-{args.stage}-{args.theme}-client.png'
         await page.screenshot(path=str(screenshot))
         result={'native':True,'stage':args.stage,'theme':args.theme,'url':page.url,'dataDir':state['dataDir'],'version':state['version'],'testMode':state['testMode'],'paidTranslation':'NOT_RUN','clientScreenshot':str(screenshot),'job':state.get('job')}

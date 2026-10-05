@@ -13,8 +13,37 @@ const object = value => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Expected an object');
   return value;
 };
+function nativeWindow() {
+  const get = window.__TAURI__?.window?.getCurrentWindow;
+  if (typeof get !== 'function') throw new Error('The native window controls are unavailable.');
+  const current = get();
+  if (current.label !== 'main') throw new Error('Only the Versora main window may use these controls.');
+  return current;
+}
 async function call(command, args = {}) { return native().invoke(command, args); }
 export const backend = {
+  window: {
+    async state() {
+      const current = nativeWindow();
+      const [maximized, focused] = await Promise.all([current.isMaximized(), current.isFocused()]);
+      if (typeof maximized !== 'boolean' || typeof focused !== 'boolean') throw new TypeError('Invalid native window state.');
+      return {maximized, focused};
+    },
+    minimize: () => nativeWindow().minimize(),
+    maximize: () => nativeWindow().toggleMaximize(),
+    // close() emits Rust CloseRequested; destroy()/exit() would bypass its guards.
+    close: () => nativeWindow().close(),
+    resize: direction => {
+      if (!['North','East','South','West','NorthWest','NorthEast','SouthWest','SouthEast'].includes(direction)) throw new TypeError('Invalid resize direction.');
+      return nativeWindow().startResizeDragging(direction);
+    },
+    async listen(handler) {
+      if (typeof handler !== 'function') throw new TypeError('Invalid window event handler.');
+      const current = nativeWindow();
+      const unlisten = await Promise.all([current.onResized(() => handler()), current.onFocusChanged(() => handler())]);
+      return () => unlisten.forEach(remove => remove());
+    },
+  },
   state: () => call('get_state'),
   pick: kind => {
     if (!['files', 'folder', 'zip'].includes(kind)) throw new TypeError('Invalid picker kind');

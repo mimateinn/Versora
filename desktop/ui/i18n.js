@@ -18,6 +18,21 @@ const desktopCopy = {
   id: ['Impor pengaturan yang ada','Windows melindungi kunci API akun Anda. Kunci lengkap tidak pernah dikirim kembali ke layar ini.','Gunakan bahasa komputer ini jika tersedia.','Folder keluaran','Pilih folder','Kosong: gunakan folder keluaran aplikasi.','Simpan hasil sebagai…','Data aplikasi','Periksa program lokal lagi','Demo: uji offline, bukan terjemahan nyata','Berkas dipilih','Berkas asli tidak diubah.','Kurangi gerakan','Simpan pengaturan','Belum memilih berkas','Konfigurasikan penerjemah untuk menerjemahkan.','Uji koneksi mengirim permintaan nyata dan mungkin menggunakan kuota.'],
 };
 const desktopKeys = ['desktop.import','desktop.keys','desktop.os_language','desktop.output','desktop.choose_folder','desktop.output_hint','desktop.save_as','desktop.data','desktop.recheck','desktop.demo','desktop.selected','desktop.originals','desktop.motion','desktop.save_settings','desktop.no_files','desktop.no_provider','desktop.transport_note'];
+const providerCopy = {
+  en:['Not checked on this computer','Signed in · connection not tested','Configured · connection not tested','Connection tested','Local program not found'],
+  'zh-Hant':['未檢查這部電腦','已登入 · 連線未測試','已設定 · 連線未測試','連線測試成功','找不到本機程式'],
+  'zh-Hans':['未检查这台电脑','已登录 · 连接未测试','已设置 · 连接未测试','连接测试成功','找不到本地程序'],
+  ja:['このコンピューターで未確認','ログイン済み · 接続は未テスト','設定済み · 接続は未テスト','接続テスト成功','ローカルプログラムが見つかりません'],
+  ko:['이 컴퓨터에서 확인하지 않음','로그인됨 · 연결 미테스트','설정됨 · 연결 미테스트','연결 테스트 성공','로컬 프로그램을 찾을 수 없음'],
+  es:['Sin comprobar en este equipo','Sesión iniciada · conexión sin probar','Configurado · conexión sin probar','Conexión probada','Programa local no encontrado'],
+  fr:['Non vérifié sur cet ordinateur','Connecté au compte · connexion non testée','Configuré · connexion non testée','Connexion testée','Programme local introuvable'],
+  de:['Auf diesem Computer ungeprüft','Angemeldet · Verbindung nicht getestet','Konfiguriert · Verbindung nicht getestet','Verbindung getestet','Lokales Programm nicht gefunden'],
+  pt:['Por verificar neste computador','Sessão iniciada · ligação não testada','Configurado · ligação não testada','Ligação testada','Programa local não encontrado'],
+  vi:['Chưa kiểm tra trên máy tính này','Đã đăng nhập · chưa thử kết nối','Đã cấu hình · chưa thử kết nối','Đã thử kết nối','Không tìm thấy chương trình cục bộ'],
+  th:['ยังไม่ได้ตรวจสอบในคอมพิวเตอร์นี้','เข้าสู่ระบบแล้ว · ยังไม่ทดสอบการเชื่อมต่อ','ตั้งค่าแล้ว · ยังไม่ทดสอบการเชื่อมต่อ','ทดสอบการเชื่อมต่อสำเร็จ','ไม่พบโปรแกรมในเครื่อง'],
+  id:['Belum diperiksa di komputer ini','Sudah masuk · koneksi belum diuji','Dikonfigurasi · koneksi belum diuji','Koneksi teruji','Program lokal tidak ditemukan'],
+};
+const providerKeys = ['desktop.provider_unprobed','desktop.provider_signed_in','desktop.provider_configured','desktop.provider_connected','desktop.provider_missing'];
 export function systemLanguage() {
   for (const raw of navigator.languages || [navigator.language]) {
     const code = raw.replace('_','-');
@@ -43,6 +58,8 @@ export async function setLanguage(code) {
 }
 export function t(key, variables = {}) {
   if (key === 'desktop.demo_completed') return demoCompletion[current] || demoCompletion.en;
+  const providerExtra=providerKeys.indexOf(key);
+  if(providerExtra>=0)return (providerCopy[current] || providerCopy.en)[providerExtra];
   const extra = desktopKeys.indexOf(key);
   let value = updateTranslation(key,current) ?? (extra >= 0 ? (desktopCopy[current] || desktopCopy.en)[extra] : catalogs.get(current)?.[key] ?? catalogs.get('en')?.[key] ?? key);
   // Original Python copy mentioned plain .env storage. Native secrets are DPAPI protected.

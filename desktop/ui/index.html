@@ -12,19 +12,36 @@
 </head>
 <body>
   <div class="watermark" aria-hidden="true"><div class="watermark-field" id="watermark"></div></div>
-  <div class="app-shell" data-testid="app-shell">
-    <header class="topbar">
-      <a href="#translate" class="brand" data-action="navigate" data-page="translate" data-testid="brand" aria-label="Versora"><span class="brand-tile"><img src="assets/icon.png" alt=""></span><b>Versora</b></a>
-      <nav class="topnav" aria-label="Main navigation">
+  <header class="topbar" data-testid="topbar" data-tauri-drag-region="deep">
+      <a href="#translate" class="brand" data-tauri-drag-region="false" data-action="navigate" data-page="translate" data-testid="brand" aria-label="Versora"><span class="brand-tile"><img src="assets/icon.png" alt=""></span><b>Versora</b></a>
+      <nav class="topnav" data-tauri-drag-region="false" aria-label="Main navigation">
         <button type="button" class="nav-button active" data-action="navigate" data-page="translate" data-testid="nav-translate" data-i18n="nav.translate">Translate</button>
         <button type="button" class="nav-button" data-action="navigate" data-page="settings" data-testid="nav-settings" data-i18n="nav.settings">Settings</button>
         <button type="button" class="icon-button theme-toggle" data-action="toggle-theme" data-testid="theme-toggle" aria-label="Change theme"></button>
       </nav>
-    </header>
+      <div class="window-controls" data-testid="window-controls" data-tauri-drag-region="false">
+        <button type="button" class="caption-button" data-window-action="minimize" data-testid="window-minimize" aria-label="Minimize" title="Minimize" disabled></button>
+        <button type="button" class="caption-button" data-window-action="maximize" data-testid="window-maximize" aria-label="Maximize" title="Maximize" disabled></button>
+        <button type="button" class="caption-button caption-close" data-window-action="close" data-testid="window-close" aria-label="Close" title="Close" disabled></button>
+      </div>
+  <div class="window-resize-handles" aria-hidden="true" data-tauri-drag-region="false">
+    <div class="window-resize north" data-resize-direction="North" data-testid="window-resize-north"></div>
+    <div class="window-resize east" data-resize-direction="East" data-testid="window-resize-east"></div>
+    <div class="window-resize south" data-resize-direction="South" data-testid="window-resize-south"></div>
+    <div class="window-resize west" data-resize-direction="West" data-testid="window-resize-west"></div>
+    <div class="window-resize north-west" data-resize-direction="NorthWest" data-testid="window-resize-north-west"></div>
+    <div class="window-resize north-east" data-resize-direction="NorthEast" data-testid="window-resize-north-east"></div>
+    <div class="window-resize south-west" data-resize-direction="SouthWest" data-testid="window-resize-south-west"></div>
+    <div class="window-resize south-east" data-resize-direction="SouthEast" data-testid="window-resize-south-east"></div>
+  </div>
+  </header>
+  <div class="app-shell" data-testid="app-shell" tabindex="0">
+    <div class="content-shell" data-testid="content-shell">
     <div id="connection-error" class="notice error" data-testid="connection-error" role="alert" hidden></div>
     <main id="content" data-testid="main-content" aria-busy="true"></main>
-    <footer data-testid="app-footer"><span data-i18n="about.footer">Versora · Runs on this computer</span><span id="version" data-testid="app-version"></span></footer>
+    </div>
   </div>
+  <footer data-testid="app-footer"><span data-i18n="about.footer">Versora · Runs on this computer</span><span id="version" data-testid="app-version"></span></footer>
   <div id="toast" class="toast" data-testid="toast" role="status" aria-live="polite" hidden></div>
   <dialog id="confirm-dialog" data-testid="confirm-dialog"><form method="dialog"><h2 id="confirm-title"></h2><p id="confirm-message"></p><div class="actions"><button value="cancel" data-testid="confirm-cancel" data-i18n="svc.keep">Keep it</button><button value="confirm" class="danger" data-testid="confirm-accept" data-i18n="svc.confirm_remove">Yes, remove</button></div></form></dialog>
   <script type="module" src="app.js"></script>
