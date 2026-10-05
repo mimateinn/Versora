@@ -62,6 +62,7 @@ impl Temp {
             UpdateConfig {
                 public_key: key.map(Into::into),
                 installed,
+                ..Default::default()
             },
         )
         .unwrap()
@@ -979,4 +980,24 @@ fn verified_package_handle_still_allows_the_installer_to_start() {
     assert!(status.success());
     drop(handle);
     fs::remove_file(&copy).unwrap();
+}
+
+#[test]
+fn first_scheduled_check_waits_for_the_startup_delay() {
+    let temp = Temp::new();
+    let service = UpdateService::with_config(
+        temp.path.clone(),
+        "1.0.0",
+        UpdateConfig {
+            public_key: None,
+            installed: true,
+            startup_delay: Duration::from_secs(10),
+        },
+    )
+    .unwrap();
+    let wait = service.seconds_until_next_check().unwrap();
+    assert!((9..=10).contains(&wait), "{wait}");
+    assert!(!service.is_check_due());
+    service.set_preferences(json!({"policy":"manual"})).unwrap();
+    assert_eq!(service.seconds_until_next_check(), None);
 }

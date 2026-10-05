@@ -133,7 +133,7 @@ fn preview_text(source:&[u8],translated:Option<&[u8]>)->Value{let binary=std::st
 #[tauri::command] fn updates_get_preferences(state:State<DesktopState>)->Value{state.updates.get_preferences()}
 #[tauri::command] fn updates_set_preferences(state:State<DesktopState>,preferences:Value)->Result<Value,String>{state.updates.set_preferences(preferences)}
 #[tauri::command] fn updates_get_state(state:State<DesktopState>)->Value{state.updates.get_state()}
-#[tauri::command] async fn updates_check(state:State<'_,DesktopState>,app:tauri::AppHandle)->Result<Value,String>{let result=state.updates.check().await;emit_updates(&app);if state.updates.auto_download_due(){tauri::async_runtime::spawn(download_update(app.clone()));}result}
+#[tauri::command] async fn updates_check(state:State<'_,DesktopState>,app:tauri::AppHandle)->Result<Value,String>{let result=state.updates.check().await;emit_updates(&app);result}
 #[tauri::command] fn updates_download(state:State<DesktopState>,app:tauri::AppHandle)->Result<Value,String>{state.updates.require_capability()?;tauri::async_runtime::spawn(download_update(app));Ok(state.updates.get_state())}
 #[tauri::command] fn updates_cancel(state:State<DesktopState>)->Result<Value,String>{state.updates.cancel()}
 #[tauri::command] fn updates_later(state:State<DesktopState>)->Result<Value,String>{state.updates.later()}
@@ -144,8 +144,10 @@ fn preview_text(source:&[u8],translated:Option<&[u8]>)->Value{let binary=std::st
     if result["installApproved"]==true{if state.closing.swap(true,Ordering::SeqCst){return Err("Versora is already closing.".into());}finish_exit(app,true);}
     Ok(result)}
 #[tauri::command] fn updates_open_official_release(state:State<DesktopState>)->Result<(),String>{std::process::Command::new("explorer.exe").arg(state.updates.official_release_url()).spawn().map_err(|e|e.to_string())?;Ok(())}
-#[tauri::command] fn updates_health_ack(state:State<DesktopState>)->Result<Value,String>{let result=state.updates.health_ack()?;state.ui_ready.store(true,Ordering::SeqCst);Ok(result)}
+#[tauri::command] fn updates_health_ack(state:State<DesktopState>,app:tauri::AppHandle)->Result<Value,String>{let result=state.updates.health_ack()?;if !state.ui_ready.swap(true,Ordering::SeqCst){tauri::async_runtime::spawn(auto_download(app));}Ok(result)}
 fn emit_updates(handle:&tauri::AppHandle){let _=handle.emit("suite-update-state-changed",handle.state::<DesktopState>().updates.get_state());}
+/// Background download after any successful check (the setup loop checks ~10 s after launch, then on schedule).
+async fn auto_download(handle:tauri::AppHandle){loop{let state=handle.state::<DesktopState>();if !state.closing.load(Ordering::SeqCst)&&state.updates.auto_download_due(){download_update(handle.clone()).await;}tokio::time::sleep(std::time::Duration::from_secs(1)).await;}}
 async fn download_update(handle:tauri::AppHandle){let progress={let handle=handle.clone();move||emit_updates(&handle)};let _=handle.state::<DesktopState>().updates.download(&progress).await;emit_updates(&handle);}
 /// Safe exit: cancel the owned job, wait for its cleanup and every pending save, then exit. A verified
 /// update package is handed to its installer here: on request (with relaunch) or silently on quit.
@@ -154,7 +156,6 @@ fn finish_exit(handle:tauri::AppHandle,install:bool){let state=handle.state::<De
         let state=handle.state::<DesktopState>();
         if install||state.updates.install_on_quit_ready(){match state.updates.launch_installer(install){Ok(())=>{handle.exit(0);return;}Err(_) if install=>{state.closing.store(false,Ordering::SeqCst);emit_updates(&handle);return;}Err(_)=>{}}}
         let _=state.updates.cancel();handle.exit(0);});}
-const UPDATE_START_DELAY:std::time::Duration=std::time::Duration::from_secs(10);
 
 fn main(){
     let data_dir=std::env::var_os("VERSORA_DATA_DIR").map(PathBuf::from).or_else(||std::env::var_os("LOCALAPPDATA").map(|p|PathBuf::from(p).join("Versora"))).expect("Windows LOCALAPPDATA is required");
@@ -164,9 +165,7 @@ fn main(){
     let selected=register_paths(initial,"files").unwrap_or_default();
     tauri::Builder::default().manage(DesktopState{store,jobs:Arc::new(JobManager::new()),updates,selected:Mutex::new(selected),output_dirs:Mutex::new(Vec::new()),last_job:Mutex::new(None),statuses:Mutex::new(HashMap::new()),proofs:Mutex::new(HashMap::new()),pending:AtomicUsize::new(0),unsaved:AtomicBool::new(false),closing:AtomicBool::new(false),ui_ready:AtomicBool::new(false)})
         .invoke_handler(tauri::generate_handler![get_state,pick_files,clear_selection,choose_output_dir,save_settings,save_provider,delete_provider,probe_provider,test_provider,create_project,load_glossary,save_glossary,save_purpose,import_legacy_data,start_translation,get_job,cancel_job,retry_job,open_path,export_result,get_preview,set_unsaved,updates_get_preferences,updates_set_preferences,updates_get_state,updates_check,updates_download,updates_cancel,updates_later,updates_request_install,updates_open_official_release,updates_health_ack])
-        .setup(|app|{let state=app.state::<DesktopState>();if let Some(window)=app.get_webview_window("main"){let _=window.set_theme(Some(if state.store.preferences()["theme"]=="dark"{tauri::Theme::Dark}else{tauri::Theme::Light}));}let handle=app.handle().clone();tauri::async_runtime::spawn(async move{let mut ready_at=None;loop{let state=handle.state::<DesktopState>();
-            // First check ~10 s after the UI is healthy, then on the saved schedule. Background failures only update state.
-            if state.ui_ready.load(Ordering::SeqCst)&&ready_at.get_or_insert_with(std::time::Instant::now).elapsed()>=UPDATE_START_DELAY&&!state.closing.load(Ordering::SeqCst)&&state.updates.is_check_due(){let _=state.updates.check().await;emit_updates(&handle);if state.updates.auto_download_due()&&!state.closing.load(Ordering::SeqCst){download_update(handle.clone()).await;}}tokio::time::sleep(std::time::Duration::from_secs(1)).await;}});Ok(())})
+        .setup(|app|{let state=app.state::<DesktopState>();if let Some(window)=app.get_webview_window("main"){let _=window.set_theme(Some(if state.store.preferences()["theme"]=="dark"{tauri::Theme::Dark}else{tauri::Theme::Light}));}let handle=app.handle().clone();tauri::async_runtime::spawn(async move{loop{let state=handle.state::<DesktopState>();if state.ui_ready.load(Ordering::SeqCst)&&!state.closing.load(Ordering::SeqCst)&&state.updates.is_check_due(){let _=state.updates.check().await;let _=handle.emit("suite-update-state-changed",state.updates.get_state());}tokio::time::sleep(std::time::Duration::from_secs(1)).await;}});Ok(())})
         .on_window_event(|window,event|match event{
             tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Drop{paths,..})=>{let state=window.state::<DesktopState>();if state.jobs.active().is_none(){if let Ok(selected)=register_paths(paths.clone(),"files"){*state.selected.lock().unwrap()=selected;*state.last_job.lock().unwrap()=None;let _=window.emit("selection-changed",json!({}));}}},
             tauri::WindowEvent::CloseRequested{api,..}=>{api.prevent_close();let state=window.state::<DesktopState>();if state.closing.swap(true,Ordering::SeqCst){return;}

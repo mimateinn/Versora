@@ -187,6 +187,8 @@ pub struct UpdateConfig {
     pub public_key: Option<String>,
     /// True only for the production per-user installation created by the NSIS installer.
     pub installed: bool,
+    /// The first scheduled check waits this long after the service starts.
+    pub startup_delay: Duration,
 }
 
 impl UpdateConfig {
@@ -194,6 +196,7 @@ impl UpdateConfig {
         Self {
             public_key: configured_public_key(PUBLIC_KEY_FILE),
             installed: installed_copy(),
+            startup_delay: Duration::from_secs(10),
         }
     }
 }
@@ -214,6 +217,7 @@ pub struct UpdateService {
     trust: Option<PublicKey>,
     trust_error: Option<&'static str>,
     installed: bool,
+    startup_due: Instant,
     runtime: Mutex<Runtime>,
     active: AtomicBool,
     cancellation: AtomicU64,
@@ -297,6 +301,7 @@ impl UpdateService {
             trust,
             trust_error,
             installed: config.installed,
+            startup_due: Instant::now() + config.startup_delay,
             runtime: Mutex::new(Runtime {
                 status: "idle",
                 saved,
@@ -797,7 +802,8 @@ impl UpdateService {
             return None;
         }
         if !self.started.load(Ordering::Acquire) {
-            return Some(0);
+            let wait = self.startup_due.saturating_duration_since(Instant::now());
+            return Some(wait.as_millis().div_ceil(1000) as u64);
         }
         state
             .saved
