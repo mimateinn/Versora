@@ -70,3 +70,12 @@ For the fresh-target regression, build with a new TestId and run `Install` with
 directories remain absent before the real installer runs. Subsequent `Uninstall`
 and `Verify` use the saved mode without the switch; the result reports no
 preservation fixtures rather than implying a DPAPI preservation check occurred.
+
+In-app updates start the verified installer as `setup.exe /S /UPDATE [/RELAUNCH]`.
+`/UPDATE` only changes the running-app check: the installer waits up to 30 seconds for
+`versora.exe` to be released instead of refusing at once. `/RELAUNCH` starts the installed
+app after success (or the restored app after a failed update). On GitHub Actions,
+`Build-CiPackage.ps1` provisions the SHA-256-pinned NSIS 3.11 archive and the static-CRT
+release build, passes the runner's `dumpbin.exe` via `-Dumpbin`, and calls this script
+unchanged; `Test-UpdateHandoff.ps1` checks the handoff with an isolated Test-mode build.
+See `../UPDATE-ADAPTER.md` for signing and releases.

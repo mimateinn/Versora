@@ -28,8 +28,10 @@ picker and Save As as `NOT_RUN` unless `--manual-dialogs` is used and the actual
 dialogs are handled; separate native helper results have their own evidence.
 `--release-build` enforces
 the 500ms navigation median gate only when testing the compiled release. Updates
-policy persistence and the truthful disabled download/install gates are verified;
-signed installation, replacement and health rollback remain unverified.
+policy persistence and the truthful disabled download/install gates (no trust key
+committed) are verified. Signed download/verification/install handoff is covered by
+`src-tauri/tests/update_policy.rs` and the CI installer handoff check; health rollback
+remains unverified.
 
 Demo is explicitly a tagged offline test, not evidence of real translation.
 Live provider compatibility, quotas, model quality and CLI tool restrictions

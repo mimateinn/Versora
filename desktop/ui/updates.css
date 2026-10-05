@@ -1,0 +1,22 @@
+/* In-app updater: ready pill (beside the bottom-right settings coin), update toast and notes.
+   Colors come from the theme tokens, so light, dark and future palettes follow the accent. */
+.update-pill{position:fixed;right:28px;bottom:60px;z-index:96;display:inline-flex;align-items:center;gap:2px;height:44px;padding:0 4px 0 0;border-radius:999px;background:var(--btn);color:var(--btn-ink);box-shadow:0 10px 28px rgba(70,119,181,.32),0 2px 6px rgba(24,32,48,.10);animation:update-pill-enter 320ms var(--ease) both}
+.page-dock .update-pill{position:static;align-self:center;margin-right:12px}
+.update-pill button{height:44px;min-height:44px;border:0;background:transparent;color:inherit;border-radius:999px;box-shadow:none}
+.update-pill .update-pill-main{padding:0 10px 0 16px;gap:8px;font-weight:var(--strong-weight);white-space:nowrap}
+.update-pill .update-pill-later{width:32px;height:32px;min-height:32px;padding:0;opacity:.8}
+.update-pill button:hover:not(:disabled){background:rgba(255,255,255,.14);color:inherit}
+.update-pill button:focus-visible{outline:2px solid var(--btn-ink);outline-offset:-4px}
+.update-pill .vi{width:18px;height:18px}
+.update-pill .update-pill-later .vi{width:14px;height:14px}
+@keyframes update-pill-enter{from{opacity:0;transform:translateY(8px) scale(.96)}}
+.update-toast{display:flex;align-items:center;gap:12px;white-space:nowrap;z-index:97}
+.update-toast[hidden]{display:none}
+.update-toast button.link{color:inherit;text-decoration:underline;text-underline-offset:3px;font-weight:var(--strong-weight)}
+.update-toast .update-toast-close{width:28px;height:28px;min-height:28px;padding:0;border:0;background:transparent;color:inherit;opacity:.75}
+.update-toast .vi{width:14px;height:14px}
+.update-notes{border-top:1px solid var(--line);padding-top:16px}
+.update-notes h3{font-size:var(--size-detail);margin:0 0 8px}
+.update-notes pre{margin:0;max-height:240px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font-family:var(--f-ui);font-size:var(--size-detail);line-height:1.6;color:var(--text)}
+#update-confirm .actions{justify-content:flex-end}
+@media(forced-colors:active){.update-pill{forced-color-adjust:none;background:Highlight;color:HighlightText}}

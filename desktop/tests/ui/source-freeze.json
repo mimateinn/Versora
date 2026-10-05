@@ -76,8 +76,8 @@
   },
   {
     "path": "desktop\\ui\\app.js",
-    "sha256": "DFD1016DBC7D36E2D954F830FC62879C11840551CD53C9BB67B0ADB26A45D4D0",
-    "bytes": 55158
+    "sha256": "2E3F8C476A10BB5F6C23869A995A16E48D8D501EAAB7616065F32AEBD6619A20",
+    "bytes": 55231
   },
   {
     "path": "desktop\\ui\\assets\\fonts\\libron\\COPYRIGHT",
@@ -156,8 +156,8 @@
   },
   {
     "path": "desktop\\ui\\index.html",
-    "sha256": "556FCE09A0F5A528B2FD6533768AFE02E09773CD37449E92ACDAB40271B91DB7",
-    "bytes": 4126
+    "sha256": "49D013EDA83F566E30FF3FA28E5E4FE3938C5FAFD3B48D5875C6C49C452EDEA9",
+    "bytes": 4171
   },
   {
     "path": "desktop\\ui\\locales\\de.json",
@@ -236,13 +236,18 @@
   },
   {
     "path": "desktop\\ui\\updates-i18n.js",
-    "sha256": "DE4E62A309B5AF3CBC7DDEA5BFBEFC33C27990B0EB7AF3DEBFA2244FA17240A3",
-    "bytes": 9539
+    "sha256": "0B646674F0619E1CA17C448E7C80A73F68C98FB13F601EE43498C3A9B42C226C",
+    "bytes": 11763
+  },
+  {
+    "path": "desktop\\ui\\updates.css",
+    "sha256": "DA40EBEA52312BFBCE5F6C32C60452BEBB82F628E9688779EE33D2ACF485D036",
+    "bytes": 2203
   },
   {
     "path": "desktop\\ui\\updates.js",
-    "sha256": "43D2846830C7A8618CEF2641EF6A0BCE97188828C5FE0F2877BF60C3056598E3",
-    "bytes": 7649
+    "sha256": "B250B412E4323F73EE58A815DE70E0022DB0D18C0ED4728DED0052894AB440EB",
+    "bytes": 13200
   },
   {
     "path": "desktop\\ui\\window-chrome.js",
