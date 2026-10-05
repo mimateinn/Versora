@@ -176,7 +176,19 @@ fn strict_versions_channels_and_highest_candidate_order() {
             .unwrap()
             .unwrap()
             .version,
-        "1.10.0-preview.10"
+        "1.10.0"
+    );
+    assert_eq!(
+        suite_updates::select_candidate(
+            &json!([release("1.9.0"), release("1.10.0-preview.2")]),
+            "preview",
+            "0.3.0-preview.1",
+            None
+        )
+        .unwrap()
+        .unwrap()
+        .version,
+        "1.10.0-preview.2"
     );
     assert!(
         suite_updates::select_candidate(&rows, "preview", "0.3.0-preview.1", Some("1.10.0"))

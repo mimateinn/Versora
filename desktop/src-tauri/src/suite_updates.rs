@@ -1351,7 +1351,9 @@ pub fn parse_release_metadata(bytes: &[u8]) -> Result<Value, String> {
 fn accepts_channel(version: &Version, channel: &str) -> bool {
     match channel {
         "stable" => version.pre.is_empty(),
-        "preview" => !version.pre.is_empty(),
+        // Preview also follows stable releases, so it is never stuck on an
+        // older prerelease once the stable version ships.
+        "preview" => true,
         _ => false,
     }
 }
