@@ -38,6 +38,11 @@ RESIZE = {
     "south-east": (24, 24, "SouthEast"),
 }
 LOCALES = ("en", "zh-Hant", "zh-Hans", "ja", "ko", "fr", "de", "es", "pt", "vi", "th", "id")
+R40_REFERENCES = {
+    "Litora-motion-scrollbar-reference.txt": "b6cb25d3a0569463969efdb2a9b16622db7164952e1428eeb0268673c522de05",
+    "Litora-motion-scrollbar-source-map.json": "ed41a168c38ac1f3a147f544b272ef9f5f2dcab210e5de64fcafbdd97bb55a1c",
+    "Litora-motion-scrollbar-verbatim.txt": "722adefdbfc7089930baa656044ac75dcb1ee0558924bb62a7fef204bf5831e1",
+}
 
 
 def require(condition, message):
@@ -716,6 +721,7 @@ async def inspect_motion(page, native):
     original_reduce = await page.get_by_test_id("reduce-motion").is_checked()
     await page.get_by_test_id("reduce-motion").uncheck()
     await page.wait_for_function("() => document.documentElement.dataset.reducedMotion==='false'")
+    await wait_idle(page)
     os_reduce = await page.evaluate("() => matchMedia('(prefers-reduced-motion:reduce)').matches")
     measure = """() => {
       const root=getComputedStyle(document.documentElement), button=document.querySelector('[data-testid=settings-pane-appearance]') || document.querySelector('[data-testid=nav-settings]');
@@ -773,8 +779,10 @@ async def inspect_motion(page, native):
     else:
         require(theme_motion["active"] is None, "OS reduction must skip the theme timeline.")
     await page.wait_for_function("() => !document.documentElement.dataset.themeTransition")
+    await wait_idle(page)
     await page.get_by_test_id("reduce-motion").check()
     await page.wait_for_function("() => document.documentElement.dataset.reducedMotion==='true'")
+    await wait_idle(page)
     native.guard()
     await page.get_by_test_id("nav-translate").click()
     reduced = await page.evaluate(measure)
@@ -799,6 +807,7 @@ async def inspect_motion(page, native):
     await page.get_by_test_id("settings-pane-appearance").click()
     await page.get_by_test_id("appearance-theme").select_option(theme)
     await page.wait_for_function("theme => document.documentElement.dataset.theme===theme", arg=theme)
+    await wait_idle(page)
     reduced_theme = await page.evaluate("""() => ({active:document.documentElement.dataset.themeTransition||null,
       duration:getComputedStyle(document.body).transitionDuration})""")
     require(reduced_theme["active"] is None and
@@ -806,10 +815,153 @@ async def inspect_motion(page, native):
             "App reduced motion must settle theme colors without a transition.")
     await page.get_by_test_id("reduce-motion").set_checked(original_reduce)
     await page.wait_for_function("reduced => document.documentElement.dataset.reducedMotion===String(reduced)", arg=original_reduce)
+    await wait_idle(page)
     await page.wait_for_function("() => !document.documentElement.dataset.themeTransition")
     return {"osReducedMotion": os_reduce, "originalAppReduction": original_reduce,
             "normal": normal, "press": press, "route": route, "theme": theme_motion, "reduced": reduced,
             "reducedPress": reduced_press, "reducedTheme": reduced_theme}
+
+
+async def wait_idle(page):
+    # Theme destination can be painted before finishOperation restores controls.
+    await page.wait_for_function("""() => document.querySelector('[data-testid=main-content]').getAttribute('aria-busy')==='false' &&
+      !document.querySelector('[data-testid=theme-toggle]').disabled""")
+
+
+async def inspect_retained_theme_and_rail(page, native):
+    await page.get_by_test_id("settings-pane-purposes").click()
+    await wait_idle(page)
+    draft = page.get_by_test_id("purpose-instructions")
+    original = await draft.input_value()
+    value = original + "\nNative r40 unsaved theme/race draft."
+    await draft.fill(value)
+    await draft.focus()
+    await draft.evaluate("n=>n.setSelectionRange(2,8)")
+    handle = await draft.element_handle()
+    pane = await page.get_by_test_id("settings-content-purposes").element_handle()
+    layout = await page.locator(".settings-layout").element_handle()
+    rail = await page.locator(".settings-rail").element_handle()
+    buttons = await page.locator(".settings-rail .rail-button").element_handles()
+    theme = await page.evaluate("() => document.documentElement.dataset.theme")
+    cycles = []
+    for unused in range(4):
+        target = "light" if await page.evaluate("() => document.documentElement.dataset.theme") == "dark" else "dark"
+        native.guard()
+        # DOM click invokes the real delegated product action and Rust save. It
+        # preserves the existing input focus so DOM replacement is observable.
+        await page.evaluate("() => document.querySelector('[data-testid=theme-toggle]').click()")
+        await page.wait_for_function("theme=>document.documentElement.dataset.theme===theme", arg=target)
+        await wait_idle(page)
+        retained = await handle.evaluate("""n=>({same:n.isConnected&&n===document.querySelector('[data-testid=purpose-instructions]'),
+          focused:document.activeElement===n,disabled:n.disabled,start:n.selectionStart,end:n.selectionEnd,value:n.value})""")
+        require(retained == {"same": True, "focused": True, "disabled": False, "start": 2, "end": 8, "value": value},
+                "Repeated real theme change replaced/lost focused draft DOM, caret or enabled state.")
+        require(await pane.evaluate("n=>n.isConnected&&n===document.querySelector('[data-testid=settings-content-purposes]')") and
+                await layout.evaluate("n=>n.isConnected&&n===document.querySelector('.settings-layout')"),
+                "Theme change must preserve the same content/settings pane.")
+        cycles.append({"theme": target, "focusedDraftNodeRetained": True, "selection": [2, 8]})
+    native.guard()
+    target = "light" if theme == "dark" else "dark"
+    await page.evaluate("""() => {
+      document.querySelector('[data-testid=theme-toggle]').click();
+      document.querySelector('[data-testid=settings-pane-glossary]').click();
+    }""")
+    await page.wait_for_function("theme=>document.documentElement.dataset.theme===theme", arg=target)
+    await wait_idle(page)
+    require(await page.get_by_test_id("new-project").is_enabled() and
+            await page.get_by_test_id("glossary-project").is_enabled() and
+            await page.get_by_test_id("save-glossary").is_enabled(),
+            "Real theme→immediate-pane race left the desired pane disabled.")
+    require(await rail.evaluate("n=>n.isConnected&&n===document.querySelector('.settings-rail')") and
+            all([await b.evaluate("n=>n.isConnected&&n===document.querySelector(`[data-testid=${n.dataset.testid}]`)") for b in buttons]),
+            "Settings pane change replaced retained rail/button DOM.")
+    markers = await page.evaluate("""() => [...document.querySelectorAll('.rail-button')].map(n=>{
+      const s=getComputedStyle(n,'::before');return {id:n.dataset.testid,active:n.classList.contains('active'),
+        properties:s.transitionProperty,durations:s.transitionDuration,timing:s.transitionTimingFunction,opacity:s.opacity,transform:s.transform};
+    })""")
+    reduced = await page.evaluate("() => document.documentElement.dataset.reducedMotion==='true'||matchMedia('(prefers-reduced-motion:reduce)').matches")
+    for marker in markers:
+        if reduced:
+            require(all(float(v.strip().removesuffix("s")) == 0 for v in marker["durations"].split(",")),
+                    "Reduced settings marker must have no transition.")
+        else:
+            durations = dict(zip(marker["properties"].split(", "), marker["durations"].split(", ")))
+            require(durations.get("opacity") == "0.18s" and durations.get("transform") == "0.18s",
+                    "Retained settings index marker must animate opacity/scale over 180ms.")
+    await page.get_by_test_id("settings-pane-purposes").click()
+    require(await page.get_by_test_id("purpose-instructions").input_value() == value,
+            "Real theme/pane race lost the prior isolated purpose draft.")
+    await page.get_by_test_id("purpose-instructions").fill(original)
+    await page.get_by_test_id("settings-pane-appearance").click()
+    await page.get_by_test_id("appearance-theme").select_option(theme)
+    await wait_idle(page)
+    await page.wait_for_function("() => !document.documentElement.dataset.themeTransition")
+    return {"cycles": cycles, "sameTaskThemePaneRace": "PASS", "railNodesRetained": True, "markers": markers,
+            "draftRestoredWithoutSaving": True}
+
+
+async def inspect_html_remove_dialog(page, native):
+    await page.get_by_test_id("settings-pane-appearance").click()
+    original_reduce = await page.get_by_test_id("reduce-motion").is_checked()
+    await page.get_by_test_id("reduce-motion").uncheck()
+    await wait_idle(page)
+    await page.get_by_test_id("settings-pane-keys").click()
+    proofs = await provider_proofs(page)
+    require(next(p for p in proofs if p["id"] == "openai")["keyPresent"] is False,
+            "Only a fresh isolated no-key provider may receive the synthetic dialog fixture.")
+    native.guard()
+    await page.get_by_test_id("edit-provider-openai").click()
+    key = page.get_by_test_id("provider-key-openai")
+    secret_node = await key.element_handle()
+    await key.fill("synthetic-native-dialog-key-not-a-live-credential")
+    await page.get_by_test_id("save-provider-openai").click()
+    await wait_idle(page)
+    require(await secret_node.evaluate("n=>n.value===''") and
+            next(p for p in await provider_proofs(page) if p["id"] == "openai")["keyPresent"] is True,
+            "Actual isolated UI Save did not clear its key input and save the fixture.")
+    os_reduce = await page.evaluate("() => matchMedia('(prefers-reduced-motion:reduce)').matches")
+    read_dialog = """() => {
+      const n=document.querySelector('[data-testid=confirm-dialog]'),s=getComputedStyle(n),b=getComputedStyle(n,'::backdrop');
+      return {open:n.open,modal:n.matches(':modal'),sheet:{name:s.animationName,duration:s.animationDuration,timing:s.animationTimingFunction},
+        backdrop:{name:b.animationName,duration:b.animationDuration,timing:b.animationTimingFunction}};
+    }"""
+    records = []
+    for app_reduce in (False, True):
+        if app_reduce:
+            await page.get_by_test_id("settings-pane-appearance").click()
+            await page.get_by_test_id("reduce-motion").check()
+            await wait_idle(page)
+            await page.get_by_test_id("settings-pane-keys").click()
+        native.guard()
+        await page.get_by_test_id("remove-provider-openai").click()
+        await page.wait_for_function("() => document.querySelector('[data-testid=confirm-dialog]').open")
+        dialog = await page.evaluate(read_dialog)
+        require(dialog["open"] and dialog["modal"], "Remove must open the actual product HTML modal.")
+        if os_reduce or app_reduce:
+            require(dialog["sheet"]["name"] == dialog["backdrop"]["name"] == "none",
+                    "Existing app/OS reduction must suppress dialog displacement and animations.")
+        else:
+            require(dialog["sheet"]["name"] == "dialog-sheet-enter" and dialog["sheet"]["duration"] == "0.38s" and
+                    dialog["sheet"]["timing"].replace(" ", "") == "cubic-bezier(0.34,1.4,0.5,1)" and
+                    dialog["backdrop"]["name"] == "dialog-backdrop-enter" and dialog["backdrop"]["duration"] == "0.2s",
+                    "Actual normal Remove dialog must use the r40 200ms backdrop / 380ms spring sheet.")
+        await page.get_by_test_id("confirm-cancel").click()
+        await page.wait_for_function("() => !document.querySelector('[data-testid=confirm-dialog]').open")
+        await wait_idle(page)
+        require(next(p for p in await provider_proofs(page) if p["id"] == "openai")["keyPresent"] is True,
+                "Actual Keep/Cancel removed the saved isolated fixture.")
+        records.append({"appReduced": app_reduce, "osReduced": os_reduce, "dialog": dialog, "CancelKeptKey": True})
+    native.guard()
+    await page.get_by_test_id("remove-provider-openai").click()
+    await page.get_by_test_id("confirm-accept").click()
+    await wait_idle(page)
+    require(next(p for p in await provider_proofs(page) if p["id"] == "openai")["keyPresent"] is False,
+            "Actual confirmed Remove did not clean up the isolated fixture.")
+    await page.get_by_test_id("settings-pane-appearance").click()
+    await page.get_by_test_id("reduce-motion").set_checked(original_reduce)
+    await wait_idle(page)
+    return {"fixture": "actual isolated UI Save/Remove", "paidTestClicks": 0, "dialogs": records, "fixtureRemoved": True,
+            "OSReducedBranch": "PASS" if os_reduce else "NOT_RUN: actual OS setting was not reduced"}
 
 
 async def run(args):
@@ -820,7 +972,10 @@ async def run(args):
     evidence.mkdir(parents=True)
     receipt = {"status": "RUNNING", "native": False, "browserViewportEmulation": False,
                "keyboardInput": False, "processTermination": False, "realTranslation": "NOT_RUN",
-               "checks": [], "errors": [], "phase": "ownership", "launchProofSHA256": sha256(proof_path)}
+               "checks": [], "errors": [], "phase": "ownership", "launchProofSHA256": sha256(proof_path),
+               "r40ReadOnlyReferenceSHA256": R40_REFERENCES,
+               "nativeZoom200And300": "NOT_RUN: native zoom permission is absent and zoom hotkeys are disabled; no emulation",
+               "scrollbarNativePointerScreenshots": "NOT_RUN: owned native hover/active/drag supplemental evidence pending"}
     native = browser = page = None
     try:
         native = OwnedWindow(proof)
@@ -856,8 +1011,14 @@ async def run(args):
                     comparable_path(proof["dataDir"]), "Expected isolated native Demo profile required.")
             require(Path(proof["dataDir"]).resolve().is_relative_to(proof_path.parent),
                     "Native data profile must belong to the launch evidence.")
-            require(not any(item.get("configured") and item["id"] != "demo" for item in state["providers"]),
-                    "Fresh chrome profile must not contain configured live providers.")
+            require(not any(item.get("keyPresent") or
+                            (item.get("configured") and item["id"] != "demo" and
+                             item.get("kind") != "cli" and not item["id"].endswith("_cli"))
+                            for item in state["providers"]),
+                    "Owned isolated chrome profile must not contain saved API credentials.")
+            require(not any(item.get("transportVerified") for item in state["providers"]
+                            if item["id"] != "demo"),
+                    "Initial non-Demo providers must not contain paid transport-test proofs.")
             receipt.update(native=True, url=page.url, dataDir=state["dataDir"])
             decorated = await page.evaluate("window.__TAURI__.window.getCurrentWindow().isDecorated()")
             require(decorated is False, "Native Tauri isDecorated() must prove decorated=false.")
@@ -869,6 +1030,7 @@ async def run(args):
             await page.get_by_test_id("settings-pane-appearance").click()
             await page.get_by_test_id("interface-language").select_option("en")
             await page.wait_for_function("() => document.documentElement.lang === 'en'")
+            await wait_idle(page)
             receipt["phase"] = "minimize/maximize/restore"
             if native.snapshot()["minimized"] or native.snapshot()["maximized"]:
                 native.restore()
@@ -975,6 +1137,7 @@ async def run(args):
                 native.guard()
                 await page.get_by_test_id("appearance-theme").select_option(theme)
                 await page.wait_for_function("theme => document.documentElement.dataset.theme === theme", arg=theme)
+                await wait_idle(page)
                 await settled(page)
                 record = await chrome_geometry(page)
                 validate_chrome(record)
@@ -1018,6 +1181,7 @@ async def run(args):
                 await page.get_by_test_id("settings-pane-appearance").click()
                 await page.get_by_test_id("interface-language").select_option(locale)
                 await page.wait_for_function("locale => document.documentElement.lang===locale", arg=locale)
+                await wait_idle(page)
                 await page.evaluate("async () => await document.fonts.ready")
                 appearance_shell = await shell_geometry(page)
                 validate_shell(appearance_shell, shell_reference)
@@ -1038,6 +1202,7 @@ async def run(args):
             await page.get_by_test_id("settings-pane-appearance").click()
             await page.get_by_test_id("interface-language").select_option("en")
             await page.wait_for_function("() => document.documentElement.lang==='en'")
+            await wait_idle(page)
             await page.get_by_test_id("settings-pane-order").click()
             order_proofs = await provider_proofs(page)
             order_dots = await page.evaluate("""() => [...document.querySelectorAll('.order-row')].map(row=>({
@@ -1088,6 +1253,17 @@ async def run(args):
             motion_record = await inspect_motion(page, native)
             validate_shell(await shell_geometry(page), shell_reference)
             receipt["checks"].append({"name": "computed actual scrollbar and motion parity", "motion": motion_record})
+            receipt["phase"] = "retained theme draft DOM and real pane race"
+            retained_record = await inspect_retained_theme_and_rail(page, native)
+            receipt["checks"].append({"name": "four real theme toggles retain focused draft DOM; real pane race; retained 180ms rail",
+                                      "retained": retained_record})
+            receipt["phase"] = "actual isolated UI Remove dialog normal/reduced parity"
+            dialog_record = await inspect_html_remove_dialog(page, native)
+            receipt["checks"].append({"name": "actual UI Save/Remove/Cancel; 200ms backdrop and 380ms sheet; no paid Test",
+                                      "dialog": dialog_record})
+            validate_shell(await shell_geometry(page), shell_reference)
+            receipt["nativeZoom100"] = {"status": "PASS", "native": native.snapshot(), "shell": await shell_geometry(page),
+                                        "browserViewportEmulation": False, "cssZoomOrPageScaleEmulation": False}
             receipt["phase"] = "close cancel unsaved"
             await page.get_by_test_id("settings-pane-glossary").click()
             draft = "native-chrome-unsaved-project"
