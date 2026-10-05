@@ -2,7 +2,7 @@ name: Versora CI
 
 on:
   push:
-    branches: ['claude/**']
+    branches: ['feat/rust-desktop']
   pull_request:
   workflow_dispatch:
 
