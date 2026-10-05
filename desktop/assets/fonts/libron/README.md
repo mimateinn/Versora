@@ -16,5 +16,10 @@ for Newsreader, Readerly and Libron. Keep both files with every redistributed co
 
 The Latin and Vietnamese sample glyphs are present in all four inspected TTF
 faces. CJK and Thai samples require the application's existing fallback fonts.
-This package is UI typography; it does not replace document/PDF fonts such as
-the separately licensed Noto asset outside this directory.
+This package supplies ordinary Latin UI and non-heading display typography.
+Headings and the brand use a separate original Litora stack: Poppins, Space
+Grotesk, Noto Sans TC, system-ui, sans-serif. Poppins is preferred; the existing
+installed Noto Sans TC is the verified offline fallback when the first two are
+unavailable. Existing heading sizes and weights are preserved. No remote
+heading-font request is added. This package does not replace document/PDF fonts
+such as the separately licensed Noto asset outside this directory.

@@ -49,13 +49,13 @@ No provider credentials are included. API translation sends selected text and an
 
 Choose the source and target languages and a purpose, then select files, a folder or a ZIP with the native file picker or drag and drop. Press **Translate**.
 
-Each supported input gets a separate translated output, with relative folders retained for folder and ZIP jobs. Originals are left unchanged. Finished files can be opened, saved with the native **Save As** dialog, or exported together as a ZIP. Existing output names get a new suffix rather than silently overwriting a file.
+Each supported input gets a separate translated output, with relative folders retained for folder and ZIP jobs. Originals are left unchanged. Finished files can be opened, saved with the native **Save As** dialog, or exported together as a ZIP within an 80 MB combined-file and 84 MB archive limit. Five small changed PDFs can already exceed the combined limit because each embeds its font; their individual saved files remain available. Existing output names get a new suffix rather than silently overwriting a file.
 
 **Cancel** keeps files that have already been saved. **Retry** runs only failed or unfinished files. File concurrency is configurable from 1–16, with a separate limit for each translator.
 
 Settings include purposes, translator order and models, project glossaries, 12 interface languages, light/dark appearance and reduced motion.
 
-The default Latin interface font is locally bundled [Libron v0.25](https://github.com/nicoverbruggen/libron/releases/tag/v0.25), with its actual Regular, Bold, Italic and Bold Italic styles under the SIL Open Font License 1.1. Existing CJK and other script fallbacks remain available, and code/path displays retain their existing monospace styling. Interface font selection does not change original or translated document fonts; PDF reflow uses the separately bundled Noto font described below.
+The default ordinary Latin interface font is locally bundled [Libron v0.25](https://github.com/nicoverbruggen/libron/releases/tag/v0.25), with its actual Regular, Bold, Italic and Bold Italic styles under the SIL Open Font License 1.1. Main/page headings, class-based heading labels and the brand wordmark use a separate heading token with Litora's original stack: Poppins, Space Grotesk, Noto Sans TC, system-ui, sans-serif. The tested offline Windows host has Noto Sans TC available; its actual Medium/Bold glyphs are verified separately from CSS family declarations. Poppins is a preferred family rather than a newly bundled or downloaded font. Existing CJK/script fallbacks and functional monospace styling remain, and no system font is installed. Interface font selection does not change original or translated document fonts; PDF reflow uses the separately bundled Noto font described below.
 
 ### Formats
 
@@ -111,7 +111,7 @@ On the provisioned Windows build host, with the locked crates available, install
 ```powershell
 cd desktop
 .\scripts\Invoke-Rust.ps1 -CargoArgs @('test', '--offline', '--locked', '--workspace')
-$env:CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS = '-C target-feature=+crt-static'
+$env:CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS = '-C target-feature=+crt-static --remap-path-prefix=' + $env:USERPROFILE + '=/build-host --remap-path-prefix=' + $env:USERPROFILE.Replace('\','/') + '=/build-host'
 .\scripts\Invoke-Rust.ps1 -CargoArgs @('build', '--offline', '--locked', '--release', '-p', 'versora-desktop', '--features', 'custom-protocol')
 ```
 

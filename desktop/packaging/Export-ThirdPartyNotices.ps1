@@ -64,7 +64,7 @@ foreach ($required in @($font, $ofl, $fontSource, $rustCopyright, $nsisCopying))
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) { throw "Required cached notice/resource is absent: $required" }
 }
 if ((Digest $font) -ne $fontSha -or (Digest $ofl) -ne $oflSha) { throw 'Approved Noto font/OFL digest differs.' }
-if ((Digest $libronSourcePath) -ne '587390eb57da726c0629152c6206847e912218b813268251e3b95b7f424df547') { throw 'Approved Libron source provenance differs.' }
+if ((Digest $libronSourcePath) -ne '6678439bba5b090b16fddc4a85a24b0fee5baa4d7ca1dcec6a7242580d2ca9ff') { throw 'Approved Libron source provenance differs.' }
 $libronSource = Get-Content -LiteralPath $libronSourcePath -Raw | ConvertFrom-Json
 if ($libronSource.family -ne 'Libron' -or $libronSource.version -ne '0.25' -or $libronSource.sourceCommit -ne '46cf11c80a3b3a07c5b509b79d14c0e38feb1b35' -or $libronSource.license -ne 'OFL-1.1' -or $libronSource.modifiedFontBytes -or $libronSource.systemInstalled -or $libronSource.upstreamBuildScriptsExecuted) { throw 'Unexpected Libron version/license/admission facts.' }
 $libronNames = @('COPYRIGHT', 'LICENSE', 'VERSION', 'ttf/Libron-Regular.ttf', 'ttf/Libron-Italic.ttf', 'ttf/Libron-Bold.ttf', 'ttf/Libron-BoldItalic.ttf', 'woff2/Libron-Regular.woff2', 'woff2/Libron-Italic.woff2', 'woff2/Libron-Bold.woff2', 'woff2/Libron-BoldItalic.woff2')

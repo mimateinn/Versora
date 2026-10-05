@@ -59,12 +59,31 @@ async def run(args):
                     result['renderedFonts'][key]=used
                     if not any(font.get('isCustomFont') and font['familyName']=='Libron' and font['glyphCount']>0 for font in used):
                         raise RuntimeError(f'Actual Libron glyph shaping absent for {key}: {used}')
+            # Original Litora heading family is separate from ordinary Libron UI.
+            # Exercise real installed heading weights without adding product text.
+            await page.evaluate('() => {const host=document.querySelector("#native-font-probes");for(const weight of [400,500,700]){const node=document.createElement("span");node.id=`font-probe-heading-${weight}`;node.textContent="Appearance Settings 0123456789";node.style.cssText=`font-family:var(--f-heading);font-size:14px;font-weight:${weight};font-synthesis:none`;host.append(node);}}')
+            for weight in (400,500,700):
+                used=await fonts(f'#font-probe-heading-{weight}')
+                result['renderedFonts'][f'heading-weight-{weight}']=used
+                if not any(font['familyName']=='Noto Sans TC' and not font.get('isCustomFont') and font['glyphCount']>0 for font in used):
+                    raise RuntimeError(f'Actual offline Noto Sans TC heading glyphs absent for {weight}: {used}')
+                if any(font['familyName']=='Libron' for font in used):
+                    raise RuntimeError('Heading probe incorrectly inherits Libron.')
             await page.evaluate('() => document.querySelector("#native-font-probes").remove()')
             await page.get_by_test_id('nav-settings').click()
             await page.get_by_test_id('settings-pane-appearance').click()
             await page.get_by_test_id('interface-language').select_option('en')
             await page.wait_for_function("() => document.documentElement.lang==='en'")
             result['renderedFonts']['brand-bold']=await fonts('.brand b')
+            result['renderedFonts']['appearance-heading']=await fonts('[data-testid="settings-content-appearance"] h1')
+            for key in ('brand-bold','appearance-heading'):
+                if not any(font['familyName']=='Noto Sans TC' and font['glyphCount']>0 for font in result['renderedFonts'][key]):
+                    raise RuntimeError(f'Original offline heading fallback absent for {key}.')
+                if any(font['familyName']=='Libron' for font in result['renderedFonts'][key]):
+                    raise RuntimeError(f'Libron unexpectedly paints a heading: {key}.')
+            result['headingContract']=await page.evaluate('() => ({token:getComputedStyle(document.documentElement).getPropertyValue("--f-heading").trim(),brand:{family:getComputedStyle(document.querySelector(".brand b")).fontFamily,weight:getComputedStyle(document.querySelector(".brand b")).fontWeight,size:getComputedStyle(document.querySelector(".brand b")).fontSize},page:{family:getComputedStyle(document.querySelector("[data-testid=settings-content-appearance] h1")).fontFamily,weight:getComputedStyle(document.querySelector("[data-testid=settings-content-appearance] h1")).fontWeight,size:getComputedStyle(document.querySelector("[data-testid=settings-content-appearance] h1")).fontSize}})')
+            if result['headingContract']['brand']['weight']!='700' or result['headingContract']['brand']['size']!='15px' or result['headingContract']['page']['weight']!='700' or result['headingContract']['page']['size']!='22px':
+                raise RuntimeError('Existing heading/brand size and weight changed.')
             result['renderedFonts']['navigation-regular']=await fonts('[data-testid="nav-translate"]')
             result['renderedFonts']['path-monospace']=await fonts('[data-testid="data-directory"]')
             if any(font.get('isCustomFont') and font['familyName']=='Libron' for font in result['renderedFonts']['path-monospace']):
@@ -87,6 +106,10 @@ async def run(args):
                     if(text.width&&text.height&&(text.left<bounds.left-1||text.right>bounds.right+1||text.top<bounds.top-1||text.bottom>bounds.bottom+1))issues.push({id:button.dataset.testid,text:node.textContent,reason:'button text escapes bounds'});
                   }
                 }
+              }
+              for(const heading of document.querySelectorAll('h1,h2,h3,h4,h5,h6,[role=heading],.brand,.page-title,.route-title,.section-title,.dialog-title,.empty-title,.confirm-title')){
+                const family=getComputedStyle(heading).fontFamily;
+                if(family.includes('Libron')||!family.startsWith('Poppins'))issues.push({id:heading.dataset.testid||heading.className||heading.tagName,reason:'heading font-role mismatch',family});
               }
               return {width:innerWidth,scrollWidth:document.documentElement.scrollWidth,issues};
             }'''

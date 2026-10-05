@@ -45,5 +45,9 @@
       "bytes": 4,
       "sha256": "a30a043314fa89294fa2c1c989a01fbb5329e5c085a5c5a8d27317656de24ae0"
     }
-  ]
+  ],
+  "canonicalProvenanceSHA256": "6678439BBA5B090B16FDDC4A85A24B0FEE5BAA4D7CA1DCEC6A7242580D2CA9FF",
+  "ordinaryLatinUI": "Bundled Libron; heading family kept separate",
+  "headingStack": "Poppins, Space Grotesk, Noto Sans TC, system-ui, sans-serif",
+  "headingWeightsAndSizes": "Preserved; font-family override only"
 }

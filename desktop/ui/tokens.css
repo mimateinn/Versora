@@ -13,6 +13,7 @@
   --art-fill:rgba(26,26,26,.04); --art-line:rgba(26,26,26,.40);
   --f-ui:"Libron",Inter,"Segoe UI Variable Text","Segoe UI","Noto Sans TC","Microsoft JhengHei UI","PingFang TC",system-ui,sans-serif;
   --f-display:"Libron",Poppins,"Space Grotesk","Segoe UI Variable Display","Segoe UI","Noto Sans TC","Microsoft JhengHei UI",sans-serif;
+  --f-heading:"Poppins","Space Grotesk","Noto Sans TC",system-ui,sans-serif;
   --f-mono:"IBM Plex Mono","Cascadia Mono",Consolas,ui-monospace,"Microsoft JhengHei UI",monospace;
   --ease:cubic-bezier(.22,1,.36,1); --fast:140ms; --normal:220ms; --control-height:42px; --small-height:34px;
   --body-weight:400; --control-weight:400; --strong-weight:700; --vi-accent:var(--accent);

@@ -137,13 +137,13 @@
     },
     {
       "path": "README.md",
-      "bytes": 1143,
-      "sha256": "7fac69d09ac361557e94169ef228d57ac35a1ae187b453a780d5778ced705321"
+      "bytes": 1538,
+      "sha256": "af3220ac6aa1028b8416c822537f54511cf5cba36f1de558de4d4b9762fe35ed"
     },
     {
       "path": "TOKEN-CONTRACT.md",
-      "bytes": 1856,
-      "sha256": "9cac59a52f722de6617ad304ab7eab7f6d9ad0cb549549bac36aa38efe337faa"
+      "bytes": 2544,
+      "sha256": "fd69868849023162d096f5a3b88d6aa98d82292cf406a0876f8726f2b3677be6"
     },
     {
       "path": "ttf/Libron-Bold.ttf",
