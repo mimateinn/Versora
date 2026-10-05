@@ -226,7 +226,21 @@ function appearanceView() {
 }
 function render() {
   rememberProviderInputs();
-  content.innerHTML = view.page === 'settings' ? settingsView() : translateView();
+  const retainedLayout=view.page==='settings'&&content.querySelector('.settings-layout');
+  if(retainedLayout){
+    // Keep rail controls alive so their selection marker interpolates across panes.
+    const template=document.createElement('template');template.innerHTML=settingsView();
+    const nextLayout=template.content.querySelector('.settings-layout');
+    const rail=retainedLayout.querySelector('.settings-rail');
+    rail.setAttribute('aria-label',nextLayout.querySelector('.settings-rail').getAttribute('aria-label'));
+    for(const next of nextLayout.querySelectorAll('.rail-button')){
+      const current=[...rail.querySelectorAll('.rail-button')].find(button=>button.dataset.id===next.dataset.id);
+      if(!current)continue;
+      current.className=next.className;current.setAttribute('aria-current',next.getAttribute('aria-current'));
+      if(current.innerHTML!==next.innerHTML)current.innerHTML=next.innerHTML;
+    }
+    retainedLayout.querySelector('.settings-pane').replaceWith(nextLayout.querySelector('.settings-pane'));
+  }else content.innerHTML=view.page==='settings'?settingsView():translateView();
   restoreProviderInputs();
   renderChrome();
   motion.enter(content,view.page==='settings'?`settings:${view.pane}`:view.page);
@@ -244,11 +258,44 @@ async function recheckInitialCliProviders() {
   // Native probes read installed versions/login status. They never call Test or translate.
   const results=await Promise.allSettled(pending.map(provider=>backend.probeProvider(provider.id)));
   try {
-    captureDrafts();await refresh();
-    if(view.page==='settings'&&view.pane==='keys')render();
+    const fresh=await backend.state();
+    if(!Array.isArray(fresh?.providers))throw new Error('The desktop backend returned invalid provider state.');
+    // A background availability read must not roll back a concurrent settings save.
+    state.providers=fresh.providers;
+    if(view.page==='settings'&&view.pane==='keys')patchProviderRows();
     const failed=results.find(result=>result.status==='rejected');
     if(failed&&view.page==='settings'&&view.pane==='keys')toast(String(failed.reason?.message||failed.reason),'error');
   }catch(error){if(view.page==='settings'&&view.pane==='keys')toast(String(error?.message||error),'error');}
+}
+function patchProviderRows() {
+  if(view.page!=='settings'||view.pane!=='keys')return;
+  for(const provider of state.providers){
+    const row=[...content.querySelectorAll('.provider-row')].find(node=>node.dataset.testid===`provider-${provider.id}`);
+    if(!row)continue;
+    row.querySelector('.status-dot')?.classList.toggle('ready',provider.transportVerified===true);
+    const status=row.querySelector('.provider-status');
+    status.textContent=providerStatus(provider);
+    status.dataset.probePerformed=String(provider.probePerformed===true);
+    status.dataset.signedIn=String(provider.signedIn===true);
+    status.dataset.transportVerified=String(provider.transportVerified===true);
+    const detail=row.querySelector('.provider-check-detail'),markup=providerDetail(provider);
+    if(detail){if(markup)detail.outerHTML=markup;else detail.remove();}
+    else if(markup)status.insertAdjacentHTML('afterend',markup);
+    const template=document.createElement('template');template.innerHTML=providerActions(provider);
+    const actions=row.querySelector('.provider-actions');
+    for(const next of template.content.querySelectorAll('button')){
+      const current=[...actions.querySelectorAll('button')].find(node=>node.dataset.testid===next.dataset.testid);
+      if(!current)continue;
+      for(const attribute of [...current.attributes])if(!next.hasAttribute(attribute.name))current.removeAttribute(attribute.name);
+      for(const attribute of next.attributes)current.setAttribute(attribute.name,attribute.value);
+      if(current.innerHTML!==next.innerHTML)current.innerHTML=next.innerHTML;
+    }
+  }
+}
+function syncAppearanceControls() {
+  const theme=document.querySelector('#appearance-theme'),reduced=document.querySelector('#reduce-motion');
+  if(theme)theme.value=state.settings.theme==='dark'?'dark':'light';
+  if(reduced)reduced.checked=Boolean(state.settings.reduced_motion);
 }
 function captureDrafts() {
   if (view.page !== 'settings') return;
@@ -312,7 +359,7 @@ async function runAction(action,node) {
     case 'settings-pane':captureDrafts();view.pane=id;render();return;
     case 'manage-providers':captureDrafts();view.page='settings';view.pane='keys';render();return;
     case 'manage-purpose':captureDrafts();view.page='settings';view.pane='purposes';render();return;
-    case 'toggle-theme':if(activeJob())return;captureDrafts();await saveSettings({theme:state.settings.theme === 'dark' ? 'light' : 'dark'});render();return;
+    case 'toggle-theme':if(activeJob())return;captureDrafts();await saveSettings({theme:state.settings.theme === 'dark' ? 'light' : 'dark'});renderChrome();syncAppearanceControls();return;
     case 'source-type':if(activeJob())return;await backend.clearSelection();state.selected=[];state.job=null;view.preview=null;view.error=null;await saveSettings({source_type:id});render();return;
     case 'swap':await saveSettings({source_choice:state.settings.target_lang,target_lang:state.settings.source_choice});render();return;
     case 'pick':state.selected=await backend.pick(effectiveSourceType() === 'file' ? 'files' : effectiveSourceType());state.job=null;view.preview=null;view.error=null;render();return;
@@ -353,10 +400,22 @@ async function runAction(action,node) {
   }
 }
 const immediateActions=new Set(['navigate','settings-pane','manage-providers','manage-purpose','updates-check','updates-download','updates-cancel','updates-later','updates-official']);
+let operationControls=new Map(),operationFocus=null,operationPane=null;
 function beginOperation() {
+  operationFocus=document.activeElement;operationControls=new Map();
+  operationPane=content.querySelector('.settings-pane')||content.firstElementChild;
   view.busy=true;content.setAttribute('aria-busy','true');
-  document.querySelector('.theme-toggle').disabled=true;
-  content.querySelectorAll('button,input,select,textarea').forEach(node=>{if(!immediateActions.has(node.dataset.action))node.disabled=true;});
+  const controls=[document.querySelector('.theme-toggle'),...content.querySelectorAll('button,input,select,textarea')];
+  for(const node of controls){if(!immediateActions.has(node.dataset.action)){operationControls.set(node,node.disabled);node.disabled=true;}}
+}
+function finishOperation(preserveContent=false) {
+  view.busy=false;content.setAttribute('aria-busy','false');
+  if(preserveContent&&operationPane?.isConnected&&content.contains(operationPane)){
+    for(const [node,disabled] of operationControls)if(node.isConnected)node.disabled=disabled;
+    renderChrome();syncAppearanceControls();patchProviderRows();reportUnsaved();
+    if(operationFocus?.isConnected&&!operationFocus.disabled&&document.activeElement===document.body)operationFocus.focus({preventScroll:true});
+  }else render();
+  operationControls.clear();operationFocus=null;operationPane=null;
 }
 document.addEventListener('click',async event => {
   const node=event.target.closest('[data-action]');
@@ -364,16 +423,17 @@ document.addEventListener('click',async event => {
   event.preventDefault();
   const action=node.dataset.action;
   if(view.busy && !immediateActions.has(action))return;
-  const ownsBusy=!immediateActions.has(action);
+  const ownsBusy=!immediateActions.has(action),preserveContent=action==='toggle-theme';
   if(ownsBusy)beginOperation();
-  try {await runAction(action,node);} catch(error) {view.error=String(error?.message || error);toast(view.error,'error');if(view.page==='translate')render();}
-  finally {if(ownsBusy){view.busy=false;content.setAttribute('aria-busy','false');render();}}
+  try {await runAction(action,node);} catch(error) {view.error=String(error?.message || error);toast(view.error,'error');if(view.page==='translate'&&!preserveContent)render();}
+  finally {if(ownsBusy)finishOperation(preserveContent);}
 });
 document.addEventListener('change',async event => {
   const node=event.target;
   if(controlsBusy())return;
   if(!['purpose-from','glossary-project','interface-language'].includes(node.id) && !node.dataset.setting && !node.dataset.order && !node.dataset.updatePreference && !node.id.startsWith('order-model-') && !node.id.startsWith('order-effort-'))return;
   let ownsBusy=false;
+  const preserveContent=['theme','reduced_motion'].includes(node.dataset.setting);
   try {
     if(node.id==='purpose-from'){view.purposeFrom=node.value;return;}
     if(node.dataset.order || node.id.startsWith('order-model-') || node.id.startsWith('order-effort-')){captureOrder();reportUnsaved();return;}
@@ -381,9 +441,9 @@ document.addEventListener('change',async event => {
     if(node.dataset.updatePreference){await updates.savePreference(node.dataset.updatePreference,node.type==='checkbox'?node.checked:node.type==='number'?Number(node.value):node.value);return;}
     if(node.id==='glossary-project'){await saveSettings({project:node.value});state.glossary=await backend.glossary(node.value);view.glossaryDraft=null;render();return;}
     if(node.id==='interface-language'){captureDrafts();await saveSettings({ui_lang_follow:node.value==='system',ui_lang:node.value==='system'?systemLanguage():node.value});render();return;}
-    if(node.dataset.setting){captureDrafts();const name=node.dataset.setting,value=node.type==='checkbox'?node.checked:['concurrency','per_provider'].includes(name)?Number(node.value):node.value;await saveSettings(name==='purpose'?{purpose:value,content_mode:value==='game'?'game':'document'}:{[name]:value});render();return;}
+    if(node.dataset.setting){captureDrafts();const name=node.dataset.setting,value=node.type==='checkbox'?node.checked:['concurrency','per_provider'].includes(name)?Number(node.value):node.value;await saveSettings(name==='purpose'?{purpose:value,content_mode:value==='game'?'game':'document'}:{[name]:value});if(preserveContent){renderChrome();syncAppearanceControls();}else render();return;}
   } catch(error){toast(String(error?.message || error),'error');}
-  finally{if(ownsBusy){view.busy=false;content.setAttribute('aria-busy','false');render();}}
+  finally{if(ownsBusy)finishOperation(preserveContent);}
 });
 document.addEventListener('submit',async event => {
   const form=event.target;
@@ -404,7 +464,7 @@ document.addEventListener('submit',async event => {
     if(form.dataset.form==='project'){const name=form.elements['new-project'].value.trim();if(!name)throw new Error(t('sidebar.new_project'));const result=await backend.createProject(name),project=typeof result==='string'?result:result.id || result.name;await saveSettings({project});await refresh();state.glossary=await backend.glossary(project);view.glossaryDraft=null;view.projectDraft='';}
     if(form.dataset.form==='glossary'){const entries=readGlossary().filter(row=>row.term || row.translation);if(entries.some(row=>!row.term || !row.translation))throw new Error(`${t('glossary.col_src')} / ${t('glossary.col_dst')}`);await backend.saveGlossary(state.settings.project || 'default',entries);state.glossary=entries;view.glossaryDraft=null;toast(t('glossary.saved',{name:state.settings.project || 'default'}));}
   }catch(error){toast(String(error?.message || error),'error');}
-  finally{view.busy=false;render();}
+  finally{finishOperation();}
 });
 document.addEventListener('input',event=>{
   if(event.target.id==='new-project')view.projectDraft=event.target.value;

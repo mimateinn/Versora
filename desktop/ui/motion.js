@@ -4,6 +4,7 @@ export class UIMotion {
     this.root=document.documentElement;
     this.initialized=false;
     this.themeTimer=null;
+    this.themeGeneration=0;
     this.routeTimer=null;
     this.route=null;
     this.reduced=window.matchMedia('(prefers-reduced-motion:reduce)');
@@ -11,6 +12,7 @@ export class UIMotion {
     this.reduced.addEventListener('change',this.onMotion);
   }
   settleTheme() {
+    this.themeGeneration++;
     clearTimeout(this.themeTimer);
     this.themeTimer=null;
     if(this.root.dataset.themeTransition){
@@ -25,13 +27,14 @@ export class UIMotion {
     const changed=this.root.dataset.theme!==theme;
     if(!changed){if(reduced||this.reduced.matches)this.settleTheme();this.initialized=true;return;}
     clearTimeout(this.themeTimer);
+    const generation=++this.themeGeneration;
     const animate=this.initialized&&!reduced&&!this.reduced.matches;
     if(animate){this.root.dataset.themeTransition='running';void this.root.offsetWidth;}
     else this.settleTheme();
     this.root.dataset.theme=theme;
     void this.root.offsetWidth;
     this.initialized=true;
-    if(animate)this.themeTimer=setTimeout(()=>{delete this.root.dataset.themeTransition;this.themeTimer=null;},280);
+    if(animate)this.themeTimer=setTimeout(()=>{if(generation!==this.themeGeneration)return;delete this.root.dataset.themeTransition;this.themeTimer=null;},280);
   }
   enter(content,route) {
     if(route===this.route)return;

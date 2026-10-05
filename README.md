@@ -35,6 +35,8 @@ Choose `Versora-0.3.0-preview.1-win32-x64-setup.exe` under **Assets**. This is a
 
 Versora now opens in its own Windows desktop window. The translation engine, file handling and settings are written in Rust; the desktop window uses Tauri and WebView2. Running the installed application does not require Python, Node.js or a local web server.
 
+The native window uses a single 48 px header with Minimize, Maximize/Restore and Close controls. Drag a blank part of the header to move the window; double-click it to maximize or restore. Closing warns about unsaved edits, requests cancellation of an active job and waits for pending writes before exit.
+
 ### Install and start
 
 1. Use Windows 10 or 11, 64-bit, with the Microsoft Edge WebView2 Evergreen Runtime already installed. The installer checks this prerequisite; it does not download a runtime.
@@ -54,6 +56,8 @@ Each supported input gets a separate translated output, with relative folders re
 **Cancel** keeps files that have already been saved. **Retry** runs only failed or unfinished files. File concurrency is configurable from 1–16, with a separate limit for each translator.
 
 Settings include purposes, translator order and models, project glossaries, 12 interface languages, light/dark appearance and reduced motion.
+
+Litora-style 12 px scrollbars show a subdued thumb at rest, a stronger thumb over the scrolling area, and orange feedback when hovering over or dragging the thumb. Theme changes animate colors; page changes use short entry transitions. **Reduce motion** removes movement and theme transitions while retaining a brief page fade; the Windows reduced-motion preference disables the animations. The app version stays visible in the bottom footer while content scrolls.
 
 The default ordinary Latin interface font is locally bundled [Libron v0.25](https://github.com/nicoverbruggen/libron/releases/tag/v0.25), with its actual Regular, Bold, Italic and Bold Italic styles under the SIL Open Font License 1.1. Main/page headings, class-based heading labels and the brand wordmark use a separate heading token with Litora's original stack: Poppins, Space Grotesk, Noto Sans TC, system-ui, sans-serif. The tested offline Windows host has Noto Sans TC available; its actual Medium/Bold glyphs are verified separately from CSS family declarations. Poppins is a preferred family rather than a newly bundled or downloaded font. Existing CJK/script fallbacks and functional monospace styling remain, and no system font is installed. Interface font selection does not change original or translated document fonts; PDF reflow uses the separately bundled Noto font described below.
 
@@ -79,11 +83,16 @@ PDF support is text extraction and A4 text reflow. Changed PDFs embed the comple
 
 ## Translators and current limits
 
+Translator status text follows the selected interface language. Finding a native CLI, reporting signed in and being eligible to attempt a request are separate from **Connection tested**. The first visit to **Settings → Translators** in each app session automatically checks the installed CLIs' version and login/status information. It does not sign in or start translation, and changing window focus does not repeat it. Use **Re-check** to refresh the local status.
+
+**Test connection** is available only when a translator is eligible for an attempt. It makes a real provider request and may consume quota. Only a recent successful explicit test marks the transport verified; this does not certify translation quality or CLI tool isolation.
+
 - Developer API adapters: **OpenAI, Anthropic, Gemini and xAI**. Custom base URLs must pass the public HTTPS host allowlist; arbitrary local proxies and chat websites are not supported.
 - CLI adapters: **Claude Code, Codex CLI and Grok CLI**, when an official native executable is already installed and signed in. The app does not run `.cmd`/`.bat` shims; known official Codex installations may resolve to their native executable.
-- Paid/live provider compatibility, live CLI translation and model translation quality have not been verified for this build. Offline Demo and controlled protocol tests are not real-model translation.
-- Controlled Windows process-tree cancellation has been tested. Full CLI tool isolation has not been certified: Codex can retain shell tools and inherited MCP configuration; Grok home isolation is not implemented. Parser/writeback work and external provider activity are not guaranteed to stop instantly.
+- Paid/live provider compatibility, live CLI translation and model translation quality remain **NOT_RUN** for this build. Offline Demo and controlled protocol tests are not real-model translation.
+- Controlled Windows process-tree cancellation has been tested. Live CLI tool isolation remains **NOT_RUN**, and full no-tool isolation is not certified: Codex can retain shell tools and inherited MCP configuration; Grok home isolation is not implemented. Parser/writeback work and external provider activity are not guaranteed to stop instantly.
 - The native preview builds on the latest PR4 UI work. PR4 remains a separate, unmerged pull request; this prerelease does not represent its acceptance.
+- Windows 11 Snap Layouts on hover over the app's HTML Maximize button have not been verified.
 - Windows x64 is the packaged target. A clean Windows VM, other operating systems, comprehensive screen-reader journeys and every document layout have not been validated.
 
 For an explicit offline UI check, set `SFTS_DEMO=1` before launching Versora. **Demo** adds target-language tags to test text; it does not translate and is clearly identified in the app.
