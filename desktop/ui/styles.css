@@ -76,8 +76,6 @@ dialog{padding:24px;border:1px solid var(--line);border-radius:var(--radius-card
 .page-dock .nav-button[data-page=translate]{height:46px;min-height:46px;padding:0 20px 0 16px;border:0;background:var(--accent);color:var(--accent-ink);box-shadow:0 10px 28px rgba(var(--accent-rgb),.32)}
 .page-dock .nav-button[data-page=translate]:hover{background:var(--accent);color:var(--accent-ink)}
 .page-dock .nav-button[data-page=translate] .vi{width:18px;height:18px}
-:root[data-theme=hologram] .page-dock .nav-button{background:var(--holo-foil);color:#252935;border-color:transparent;box-shadow:0 0 0 1px rgba(37,41,53,.14),0 10px 28px rgba(200,181,242,.35)}
-:root[data-theme=hologram] .page-dock .nav-button:hover{background:var(--holo-foil);color:#252935}
 
 /* ── Mode switch (Litora .theme-switcher / .theme-row) ──
    Two modes, Standard and Opal. The pressed one paints its own palette and
@@ -106,24 +104,51 @@ dialog{padding:24px;border:1px solid var(--line);border-radius:var(--radius-card
 .theme-dot{width:18px;height:18px;border-radius:50%;flex:none;background:var(--choice-dot);box-shadow:inset 0 0 0 1px rgba(128,128,128,.45)}
 .tone-choices{align-self:flex-start;margin-bottom:0}
 
-/* ── Backdrop: Opal fluid field and a pointer lamp (Litora holo-field) ── */
-.holo-field{position:fixed;inset:0;z-index:-2;pointer-events:none;overflow:hidden}
-.holo-blobs{position:absolute;inset:-22vmax;opacity:var(--field-opacity);transition:opacity 600ms var(--theme-ease);background:radial-gradient(38vmax 30vmax at 22% 26%,var(--field-a,transparent),transparent 70%),radial-gradient(34vmax 30vmax at 76% 20%,var(--field-b,transparent),transparent 70%),radial-gradient(40vmax 32vmax at 70% 74%,var(--field-c,transparent),transparent 70%),radial-gradient(34vmax 28vmax at 28% 78%,var(--field-d,transparent),transparent 70%),radial-gradient(30vmax 26vmax at 50% 50%,var(--field-e,transparent),transparent 72%);animation:holo-drift 46s ease-in-out infinite alternate;will-change:transform}
-.holo-lamp{position:absolute;left:0;top:0;width:56vmax;height:56vmax;border-radius:50%;background:radial-gradient(closest-side,var(--lamp),transparent);transform:translate(calc(var(--lamp-x,72vw) - 28vmax),calc(var(--lamp-y,18vh) - 28vmax))}
-@keyframes holo-drift{0%{transform:translate3d(-3%,-2%,0) rotate(0deg) scale(1.04)}50%{transform:translate3d(2%,3%,0) rotate(7deg) scale(1.12)}100%{transform:translate3d(4%,-1%,0) rotate(-5deg) scale(1.06)}}
-:root:not([data-theme=hologram]) .holo-blobs{animation-play-state:paused}
-:root[data-theme=hologram] footer{background:transparent}
-:root[data-theme=hologram] :is(.topbar,.card){border-color:rgba(171,182,203,.7)}
-:root[data-theme=hologram][data-hologram-tone=dark] :is(.topbar,.card){border-color:rgba(72,85,115,.9)}
-:root[data-theme=hologram] .segments,:root[data-theme=hologram] .seg{background:rgba(226,230,240,.5)}
-:root[data-theme=hologram][data-hologram-tone=dark] .segments,:root[data-theme=hologram][data-hologram-tone=dark] .seg{background:rgba(35,46,64,.55)}
-:root[data-theme=hologram]{--seg-pill:var(--seg-on);--seg-pill-ink:var(--seg-on-ink);--seg-pill-shadow:var(--seg-on-shadow)}
-:root[data-theme=hologram] .segments button.active .vi{color:var(--accent)}
-:root[data-theme=hologram] .brand-tile{border-color:transparent;background:var(--holo-foil);box-shadow:0 0 0 1px rgba(37,41,53,.14)}
+/* ── Opal: Litora's material (app/styles/app.css, hologram rules). One fixed
+   canvas behind the shell (holo-field.js, drawn in holo-field.worker.js)
+   holds the fluid and the rolling words; chosen surfaces are glass over it.
+   2026-09-30 material: no foil on controls. Glass for ordinary controls, a
+   raised pearl for what is selected, solid ink for the one primary action. ── */
+body>.holo-field{display:block;position:fixed;inset:0;width:100vw;height:100vh;z-index:-1;pointer-events:none}
+:root:not([data-theme=hologram]) body>.holo-field,:root[data-theme=hologram] .watermark{display:none}
+:root[data-theme=hologram] :where(.topbar,footer){background-color:var(--holo-glass-chrome)}
+:root[data-theme=hologram] .topbar{border-color:var(--holo-edge)}
+:root[data-theme=hologram] footer{box-shadow:inset 0 1px 0 var(--holo-edge)}
+:root[data-theme=hologram][data-hologram-tone=dark] .topbar{border-color:var(--holo-chrome-edge)}
+:root[data-theme=hologram][data-hologram-tone=dark] footer{box-shadow:inset 0 1px 0 var(--holo-chrome-edge)}
+:root[data-theme=hologram] :where(.card,.dropzone,[data-glass]){background-color:var(--holo-glass)}
+:root[data-theme=hologram] :is(.card,.dropzone){border-color:var(--holo-edge)}
+:root[data-theme=hologram] .dropzone.dragover{border-color:var(--accent);background-color:var(--accent-soft)}
+:root[data-theme=hologram] .card{position:relative;isolation:isolate;box-shadow:inset 0 1px 0 var(--holo-edge-light),inset 0 -1px 0 var(--holo-edge-shade),var(--shadow-sm)}
+:root[data-theme=hologram] :where(.segments,.seg){background-color:var(--holo-glass-sunken)}
+:root[data-theme=hologram]{--seg-pill:var(--holo-select);--seg-pill-ink:var(--holo-select-ink);--seg-pill-shadow:var(--holo-select-shadow)}
+:root[data-theme=hologram] .segments button.active{color:var(--holo-select-ink)}
+:root[data-theme=hologram] .settings-rail{align-self:start;padding:8px;border:1px solid var(--holo-edge);border-radius:var(--radius-card);background-color:var(--holo-glass);box-shadow:inset 0 1px 0 var(--holo-edge-light),inset 0 -1px 0 var(--holo-edge-shade),var(--shadow-sm)}
+:root[data-theme=hologram] .rail-button.active{background:var(--holo-select);color:var(--holo-select-ink);box-shadow:var(--holo-select-shadow)}
+:root[data-theme=hologram] .rail-button.active:before{background:var(--holo-focus)}
+:root[data-theme=hologram] button.primary{background:var(--holo-primary);color:var(--holo-primary-ink);border-color:transparent;box-shadow:var(--shadow-xs)}
+:root[data-theme=hologram] button.primary:hover:not(:disabled){background:var(--holo-primary-hover);border-color:transparent;box-shadow:var(--shadow-sm)}
+:root[data-theme=hologram] :where(button:not(.primary):not(.danger):not(.link):not(.caption-button):not(.icon-button):not(.theme-choice):not(.nav-button),input:not([type=checkbox]),select,textarea){background-color:var(--holo-btn)}
+:root[data-theme=hologram] :where(button:not(.primary):not(.danger):not(.link):not(.caption-button):not(.icon-button):not(.theme-choice),.segments){border-color:var(--holo-edge);box-shadow:inset 0 1px 0 var(--holo-edge-light)}
+:root[data-theme=hologram] :where(.segments button,.rail-button){border-color:transparent;background-color:transparent;box-shadow:none}
+:root[data-theme=hologram] .segments button:hover:not(:disabled){background-color:transparent;border-color:transparent}
+:root[data-theme=hologram] .rail-button:hover:not(.active){background-color:var(--holo-glass-open)}
+:root[data-theme=hologram] button:not(.primary):not(.danger):not(.link):not(.caption-button):not(.theme-choice):not(.rail-button):not(.icon-button):not(.nav-button):hover:not(:disabled){border-color:var(--holo-hover-edge);background-color:var(--holo-glass-open)}
+:root[data-theme=hologram] :is(button,input,select,textarea,a):focus-visible{outline-color:var(--holo-focus)}
+/* The corner coin is glass chrome; the back pill takes the primary ink. */
+:root[data-theme=hologram] .page-dock .nav-button[data-page=settings]{background:var(--holo-glass-chrome);color:var(--text);border-color:var(--holo-edge);box-shadow:inset 0 1px 0 var(--holo-edge-light),inset 0 -1px 0 var(--holo-edge-shade),var(--shadow)}
+:root[data-theme=hologram] .page-dock .nav-button[data-page=settings]:hover{background:var(--holo-glass-open);border-color:var(--holo-edge);color:var(--text)}
+:root[data-theme=hologram] .page-dock .nav-button[data-page=translate]{background:var(--holo-primary);color:var(--holo-primary-ink);box-shadow:var(--shadow)}
+:root[data-theme=hologram] .page-dock .nav-button[data-page=translate]:hover{background:var(--holo-primary-hover);color:var(--holo-primary-ink)}
+/* Brand: the icon's own field, with the foil as a faint coating that catches once. */
+:root[data-theme=hologram] .brand-tile{position:relative;isolation:isolate;border-color:var(--holo-edge);background:var(--holo-brand-field)}
+:root[data-theme=hologram] .brand-tile::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;background-image:var(--holo-foil);opacity:var(--holo-material-opacity);animation:delight-catch 900ms var(--ease) 1 both}
+/* Arrival: a spectrum wipe across the top of the page once per route. */
+:root[data-theme=hologram] #content.is-enter{position:relative}
+:root[data-theme=hologram] #content.is-enter::after{content:"";position:absolute;left:0;right:0;top:0;height:2px;background:var(--holo-spectrum);transform-origin:left center;pointer-events:none;z-index:5;animation:delight-wipe 720ms var(--ease) 1 both}
+@keyframes delight-wipe{0%{transform:scaleX(0);opacity:1}72%{transform:scaleX(1);opacity:1}100%{transform:scaleX(1);opacity:0}}
+@keyframes delight-catch{0%{opacity:0}38%{opacity:.9}100%{opacity:var(--holo-material-opacity)}}
 /* Litora spectral signature: one static 2px rule under the page title. */
-:root[data-theme=hologram] .settings-pane h1{background-image:var(--holo-spectrum);background-repeat:no-repeat;background-size:2.6em 2px;background-position:0 100%;padding-bottom:3px}
+:root[data-theme=hologram] :is(.route-name,.settings-pane h1){background-image:var(--holo-spectrum);background-origin:content-box;background-repeat:no-repeat;background-size:2.6em 2px;background-position:0 100%;padding-bottom:3px}
 dialog,select option{background:var(--card-solid)}select option{color:var(--text)}
-:root[data-reduced-motion=true] .holo-blobs{animation:none}
-@media(prefers-reduced-motion:reduce){.holo-lamp{display:none}}
-:root[data-reduced-motion=true] .holo-lamp{display:none}
 @media(forced-colors:active){.page-dock .nav-button,.theme-choice[aria-pressed=true]{forced-color-adjust:none;background:Highlight;color:HighlightText;border-color:Highlight}.holo-field{display:none}}

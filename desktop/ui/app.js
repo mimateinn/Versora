@@ -4,6 +4,7 @@ import {languages,nativeLanguageNames,setLanguage,systemLanguage,t,translateDocu
 import {UpdatesPane} from './updates.js';
 import {WindowChrome} from './window-chrome.js';
 import {UIMotion} from './motion.js';
+import {bindHoloField} from './holo-field.js';
 
 const content = document.querySelector('#content');
 const motion = new UIMotion();
@@ -532,11 +533,12 @@ document.addEventListener('input',event=>{
 });
 window.addEventListener('resize',placeIndicators,{passive:true});
 // Native drag/drop paths are validated and registered by Rust before this event.
-window.addEventListener('beforeunload',() => {clearTimeout(view.pollTimer);clearTimeout(view.toastTimer);updates.dispose();motion.dispose();for(const unlisten of view.unlisten)unlisten();});
+window.addEventListener('beforeunload',() => {clearTimeout(view.pollTimer);clearTimeout(view.toastTimer);updates.dispose();motion.dispose();view.holoField?.();for(const unlisten of view.unlisten)unlisten();});
 async function initialize() {
   const words=['VERSORA','TRANSLATE','翻譯','TRADUIRE','ÜBERSETZEN','翻訳','TRADUCIR','번역'];
   document.querySelector('#watermark').innerHTML=['a','b'].map((layer,n)=>`<div class="watermark-layer ${layer}">${Array.from({length:30},(_,index)=>`<div>${escape((words.slice((index+n)%words.length).concat(words.slice(0,(index+n)%words.length)).join(' · ')+' · ').repeat(12))}</div>`).join('')}</div>`).join('');
   document.querySelectorAll('.nav-button').forEach(node=>node.insertAdjacentHTML('afterbegin',icon(node.dataset.page==='settings'?'settings':'swap')));
+  view.holoField=bindHoloField(document);
   content.innerHTML=`<div class="loading" data-testid="loading">${icon('spinner')}Versora</div>`;
   try {
     view.unlisten.push(await windowChrome.initialize());

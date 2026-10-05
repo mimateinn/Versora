@@ -35,7 +35,6 @@
   --holo-spectrum:linear-gradient(112deg,#C9E7E4 0%,#DDD4EE 46%,#E8DCC4 100%);
   --holo-foil:linear-gradient(130deg,var(--holo-cyan) 0%,var(--holo-violet) 29%,var(--holo-pink) 52%,var(--holo-gold) 76%,var(--holo-pearl) 100%);
   --holo-foil-turn:linear-gradient(35deg,var(--holo-violet) 0%,var(--holo-pearl) 30%,var(--holo-gold) 56%,var(--holo-pink) 80%,var(--holo-cyan) 100%);
-  --field-opacity:0; --lamp:rgba(70,119,181,.07);
   color-scheme:light;
 }
 :root[data-theme="dark"] {
@@ -51,45 +50,57 @@
   --art-fill:rgba(242,245,251,.04); --art-line:rgba(242,245,251,.45);
   --sb-thumb:rgba(220,228,242,.08); --sb-thumb-area:rgba(220,228,242,.24);
   --sb-hover:linear-gradient(180deg,#A3C0E6,#7FA6D8); --sb-hover-x:linear-gradient(90deg,#A3C0E6,#7FA6D8); --sb-active:linear-gradient(180deg,#7FA6D8,#4677B5);
-  --lamp:rgba(127,166,216,.07);
   color-scheme:dark;
 }
 /* Opal (幻彩): opaque pastel foil, not emitted light. Glass surfaces over a slow
    fluid field, a raised pearl for what is selected, solid ink for the primary action. */
 :root[data-theme="hologram"] {
-  --bg:#EDF0F7; --card:rgba(250,251,254,.66); --card-solid:#FAFBFE; --sunken:rgba(228,232,241,.78); --raised:#FAFBFE;
+  --bg:#EDF0F7; --card:rgba(250,251,254,.6); --card-solid:#FAFBFE; --sunken:rgba(226,230,240,.5); --raised:#FAFBFE;
   --text:#202531; --muted:#41495A; --faint:#454D5F;
   --line:rgba(37,41,53,.11); --line-strong:rgba(37,41,53,.24);
   --accent:#4677B5; --accent-strong:#325D8E; --accent-soft:rgba(70,119,181,.10); --accent-ink:#FFFFFF; --accent-rgb:70,119,181;
   --ok:#25644C; --err:#97334D; --wait:#BAC1CE; --ok-soft:rgba(37,100,76,.10); --err-soft:rgba(151,51,77,.08);
   --wm-ink:rgba(37,41,53,.05);
   --shadow:0 9px 24px rgba(31,39,56,.10),inset 0 1px 0 rgba(255,255,255,.72);
-  --shadow-sm:inset 0 1px 0 rgba(255,255,255,.8),inset 0 -1px 0 rgba(52,64,92,.10),0 2px 7px rgba(31,39,56,.07);
+  --shadow-sm:0 2px 7px rgba(31,39,56,.07);
   --toast-bg:#252D3E; --toast-ink:#F4F3F7;
   --seg-on:#FFFFFF; --seg-on-ink:#1F2430; --seg-on-shadow:0 1px 3px rgba(22,28,42,.16),0 0 0 1px rgba(37,41,53,.06);
   --btn:#262B38; --btn-hover:#363C4D; --btn-ink:#F7F8FC;
   --art-fill:rgba(255,255,255,.5); --art-line:rgba(37,41,53,.42);
   --sb-thumb:rgba(64,76,100,.22); --sb-thumb-area:rgba(64,76,100,.46);
-  --field-a:#B6EADF; --field-b:#C8B5F2; --field-c:#F2B9D7; --field-d:#F5D28E; --field-e:#C5EFE5;
-  --field-opacity:1; --lamp:rgba(255,255,255,.55);
+  /* Litora's Opal material (public/litora/aliases.css): glass over the canvas
+     field, plain rgba with no blur; a raised pearl for what is selected and
+     solid ink for the primary action. */
+  --holo-glass:rgba(250,251,254,.6); --holo-glass-chrome:rgba(252,251,254,.56);
+  --holo-glass-open:rgba(252,251,254,.9); --holo-glass-sunken:rgba(226,230,240,.5);
+  --holo-edge:#ABB6CB; --holo-edge-light:rgba(255,255,255,.8); --holo-edge-shade:rgba(52,64,92,.12);
+  --holo-select:#FFFFFF; --holo-select-ink:#1F2430; --holo-select-shadow:0 1px 3px rgba(22,28,42,.16),0 0 0 1px rgba(37,41,53,.06);
+  --holo-primary:#262B38; --holo-primary-hover:#363C4D; --holo-primary-ink:#F7F8FC; --holo-btn:rgba(252,251,254,.62); --holo-hover-edge:#7F899B;
+  --holo-focus:#52688A; --holo-brand-field:#DDEAEF; --holo-material-opacity:.22; --holo-chrome-edge:#ABB6CB;
+  --shadow-xs:0 1px 2px rgba(31,39,56,.05);
   color-scheme:light;
 }
 :root[data-theme="hologram"][data-hologram-tone="dark"] {
   --sb-hover:linear-gradient(180deg,#A3C0E6,#7FA6D8); --sb-hover-x:linear-gradient(90deg,#A3C0E6,#7FA6D8); --sb-active:linear-gradient(180deg,#7FA6D8,#4677B5);
-  --bg:#101522; --card:rgba(25,33,49,.68); --card-solid:#192131; --sunken:rgba(35,46,64,.72); --raised:#192131;
+  --bg:#101522; --card:rgba(25,33,49,.62); --card-solid:#192131; --sunken:rgba(35,46,64,.55); --raised:#192131;
   --text:#F4F6FC; --muted:#CBD5E6; --faint:#BFCDE1;
   --line:rgba(232,239,255,.10); --line-strong:rgba(232,239,255,.20);
   --accent:#9DBCE4; --accent-strong:#C3D6F0; --accent-soft:rgba(157,188,228,.13); --accent-ink:#101522; --accent-rgb:157,188,228;
   --ok:#A1DABB; --err:#F4B1BE; --wait:#526077; --ok-soft:rgba(161,218,187,.12); --err-soft:rgba(244,177,190,.10);
   --wm-ink:rgba(232,239,255,.04);
-  --shadow:0 12px 28px rgba(4,8,17,.3),inset 0 1px 0 rgba(232,239,255,.12);
-  --shadow-sm:inset 0 1px 0 rgba(203,225,245,.18),inset 0 -1px 0 rgba(3,7,17,.45),0 3px 10px rgba(4,8,17,.24);
+  --shadow:0 12px 28px rgba(4,8,17,.3),inset 0 1px 0 rgba(232,239,255,.16);
+  --shadow-sm:0 3px 10px rgba(4,8,17,.24);
   --toast-bg:#E4E8F2; --toast-ink:#182132;
   --seg-on:rgba(236,240,250,.16); --seg-on-ink:#F4F6FC; --seg-on-shadow:0 1px 3px rgba(0,0,0,.35),inset 0 0 0 1px rgba(255,255,255,.1);
   --btn:#E9EDF6; --btn-hover:#FFFFFF; --btn-ink:#1B2130;
   --art-fill:rgba(232,239,255,.05); --art-line:rgba(232,239,255,.45);
   --sb-thumb:rgba(194,206,227,.22); --sb-thumb-area:rgba(194,206,227,.44);
-  --field-a:#23383F; --field-b:#36314B; --field-c:#432E41; --field-d:#403729; --field-e:#243D38;
-  --lamp:rgba(214,202,240,.10);
+  --holo-glass:rgba(25,33,49,.62); --holo-glass-chrome:rgba(22,29,44,.62);
+  --holo-glass-open:rgba(24,31,46,.94); --holo-glass-sunken:rgba(35,46,64,.55);
+  --holo-edge:#485573; --holo-edge-light:rgba(203,225,245,.2); --holo-edge-shade:rgba(3,7,17,.5);
+  --holo-select:rgba(236,240,250,.16); --holo-select-ink:#F4F6FC; --holo-select-shadow:0 1px 3px rgba(0,0,0,.35),inset 0 0 0 1px rgba(255,255,255,.1);
+  --holo-primary:#E9EDF6; --holo-primary-hover:#FFFFFF; --holo-primary-ink:#1B2130; --holo-btn:rgba(174,186,205,.06); --holo-hover-edge:#8291AC;
+  --holo-focus:#C8BEDF; --holo-brand-field:#303D55; --holo-material-opacity:.13; --holo-chrome-edge:rgba(182,234,223,.34);
+  --shadow-xs:0 1px 3px rgba(4,8,17,.18);
   color-scheme:dark;
 }

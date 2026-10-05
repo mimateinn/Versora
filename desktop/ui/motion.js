@@ -10,14 +10,6 @@ export class UIMotion {
     this.reduced=window.matchMedia('(prefers-reduced-motion:reduce)');
     this.onMotion=()=>{if(this.reduced.matches)this.settleTheme();};
     this.reduced.addEventListener('change',this.onMotion);
-    this.lampFrame=0;
-    // Opal's pointer lamp follows the cursor; one style write per frame, nothing when motion is reduced.
-    this.onPointer=event=>{
-      if(this.root.dataset.theme!=='hologram'||this.root.dataset.reducedMotion==='true'||this.reduced.matches||this.lampFrame)return;
-      const x=event.clientX,y=event.clientY;
-      this.lampFrame=requestAnimationFrame(()=>{this.lampFrame=0;this.root.style.setProperty('--lamp-x',`${x}px`);this.root.style.setProperty('--lamp-y',`${y}px`);});
-    };
-    window.addEventListener('pointermove',this.onPointer,{passive:true});
   }
   settleTheme() {
     this.themeGeneration++;
@@ -56,8 +48,7 @@ export class UIMotion {
     this.routeTimer=setTimeout(()=>{content.classList.remove('is-enter');this.routeTimer=null;},800);
   }
   dispose() {
-    this.settleTheme();clearTimeout(this.routeTimer);cancelAnimationFrame(this.lampFrame);
+    this.settleTheme();clearTimeout(this.routeTimer);
     this.reduced.removeEventListener('change',this.onMotion);
-    window.removeEventListener('pointermove',this.onPointer);
   }
 }

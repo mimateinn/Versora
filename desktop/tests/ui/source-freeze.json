@@ -76,8 +76,8 @@
   },
   {
     "path": "desktop\\ui\\app.js",
-    "sha256": "231D3A04B1A42990B98C2CB495F96ED483699FBB80BC8FAD4D8B2E58DE4DF6EF",
-    "bytes": 59822
+    "sha256": "6C0231C1B4D4999D97D03389B5E2918DBB9434B1255FBE0665EEA32907FC9CCA",
+    "bytes": 59931
   },
   {
     "path": "desktop\\ui\\assets\\fonts\\libron\\COPYRIGHT",
@@ -140,6 +140,16 @@
     "bytes": 765
   },
   {
+    "path": "desktop\\ui\\holo-field.js",
+    "sha256": "09028B0AEC8C415DC8CBD923CCAE4FA432C04F7D33E87C13051336CE7958D4B0",
+    "bytes": 7515
+  },
+  {
+    "path": "desktop\\ui\\holo-field.worker.js",
+    "sha256": "3E3CD4AC4386F8DE15F4310F9F8DA0ED902ED1F2B7DD662341AEE69A95553BE2",
+    "bytes": 25366
+  },
+  {
     "path": "desktop\\ui\\i18n.js",
     "sha256": "3FA9B316BB086E0A1617026A350E0EE13D600889DC4B3CBB6A5DB928A27FD189",
     "bytes": 14740
@@ -156,8 +166,8 @@
   },
   {
     "path": "desktop\\ui\\index.html",
-    "sha256": "382C127A9107DE58860FDAC530CC766900D2BCA979DB29EE8D690540E7E3C366",
-    "bytes": 4316
+    "sha256": "B4E0419C7515B886296E2749C50F0EFD4AB33D3A68F66F2A6B747909E2B0F313",
+    "bytes": 4205
   },
   {
     "path": "desktop\\ui\\locales\\de.json",
@@ -221,18 +231,18 @@
   },
   {
     "path": "desktop\\ui\\motion.js",
-    "sha256": "5E2F6DA751481C1EE0A1EA220890AFD5B0DA9205D06E49D44883059F15A8C8CC",
-    "bytes": 3057
+    "sha256": "3E34570A3C6D44D6E670D25903A7199C415A45063EF5594BB6FD495D2F9C2EEB",
+    "bytes": 2375
   },
   {
     "path": "desktop\\ui\\styles.css",
-    "sha256": "4418CEC2C16974C7A016159404A2FDF755B273219D50A023F2ED932A4B4EF565",
-    "bytes": 32207
+    "sha256": "AFD54B837C17FD6BEEFDE78F26B194AE4108195F91B7D12BEDDE75CD5450FDA3",
+    "bytes": 35343
   },
   {
     "path": "desktop\\ui\\tokens.css",
-    "sha256": "F0D87C74959C091EAFB5FE400E748AA0BC1A9A527A5EE144F7109A9AC11B762D",
-    "bytes": 7439
+    "sha256": "EAA68D23F9BB3584349199F6AD3F36CB645E1E7E67E2E0BB7C8B1380CB91BF88",
+    "bytes": 8548
   },
   {
     "path": "desktop\\ui\\updates-i18n.js",
