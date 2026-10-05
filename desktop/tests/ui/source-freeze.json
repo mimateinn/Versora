@@ -76,8 +76,8 @@
   },
   {
     "path": "desktop\\ui\\app.js",
-    "sha256": "9FFFA825E5EDC3F0828F309EC951C51C3151C25C3B6A12509A36F0E9BCC998C2",
-    "bytes": 59779
+    "sha256": "AF43A98CDC0F10EA4D5FDEC88C7B9C4428798199ADDB7C591A8B2147F7BEC74D",
+    "bytes": 59791
   },
   {
     "path": "desktop\\ui\\assets\\fonts\\libron\\COPYRIGHT",
@@ -156,8 +156,8 @@
   },
   {
     "path": "desktop\\ui\\index.html",
-    "sha256": "7844A6F489F7F7B708FB508D65307DEE362C0AF10F10BED01828D340B1C1920C",
-    "bytes": 4349
+    "sha256": "382C127A9107DE58860FDAC530CC766900D2BCA979DB29EE8D690540E7E3C366",
+    "bytes": 4316
   },
   {
     "path": "desktop\\ui\\locales\\de.json",
@@ -226,8 +226,8 @@
   },
   {
     "path": "desktop\\ui\\styles.css",
-    "sha256": "83BC9D9AE6AA73DEC628B74AE07A5454CC4A9BF9B2CC3008A8A426A559A74379",
-    "bytes": 31546
+    "sha256": "AC26CDEB462D54AE28AFA28A5C9D1850D55EE9F32D9FDF72AD572B8B6BA01DBF",
+    "bytes": 32341
   },
   {
     "path": "desktop\\ui\\tokens.css",

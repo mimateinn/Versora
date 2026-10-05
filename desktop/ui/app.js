@@ -100,7 +100,7 @@ function paintToneChoices(group) {
 const indicatorMemory = new Map();
 function placeIndicators() {
   const still = state.settings.reduced_motion || motion.reduced.matches;
-  for (const group of content.querySelectorAll('.segments')) {
+  for (const group of document.querySelectorAll('.segments,.page-dock')) {
     const active = group.querySelector('button.active'),key = group.dataset.testid;
     if (!active) {delete group.dataset.ind;continue;}
     const next = {x:active.offsetLeft,y:active.offsetTop,w:active.offsetWidth,h:active.offsetHeight};

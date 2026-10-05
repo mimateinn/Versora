@@ -33,18 +33,16 @@
     <div class="window-resize south-east" data-resize-direction="SouthEast" data-testid="window-resize-south-east"></div>
   </div>
   </header>
-  <div class="workspace">
-  <nav class="side-nav" data-testid="side-nav" aria-label="Main navigation">
-    <button type="button" class="nav-button active" data-action="navigate" data-page="translate" data-testid="nav-translate"><span data-i18n="nav.translate">Translate</span></button>
-    <button type="button" class="nav-button" data-action="navigate" data-page="settings" data-testid="nav-settings"><span data-i18n="nav.settings">Settings</span></button>
-  </nav>
   <div class="app-shell" data-testid="app-shell" tabindex="0">
     <div class="content-shell" data-testid="content-shell">
     <div id="connection-error" class="notice error" data-testid="connection-error" role="alert" hidden></div>
     <main id="content" data-testid="main-content" aria-busy="true"></main>
     </div>
   </div>
-  </div>
+  <nav class="page-dock" data-testid="page-dock" aria-label="Main navigation">
+    <button type="button" class="nav-button active" data-action="navigate" data-page="translate" data-testid="nav-translate"><span data-i18n="nav.translate">Translate</span></button>
+    <button type="button" class="nav-button" data-action="navigate" data-page="settings" data-testid="nav-settings"><span data-i18n="nav.settings">Settings</span></button>
+  </nav>
   <footer data-testid="app-footer"><span data-i18n="about.footer">Versora · Runs on this computer</span><span id="version" data-testid="app-version"></span></footer>
   <div id="toast" class="toast" data-testid="toast" role="status" aria-live="polite" hidden></div>
   <dialog id="confirm-dialog" data-testid="confirm-dialog"><form method="dialog"><h2 id="confirm-title"></h2><p id="confirm-message"></p><div class="actions"><button value="cancel" data-testid="confirm-cancel" data-i18n="svc.keep">Keep it</button><button value="confirm" class="danger" data-testid="confirm-accept" data-i18n="svc.confirm_remove">Yes, remove</button></div></form></dialog>

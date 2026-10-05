@@ -587,7 +587,7 @@ async def shell_geometry(page):
       const style=getComputedStyle(shell), sb=getComputedStyle(shell,'::-webkit-scrollbar');
       const thumb=getComputedStyle(shell,'::-webkit-scrollbar-thumb');
       return {viewport:{width:innerWidth,height:innerHeight},shell:rect(shell),content:rect(inner),footer:rect(footer),
-        rail:rect(document.querySelector('[data-testid=side-nav]')),
+        dock:rect(document.querySelector('[data-testid=page-dock]')),
         footerOutsideScroller:!shell.contains(footer),gutter:style.scrollbarGutter,
         shellClientWidth:shell.clientWidth,scrollTop:shell.scrollTop,
         contentMaxWidth:getComputedStyle(inner).maxWidth,
@@ -602,17 +602,17 @@ def validate_shell(record, reference=None):
             abs(footer["x"]) <= .5 and abs(footer["width"]-size["width"]) <= .5 and
             abs(footer["y"]+footer["height"]-size["height"]) <= .5,
             "Footer must reserve 36px at the client bottom outside the scroller.")
-    rail = record["rail"]
-    require(abs(rail["x"]) <= .5 and abs(rail["width"]-72) <= .5 and abs(rail["y"]-48) <= .5 and
-            abs(rail["y"]+rail["height"]-footer["y"]) <= .5,
-            "Main navigation rail must fill the 72px left column between header and footer.")
-    require(record["gutter"] == "stable both-edges" and abs(shell["x"]-72) <= .5 and
-            abs(shell["width"]-(size["width"]-72)) <= .5 and abs(shell["y"]-48) <= .5 and
+    require(record["gutter"] == "stable both-edges" and abs(shell["x"]) <= .5 and
+            abs(shell["width"]-size["width"]) <= .5 and abs(shell["y"]-48) <= .5 and
             abs(shell["y"]+shell["height"]-footer["y"]) <= .5 and
             record["contentMaxWidth"] == "912px" and
-            abs(content["x"]+content["width"]/2-(shell["x"]+shell["width"]/2)) <= 1 and
-            abs(content["width"]-min(912, shell["width"]-24)) <= 1,
-            "Scroller beside the rail, its gutters, or the centered 912px content width differs.")
+            abs(content["x"]+content["width"]/2-size["width"]/2) <= 1 and
+            abs(content["width"]-min(912, size["width"]-24)) <= 1,
+            "Full-window scroller/gutters or original centered 912px content width differs.")
+    dock = record["dock"]
+    require(abs(dock["x"]+dock["width"]/2-size["width"]/2) <= 1 and
+            abs(dock["y"]+dock["height"]-(footer["y"]-14)) <= 1,
+            "Page dock must float centered 14px above the footer.")
     bar = record["scrollbar"]
     require(bar == {"width": "12px", "height": "12px", "thumbBorder": "4px",
                     "thumbRadius": "999px", "thumbClip": "padding-box", "minHeight": "36px"},

@@ -10,7 +10,7 @@ input:not([type=checkbox]),select,textarea{width:100%;min-height:var(--control-h
 input:read-only{color:var(--muted)} select{padding-right:28px;cursor:pointer} textarea{resize:vertical;line-height:1.6;min-height:160px}
 input[type=checkbox]{accent-color:var(--accent);width:16px;height:16px;cursor:pointer}
 h1,h2,h3,p{margin:0} h1,h2,h3,h4,h5,h6,[role=heading],.brand,.page-title,.route-title,.section-title,.dialog-title,.empty-title,.confirm-title{font-family:var(--f-heading)} h1,h2{font-family:var(--f-heading);font-weight:var(--strong-weight)} h1{font-size:var(--size-title)} h2{font-size:var(--size-heading)} h3{font-size:var(--size-body);font-weight:var(--strong-weight)}
-.app-shell{width:100%;flex:1;min-height:0;overflow:auto;scrollbar-gutter:stable both-edges}.content-shell{max-width:912px;width:100%;padding:16px clamp(12px,calc((100vw - 888px)/2),24px) 64px;margin:0 auto}.topbar{display:flex;align-items:center;gap:16px;width:100%;height:48px;min-height:48px;flex:none;padding:0 0 0 16px;background:var(--card);border-bottom:1px solid var(--line);position:relative;z-index:100;user-select:none}.route-name{padding-left:14px;border-left:1px solid var(--line);color:var(--muted);font-size:var(--size-detail);line-height:20px;white-space:nowrap}.topbar .brand{position:relative;z-index:103}
+.app-shell{width:100%;flex:1;min-height:0;overflow:auto;scrollbar-gutter:stable both-edges}.content-shell{max-width:912px;width:100%;padding:16px clamp(12px,calc((100vw - 888px)/2),24px) 112px;margin:0 auto}.topbar{display:flex;align-items:center;gap:16px;width:100%;height:48px;min-height:48px;flex:none;padding:0 0 0 16px;background:var(--card);border-bottom:1px solid var(--line);position:relative;z-index:100;user-select:none}.route-name{padding-left:14px;border-left:1px solid var(--line);color:var(--muted);font-size:var(--size-detail);line-height:20px;white-space:nowrap}.topbar .brand{position:relative;z-index:103}
 
 .window-controls{position:relative;z-index:103;display:flex;align-self:stretch;flex:none;gap:0;height:48px;margin-left:0}.caption-button{width:46px;height:48px;min-height:48px;flex:0 0 46px;padding:0;border:0;border-radius:0;background:transparent;color:var(--text);transition:background-color var(--fast) var(--ease),color var(--fast) var(--ease),var(--theme-colors)}.caption-button svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:1;pointer-events:none}.caption-button:hover{border:0;background:var(--line)}.caption-button:active{transform:none;background:var(--line-strong)}.caption-button:focus-visible{outline:2px solid var(--accent);outline-offset:-3px}.caption-close:hover,.caption-close:active{background:#C42B1C;color:#FFFFFF}.topbar[data-window-focus="false"] .caption-button:not(:hover){color:var(--muted)}.window-resize-handles{position:absolute;inset:0;pointer-events:none}.window-resize{position:fixed;z-index:101;touch-action:none;pointer-events:auto}.window-resize.north,.window-resize.south{left:6px;right:6px;height:5px;cursor:ns-resize}.window-resize.north{top:0;right:138px}.window-resize.south{bottom:0}.window-resize.east,.window-resize.west{top:6px;bottom:6px;width:5px;cursor:ew-resize}.window-resize.east{right:0;top:54px}.window-resize.west{left:0}.window-resize.north-west,.window-resize.north-east,.window-resize.south-west,.window-resize.south-east{width:6px;height:6px}.window-resize.north-west{top:0;left:0;width:16px;height:16px;cursor:nwse-resize}.window-resize.north-east{top:48px;right:0;cursor:nesw-resize}.window-resize.south-west{bottom:0;left:0;cursor:nesw-resize}.window-resize.south-east{bottom:0;right:0;cursor:nwse-resize}html[data-window-maximized="true"] .window-resize{display:none}
 .brand{display:flex;align-items:center;gap:12px;color:var(--text)} .brand:hover{text-decoration:none}.brand-tile{display:grid;place-items:center;width:36px;height:36px;border:1px solid var(--line);border-radius:10px;background:var(--card)}.brand-tile img{width:28px;height:28px}
@@ -63,15 +63,21 @@ dialog{padding:24px;border:1px solid var(--line);border-radius:var(--radius-card
 .provider-check-detail{font-size:var(--size-small);color:var(--muted);line-height:1.6;margin:4px 0 0 17px;overflow-wrap:anywhere}
 
 
-/* ── Main navigation: Litora's 72px left rail; Settings sits at the foot ── */
-.workspace{display:flex;flex:1;min-height:0;min-width:0}.workspace>.app-shell{flex:1;width:auto;min-width:0}
-.side-nav{flex:none;width:72px;display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 0;background:var(--card);border-right:1px solid var(--line);position:relative;z-index:95}
-.side-nav .nav-button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;width:62px;height:auto;min-height:54px;padding:7px 2px 6px;border:0;border-radius:12px;background:transparent;color:var(--muted);font-size:var(--size-caption);line-height:14px;text-align:center;white-space:nowrap}
-.side-nav .nav-button .vi{width:20px;height:20px}
-.side-nav .nav-button:hover:not(.active){background:var(--sunken);color:var(--text)}
-.side-nav .nav-button.active{background:var(--accent);color:var(--accent-ink);box-shadow:0 2px 6px rgba(var(--accent-rgb),.25)}
-.side-nav .nav-button[data-page=settings]{margin-top:auto}
-:root[data-theme=hologram] .side-nav .nav-button.active{background:var(--holo-foil);color:#252935;box-shadow:0 0 0 1px rgba(37,41,53,.14)}
+/* ── Main navigation: two destinations float in a dock above the footer ──
+   Litora's .seg language at a larger size: one pill glides to the open page. */
+.page-dock{position:fixed;left:50%;bottom:50px;transform:translateX(-50%);z-index:96;display:flex;gap:4px;padding:5px;border-radius:999px;background:var(--card-solid);border:1px solid var(--line);box-shadow:0 12px 32px rgba(24,32,48,.16),0 2px 6px rgba(24,32,48,.08);isolation:isolate}
+.page-dock .nav-button{display:inline-flex;align-items:center;gap:8px;height:40px;min-height:40px;padding:0 18px 0 14px;border:0;border-radius:999px;background:transparent;color:var(--muted);position:relative;z-index:1;font-size:var(--size-detail);white-space:nowrap}
+.page-dock .nav-button .vi{width:18px;height:18px}
+.page-dock .nav-button:hover:not(.active){background:transparent;color:var(--text)}
+.page-dock .nav-button.active{background:var(--accent);color:var(--accent-ink);font-weight:var(--strong-weight)}
+.page-dock[data-ind] .nav-button.active{background:transparent}
+.page-dock::before{content:"";position:absolute;left:0;top:0;z-index:0;width:var(--ind-w,0);height:var(--ind-h,0);transform:translate(var(--ind-x,0),var(--ind-y,0));border-radius:999px;background:var(--accent);box-shadow:0 3px 10px rgba(var(--accent-rgb),.3);opacity:0;pointer-events:none}
+.page-dock[data-ind]::before{opacity:1}.page-dock[data-ind=live]::before{transition:transform 320ms var(--control-ease),width 320ms var(--control-ease),var(--theme-colors)}
+:root[data-theme=hologram] .page-dock{background:var(--card);backdrop-filter:blur(16px) saturate(1.2);border-color:rgba(171,182,203,.7)}
+:root[data-theme=hologram][data-hologram-tone=dark] .page-dock{border-color:rgba(72,85,115,.9)}
+:root[data-theme=hologram] .page-dock::before{background:var(--holo-foil);box-shadow:0 0 0 1px rgba(37,41,53,.14),0 4px 14px rgba(200,181,242,.35)}
+:root[data-theme=hologram] .page-dock .nav-button.active{color:#252935}
+.toast{bottom:116px}
 
 /* ── Mode switch (Litora .theme-switcher / .theme-row) ──
    Two modes, Standard and Opal. The pressed one paints its own palette and
@@ -120,4 +126,4 @@ dialog,select option{background:var(--card-solid)}select option{color:var(--text
 :root[data-reduced-motion=true] .holo-blobs{animation:none}
 @media(prefers-reduced-motion:reduce){.holo-lamp{display:none}}
 :root[data-reduced-motion=true] .holo-lamp{display:none}
-@media(forced-colors:active){.side-nav .nav-button.active,.theme-choice[aria-pressed=true]{forced-color-adjust:none;background:Highlight;color:HighlightText;border-color:Highlight}.holo-field{display:none}}
+@media(forced-colors:active){.page-dock .nav-button.active,.theme-choice[aria-pressed=true]{forced-color-adjust:none;background:Highlight;color:HighlightText;border-color:Highlight}.holo-field{display:none}}
