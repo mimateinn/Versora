@@ -416,7 +416,11 @@ async function runAction(action,node) {
     case 'set-theme':case 'set-mode':case 'set-tone':{
       if(activeJob())return;captureDrafts();
       const flip=action==='set-theme'&&id===themeMode(),tone=action==='set-tone'?id:flip?(themeTone()==='dark'?'light':'dark'):themeTone();
-      await saveSettings(themePatch(action==='set-tone'?themeMode():id,tone));renderChrome();syncAppearanceControls();return;
+      // Paint the choice first, then save; a failed save puts the old look back.
+      const patch=themePatch(action==='set-tone'?themeMode():id,tone),previous={theme:state.settings.theme,hologram_tone:state.settings.hologram_tone};
+      state.settings={...state.settings,...patch};renderChrome();syncAppearanceControls();
+      try{await saveSettings(patch);}catch(error){state.settings={...state.settings,...previous};renderChrome();syncAppearanceControls();throw error;}
+      renderChrome();syncAppearanceControls();return;
     }
     case 'source-type':if(activeJob())return;await backend.clearSelection();state.selected=[];state.job=null;view.preview=null;view.error=null;await saveSettings({source_type:id});render();return;
     case 'swap':await saveSettings({source_choice:state.settings.target_lang,target_lang:state.settings.source_choice});render();return;
@@ -459,11 +463,12 @@ async function runAction(action,node) {
 }
 const immediateActions=new Set(['navigate','settings-pane','manage-providers','manage-purpose','updates-check','updates-download','updates-cancel','updates-later','updates-official']);
 let operationControls=new Map(),operationFocus=null,operationPane=null;
-function beginOperation() {
+function beginOperation(lock=true) {
   operationFocus=document.activeElement;operationControls=new Map();
   operationPane=content.querySelector('.settings-pane')||content.firstElementChild;
   view.busy=true;content.setAttribute('aria-busy','true');
-  const controls=[...document.querySelectorAll('.theme-switcher button'),...content.querySelectorAll('button,input,select,textarea')];
+  // A theme change paints at once and keeps every control live; its save only holds the busy flag.
+  const controls=lock?[...document.querySelectorAll('.theme-switcher button'),...content.querySelectorAll('button,input,select,textarea')]:[];
   for(const node of controls){if(!immediateActions.has(node.dataset.action)){operationControls.set(node,node.disabled);node.disabled=true;}}
 }
 function finishOperation(preserveContent=false) {
@@ -482,7 +487,7 @@ document.addEventListener('click',async event => {
   const action=node.dataset.action;
   if(view.busy && !immediateActions.has(action))return;
   const ownsBusy=!immediateActions.has(action),preserveContent=['set-theme','set-mode','set-tone'].includes(action);
-  if(ownsBusy)beginOperation();
+  if(ownsBusy)beginOperation(!preserveContent);
   try {await runAction(action,node);} catch(error) {view.error=String(error?.message || error);toast(view.error,'error');if(view.page==='translate'&&!preserveContent)render();}
   finally {if(ownsBusy)finishOperation(preserveContent);}
 });

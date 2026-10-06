@@ -76,8 +76,8 @@
   },
   {
     "path": "desktop\\ui\\app.js",
-    "sha256": "6C0231C1B4D4999D97D03389B5E2918DBB9434B1255FBE0665EEA32907FC9CCA",
-    "bytes": 59931
+    "sha256": "5F5725794E64D74F9ED08B8A07990F19A9AED64DF068FDA7903B93EE9059EACC",
+    "bytes": 60468
   },
   {
     "path": "desktop\\ui\\assets\\fonts\\libron\\COPYRIGHT",
@@ -146,8 +146,8 @@
   },
   {
     "path": "desktop\\ui\\holo-field.worker.js",
-    "sha256": "3E3CD4AC4386F8DE15F4310F9F8DA0ED902ED1F2B7DD662341AEE69A95553BE2",
-    "bytes": 25366
+    "sha256": "5D4452E3E9FB060E2C1EF3D4A3F94ACC549318CAE43334DFAA8C6BE0D9D926D5",
+    "bytes": 25679
   },
   {
     "path": "desktop\\ui\\i18n.js",
