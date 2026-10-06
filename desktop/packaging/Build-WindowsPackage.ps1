@@ -90,12 +90,12 @@ $metadata = [ordered]@{
     cargoLockSha256 = $licenseSummary.cargoLockSha256
     nativeRuntime = 'Rust/Tauri static CRT and custom protocol; no Python runtime or app HTTP server bundled'
     webviewPrerequisite = 'Existing Microsoft Evergreen WebView2 Runtime; no automatic runtime download/install'
-    signed = $false
+    signed = $false # Authenticode; the updater .sig is created separately after packaging.
     privateBuildPathOccurrences = $privateBuildPathOccurrences
     userDataPreserved = @('%LOCALAPPDATA%\Versora', '%LOCALAPPDATA%\com.mimateinn.versora', 'user-selected output folders', 'unknown files inside program/shortcut directories')
     livePaidProviderTranslation = 'NOT_RUN'
     realCliTranslationAndToolIsolation = 'NOT_RUN'
-    updater = 'Signed self-update: packages run only after minisign verification against the compiled updater key (none: manual release page only); no automatic rollback'
+    updater = 'Signed self-update: packages run only after minisign verification against the compiled updater key; builds without a key offer the manual release page; no automatic rollback'
     thirdPartySources = $licenseSummary
 }
 Write-Utf8 (Join-Path $stage 'RELEASE-METADATA.json') ($metadata | ConvertTo-Json -Depth 9)
@@ -107,7 +107,7 @@ Install location: %LOCALAPPDATA%\Programs\Versora (per-user; no administrator in
 Launch: Start Menu > Versora. The installer uses the formal native icon.
 An existing Microsoft Evergreen WebView2 Runtime is required. This package does not download or install a runtime and does not bundle Python or an app server.
 API credentials and application data stay outside the program directory. Uninstall preserves the entire app data/cache directories, outputs and unknown files.
-This preview is unsigned. Paid provider translation, real installed CLI translation and complete CLI tool isolation have not been verified; no keys or provider CLI executables are bundled.
+This package has no Authenticode signature. Paid provider translation, real installed CLI translation and complete CLI tool isolation have not been verified; no keys or provider CLI executables are bundled.
 Provider cancellation stops local waiting/native managed processes; it does not recall requests already accepted or billable by an external provider.
 Automatic updates download the signed installer from the official GitHub release, verify its signature against the publisher key built into Versora and install it when you restart or quit. Builds without a publisher key only check for updates and open the official release page. There is no automatic rollback.
 Third-party notices and unchanged locked source archives are included. No project license is inferred from dependency licensing.

@@ -29,9 +29,9 @@ Translate files on your own computer. Drop one file, a folder, or a zip — you 
 
 ## Windows desktop download
 
-[Download Versora v0.3.0-preview.1 for Windows x64](https://github.com/mimateinn/Versora/releases/tag/v0.3.0-preview.1)
+[Download Versora v0.3.1 for Windows x64](https://github.com/mimateinn/Versora/releases/tag/v0.3.1)
 
-Choose `Versora-0.3.0-preview.1-win32-x64-setup.exe` under **Assets**. This is an unsigned prerelease: see the release notes and `SHA256SUMS.txt` before installing. The source ZIP from the green **Code** button is for development.
+Choose `Versora-0.3.1-win32-x64-setup.exe` under **Assets**. Check the release notes and `SHA256SUMS.txt` before installing. The updater signature uses the existing publisher key; the installer has no Authenticode signature. The source ZIP from the green **Code** button is for development.
 
 Versora now opens in its own Windows desktop window. The translation engine, file handling and settings are written in Rust; the desktop window uses Tauri and WebView2. Running the installed application does not require Python, Node.js or a local web server.
 
@@ -40,7 +40,7 @@ The native window uses a single 48 px header with Minimize, Maximize/Restore and
 ### Install and start
 
 1. Use Windows 10 or 11, 64-bit, with the Microsoft Edge WebView2 Evergreen Runtime already installed. The installer checks this prerequisite; it does not download a runtime.
-2. Download the setup file and checksum file from the release above. To compare the setup file's SHA-256, run `Get-FileHash -Algorithm SHA256 .\Versora-0.3.0-preview.1-win32-x64-setup.exe` in PowerShell.
+2. Download the setup file and checksum file from the release above. To compare the setup file's SHA-256, run `Get-FileHash -Algorithm SHA256 .\Versora-0.3.1-win32-x64-setup.exe` in PowerShell.
 3. Run the installer. It installs for your current Windows account in `%LOCALAPPDATA%\Programs\Versora`.
 4. Open **Versora** from the installed shortcut.
 5. In **Settings → Translators**, add a supported developer API key, or select an already installed and signed-in official native CLI executable. Choose the translator and model, then return to **Translate**.
@@ -91,7 +91,7 @@ Translator status text follows the selected interface language. Finding a native
 - CLI adapters: **Claude Code, Codex CLI and Grok CLI**, when an official native executable is already installed and signed in. The app does not run `.cmd`/`.bat` shims; known official Codex installations may resolve to their native executable.
 - Paid/live provider compatibility, live CLI translation and model translation quality remain **NOT_RUN** for this build. Offline Demo and controlled protocol tests are not real-model translation.
 - Controlled Windows process-tree cancellation has been tested. Live CLI tool isolation remains **NOT_RUN**, and full no-tool isolation is not certified: Codex can retain shell tools and inherited MCP configuration; Grok home isolation is not implemented. Parser/writeback work and external provider activity are not guaranteed to stop instantly.
-- The native preview builds on the latest PR4 UI work. PR4 remains a separate, unmerged pull request; this prerelease does not represent its acceptance.
+- This release follows the published native desktop branch, including its merged PR5/PR6/PR7 changes and the titlebar/source-mode repair. PR4 remains a separate, unmerged pull request; this release does not merge it.
 - Windows 11 Snap Layouts on hover over the app's HTML Maximize button have not been verified.
 - Windows x64 is the packaged target. A clean Windows VM, other operating systems, comprehensive screen-reader journeys and every document layout have not been validated.
 
@@ -109,11 +109,11 @@ Upgrade and uninstall preserve the user-data directory and the separate WebView2
 
 **Settings → Updates** can check official GitHub release metadata and open the download page. Startup and periodic checks are configurable while the app is running.
 
-Automatic package downloading, signed installation and recovery are disabled in this preview. Install updates manually from the official release page. A SHA-256 checksum checks file integrity; it is not a publisher signature.
+Installed Production builds verify update packages against the existing compiled publisher key before installing. The updater uses the official GitHub Releases API, the versioned installer and its matching `.sig`; it does not use a separate update manifest. Builds without a publisher key offer the release page. There is no automatic rollback. A SHA-256 checksum checks file integrity; it is not a publisher signature.
 
 ## Build the native desktop source
 
-Use the [source at the native release tag](https://github.com/mimateinn/Versora/tree/v0.3.0-preview.1/desktop). The historical root `start.bat`/`start.sh` and Python code belong to the browser application, rather than the native build.
+Use the [source at the native release tag](https://github.com/mimateinn/Versora/tree/v0.3.1/desktop). The historical root `start.bat`/`start.sh` and Python code belong to the browser application, rather than the native build.
 
 On the provisioned Windows build host, with the locked crates available, installed Rust 1.97.1 MSVC, Visual Studio 2022 Build Tools and Windows SDK:
 
@@ -126,7 +126,7 @@ $env:CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS = '-C target-feature=+crt-sta
 
 The compiler wrapper selects the audited toolchain paths; configure those paths for another build host. The native frontend is bundled local content and has no separate Node build step. Release packaging uses NSIS, an allowlisted payload and recorded checksums; generated binaries, test profiles and user data must stay out of source Git.
 
-See [the native feature map](https://github.com/mimateinn/Versora/blob/v0.3.0-preview.1/desktop/FEATURE_MAP.md) and [updater contract](https://github.com/mimateinn/Versora/blob/v0.3.0-preview.1/desktop/UPDATE-ADAPTER.md) for source boundaries. Third-party license notices and required source archives accompany the installer. The repository does not declare a license for the application itself.
+See [the native feature map](https://github.com/mimateinn/Versora/blob/v0.3.1/desktop/FEATURE_MAP.md) and [updater contract](https://github.com/mimateinn/Versora/blob/v0.3.1/desktop/UPDATE-ADAPTER.md) for source boundaries. Third-party license notices and required source archives accompany the installer. The repository does not declare a license for the application itself.
 
 ## Earlier downloads
 

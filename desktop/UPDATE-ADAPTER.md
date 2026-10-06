@@ -5,7 +5,7 @@ This adapts the suite semantics in the other task's `UPDATE-CONTRACT.md`; it doe
 | Required fact | Native desktop contract |
 | --- | --- |
 | Framework | Tauri **2.11.5**, WebView2; static embedded frontend; Rust IO/providers; no Python or HTTP server |
-| App version | Cargo workspace **0.3.0**, `env!("CARGO_PKG_VERSION")`; Tauri config must match |
+| App version | Cargo workspace **0.3.1**, `env!("CARGO_PKG_VERSION")`; Tauri config must match |
 | Windows distribution | Existing NSIS produces `Versora-<strict-semver>-win32-x64-setup.exe`; EXE `versora.exe` |
 | Executable installation | Per-user `%LOCALAPPDATA%/Programs/Versora`; application files only |
 | User data | `%LOCALAPPDATA%/Versora`; isolated `VERSORA_DATA_DIR` only for tests/explicit local profile |
@@ -17,7 +17,7 @@ This adapts the suite semantics in the other task's `UPDATE-CONTRACT.md`; it doe
 | Policy | startup/manual/periodic while app runs, 1-168h; default **periodic every 4 h, first check ~10 s after the UI is healthy, stable, auto download+install on**; strictly newer SemVer and highest healthy-startup marker. Profiles still on the old default (startup/24 h) migrate once; explicit manual/periodic and channel choices are kept, and the never-enabled download toggle turns on |
 | Safe exit | Cancel owned job, wait for actual cleanup/output persistence, then exit. Busy or unsaved work needs the user's in-app confirmation (`confirmed`); pending persistence always refuses. The verified installer is started from this path only: on request with `/S /UPDATE /RELAUNCH`, or silently on quit (`/S /UPDATE`) whenever a verified package is ready, however it was downloaded; a running check or download is cancelled first |
 | Health hook | UI explicitly ACKs after successful state restore and first render; marker is not advanced by discovery/download. The ACK also reports `justUpdated` once (previous last-seen version < current) for the "已更新到 {v}" notice and prunes obsolete packages |
-| Trust | Tauri signer (minisign) public key compiled from `src-tauri/updater-public-key.txt`. **Shipped empty: no download/install capability until the key is committed.** Unpackaged/dev builds (no production `.versora-installation` marker beside `versora.exe`) never contact the network |
+| Trust | Tauri signer (minisign) public key compiled from `src-tauri/updater-public-key.txt`. **The existing publisher key is committed; installed Production builds require a matching signed package.** Unpackaged/dev builds (no production `.versora-installation` marker beside `versora.exe`) never contact the network |
 
 ## Trust, download and install model
 
@@ -73,6 +73,6 @@ Use the existing keypair in `C:\Users\dicks\.tauri\` (do not generate a new one;
    Re-run for an existing tag via *Run workflow* with the tag name. The annotated tag message becomes the release
    notes (otherwise GitHub generates them); edit the release body afterwards if needed.
 
-`versora-ci.yml` runs on `claude/**` pushes and pull requests: the UI source-freeze check, `cargo test`
+`versora-ci.yml` runs on `feat/rust-desktop` pushes, pull requests and manual dispatch: the UI source-freeze check, `cargo test`
 (including `update_policy`), the release build, an isolated Test-mode installer and the `/UPDATE` wait and
 `/RELAUNCH` handoff on the runner.
