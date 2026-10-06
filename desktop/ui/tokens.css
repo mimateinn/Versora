@@ -27,7 +27,7 @@
   --ease:cubic-bezier(.22,1,.36,1); --fast:140ms; --normal:220ms; --control-height:42px; --small-height:34px;
   --body-weight:400; --control-weight:400; --strong-weight:700; --vi-accent:var(--accent);
   font-synthesis:none;
-  --size-body:14px; --size-small:12px; --size-title:22px; --size-wordmark:15px;
+  --size-body:14px; --size-small:12px; --size-title:22px; --size-wordmark:17px;
   --size-heading:18px; --size-detail:13px; --size-caption:11px; --size-watermark:8.5px; --size-title-compact:20px; --backdrop:rgba(0,0,0,.3);
   --radius-card:12px; --radius-control:10px; --gap:16px; --section-gap:24px;
   /* Opal foil (Litora aliases.css); also paints the Opal chooser while another palette is on. */
@@ -35,6 +35,7 @@
   --holo-spectrum:linear-gradient(112deg,#C9E7E4 0%,#DDD4EE 46%,#E8DCC4 100%);
   --holo-foil:linear-gradient(130deg,var(--holo-cyan) 0%,var(--holo-violet) 29%,var(--holo-pink) 52%,var(--holo-gold) 76%,var(--holo-pearl) 100%);
   --holo-foil-turn:linear-gradient(35deg,var(--holo-violet) 0%,var(--holo-pearl) 30%,var(--holo-gold) 56%,var(--holo-pink) 80%,var(--holo-cyan) 100%);
+  --brand-field:#245369;
   color-scheme:light;
 }
 :root[data-theme="dark"] {
@@ -50,6 +51,7 @@
   --art-fill:rgba(242,245,251,.04); --art-line:rgba(242,245,251,.45);
   --sb-thumb:rgba(220,228,242,.08); --sb-thumb-area:rgba(220,228,242,.24);
   --sb-hover:linear-gradient(180deg,#A3C0E6,#7FA6D8); --sb-hover-x:linear-gradient(90deg,#A3C0E6,#7FA6D8); --sb-active:linear-gradient(180deg,#7FA6D8,#4677B5);
+  --brand-field:#214756;
   color-scheme:dark;
 }
 /* Opal (幻彩): opaque pastel foil, not emitted light. Glass surfaces over a slow
@@ -78,6 +80,7 @@
   --holo-primary:#262B38; --holo-primary-hover:#363C4D; --holo-primary-ink:#F7F8FC; --holo-btn:rgba(252,251,254,.62); --holo-hover-edge:#7F899B;
   --holo-focus:#52688A; --holo-brand-field:#DDEAEF; --holo-material-opacity:.22; --holo-chrome-edge:#ABB6CB;
   --shadow-xs:0 1px 2px rgba(31,39,56,.05);
+  --brand-field:var(--holo-brand-field);
   color-scheme:light;
 }
 :root[data-theme="hologram"][data-hologram-tone="dark"] {
