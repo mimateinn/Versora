@@ -5,13 +5,14 @@ import {UpdatesPane} from './updates.js';
 import {WindowChrome} from './window-chrome.js';
 import {UIMotion} from './motion.js';
 import {bindHoloField} from './holo-field.js';
+import {progressState} from './progress-state.js';
 
 const content = document.querySelector('#content');
 const motion = new UIMotion();
 const initialCliProbes = new Set();
 const state = {settings:{},providers:[],purposes:[],projects:[],glossary:[],selected:[],job:null,version:'',dataDir:'',testMode:false};
-const view = {page:'translate',pane:'purposes',editingProvider:null,outputDir:null,busy:false,error:null,glossaryDraft:null,orderDraft:null,purposeDraft:null,purposeFrom:'general',pollTimer:null,polling:false,unlisten:[],toastTimer:null,preview:null};
-const updates = new UpdatesPane(()=>{if(view.page==='settings'&&view.pane==='updates')render();},()=>{captureDrafts();view.page='settings';view.pane='updates';render();});
+const view = {page:'translate',pane:'purposes',editingProvider:null,outputDir:null,busy:false,initializing:true,sourceSwitching:false,pendingSourceType:null,error:null,glossaryDraft:null,orderDraft:null,purposeDraft:null,purposeFrom:'general',pollTimer:null,polling:false,unlisten:[],toastTimer:null,preview:null};
+const updates = new UpdatesPane(()=>{paintProgress();if(view.page==='settings'&&view.pane==='updates')render();},()=>{captureDrafts();view.page='settings';view.pane='updates';render();});
 // Preserve the live input nodes across navigation. Secret values are never serialized
 // into application state or copied into a draft string.
 const transientProviderInputs = new Map();
@@ -97,21 +98,61 @@ function paintToneChoices(group) {
     node.querySelector('.tone-name').textContent = t(`theme.${node.dataset.id}`);
   }
 }
-// Segmented controls carry one sliding pill; its last position survives a re-render so it glides.
-const indicatorMemory = new Map();
-function placeIndicators() {
+// Retained controls let CSS retarget a running transition from its painted position.
+// Resize/font changes snap to the measured button instead of replaying stale geometry.
+const observedSegments = new Set();
+const segmentSizes = new WeakMap();
+let indicatorFrame = null;
+function scheduleIndicators() {
+  if(indicatorFrame !== null)return;
+  indicatorFrame=requestAnimationFrame(()=>{indicatorFrame=null;placeIndicators(true);});
+}
+const segmentObserver = new ResizeObserver(entries => {
+  for(const {target} of entries){
+    const size=`${target.offsetWidth}:${target.offsetHeight}`;
+    if(segmentSizes.get(target)!==size){segmentSizes.set(target,size);scheduleIndicators();}
+  }
+});
+function placeIndicators(snap=false) {
   const still = state.settings.reduced_motion || motion.reduced.matches;
+  for(const group of observedSegments)if(!group.isConnected){segmentObserver.unobserve(group);observedSegments.delete(group);}
   for (const group of content.querySelectorAll('.segments')) {
-    const active = group.querySelector('button.active'),key = group.dataset.testid;
+    if(!observedSegments.has(group)){observedSegments.add(group);segmentSizes.set(group,`${group.offsetWidth}:${group.offsetHeight}`);segmentObserver.observe(group);}
+    const active = group.querySelector('button.active');
     if (!active) {delete group.dataset.ind;continue;}
     const next = {x:active.offsetLeft,y:active.offsetTop,w:active.offsetWidth,h:active.offsetHeight};
-    const apply = pos => {group.style.setProperty('--ind-x',`${pos.x}px`);group.style.setProperty('--ind-y',`${pos.y}px`);group.style.setProperty('--ind-w',`${pos.w}px`);group.style.setProperty('--ind-h',`${pos.h}px`);};
-    const previous = indicatorMemory.get(key);
-    if (!group.dataset.ind && previous && !still && (previous.x !== next.x || previous.w !== next.w)) {apply(previous);group.dataset.ind = 'init';void group.offsetWidth;}
-    if (!group.dataset.ind) group.dataset.ind = 'init';
-    if (!still) group.dataset.ind = 'live';
-    apply(next);indicatorMemory.set(key,next);
+    const settle=snap||still||!group.dataset.ind;
+    if(settle)group.dataset.ind='init';
+    for(const [name,value] of Object.entries(next))group.style.setProperty(`--ind-${name}`,`${value}px`);
+    if(settle)void group.offsetWidth;
+    group.dataset.ind=still?'init':'live';
   }
+}
+function retainSourceTypes(previous,next) {
+  if(!previous||!next)return;
+  for(const button of next.querySelectorAll('button')) {
+    const retained=previous.querySelector(`[data-id="${button.dataset.id}"]`);
+    if(!retained)return;
+    retained.className=button.className;retained.disabled=button.disabled;
+    retained.setAttribute('aria-pressed',button.getAttribute('aria-pressed'));
+    for(const label of retained.querySelectorAll('.segment-label span'))label.textContent=button.querySelector('.segment-label-text').textContent;
+  }
+  previous.setAttribute('aria-label',next.getAttribute('aria-label'));
+  next.replaceWith(previous);
+}
+function paintProgress() {
+  const model=progressState({initializing:view.initializing,busy:view.busy,job:state.job,update:updates.nativeState});
+  const bar=document.querySelector('[data-testid="titlebar-progress"]');
+  bar.dataset.state=model.kind;
+  bar.setAttribute('aria-hidden',String(model.kind==='idle'));
+  const vars={done:model.done,total:model.total,p:model.total?Math.floor(model.done/model.total*100):0};
+  if(model.kind!=='idle')bar.setAttribute('aria-label',t(model.label,vars));
+  for(const name of ['aria-valuenow','aria-valuemax','aria-valuetext','data-unit'])bar.removeAttribute(name);
+  if(model.kind==='determinate'){
+    bar.setAttribute('aria-valuenow',String(model.done));bar.setAttribute('aria-valuemax',String(model.total));
+    bar.setAttribute('aria-valuetext',t(model.label,vars));bar.dataset.unit=model.unit;
+    bar.style.setProperty('--progress',String(model.done/model.total));
+  }else bar.style.removeProperty('--progress');
 }
 const windowChrome = new WindowChrome(message => toast(message,'error'),async()=>{captureDrafts();await backend.unsaved(workSnapshot().unsaved);});
 function renderChrome() {
@@ -144,7 +185,7 @@ function previewView() {
 }
 function translateView() {
   const busy = controlsBusy(),kind = effectiveSourceType();
-  return `<section class="card card-enter" data-testid="translate-card">${quickbar()}<hr class="rule"><div class="segments" data-testid="source-types" role="group" aria-label="${attr(t('main.source_type'))}">${[['file','main.seg_file','file'],['folder','main.seg_folder','folder'],['zip','main.seg_zip','zip']].map(([type,label,glyph]) => `<button type="button" data-action="source-type" data-id="${type}" data-testid="source-type-${type}" aria-pressed="${type === kind}" class="${type === kind ? 'active' : ''}" ${busy ? 'disabled' : ''}>${icon(glyph)}${L(label)}</button>`).join('')}</div>${state.selected.length ? selectedView() : `<div class="dropzone" data-testid="dropzone"><div class="drop-art">${dropArt}</div><div class="drop-copy"><h3>${L(kind === 'folder' ? 'main.source_folder' : kind === 'zip' ? 'drop.zip_title' : 'drop.title')}</h3><p class="muted">${L(kind === 'zip' ? 'drop.zip_hint' : kind === 'folder' ? 'main.folder_hint' : 'drop.hint')}</p><p class="formats">${kind === 'zip' ? 'ZIP' : 'TXT · MD · DOCX · PDF · JSON · CSV · YAML · PO · XLIFF · XLSX · HTML · SRT · VTT'}</p>${button('pick',t(kind === 'folder' ? 'desktop.choose_folder' : 'drop.browse'),'pick-files',{icon:kind === 'folder' ? 'folder_open' : 'upload',class:'primary',disabled:busy})}</div></div>`}${state.selected.length ? `<hr class="divider"><div class="picker-line">${field('output-folder',L('desktop.output'),input('output-folder',displayPath(view.outputDir),{readOnly:true,placeholder:t('desktop.output_hint')}))}${button('choose-output',t('desktop.choose_folder'),'choose-output',{icon:'folder_open',disabled:busy})}</div><div class="run-actions"><span class="hint" data-testid="selection-count">${L('desktop.selected')}: ${state.selected.length}</span>${button('translate',t('main.translate_btn'),'translate-start',{icon:'swap',class:'primary',disabled:busy})}</div>` : ''}${view.error ? `<div class="notice error" role="alert" data-testid="translation-error">${icon('alert')}${escape(view.error)}</div>` : ''}</section>${state.job ? jobView(state.job) : ''}`;
+  return `<section class="card" data-testid="translate-card">${quickbar()}<hr class="rule"><div class="segments source-types" data-testid="source-types" role="group" aria-label="${attr(t('main.source_type'))}">${[['file','main.seg_file','file'],['folder','main.seg_folder','folder'],['zip','main.seg_zip','zip']].map(([type,label,glyph]) => `<button type="button" data-action="source-type" data-id="${type}" data-testid="source-type-${type}" aria-pressed="${type === kind}" class="${type === kind ? 'active' : ''}" ${busy && !view.sourceSwitching ? 'disabled' : ''}>${icon(glyph)}<span class="segment-label"><span class="segment-label-text">${L(label)}</span><span class="segment-label-measure" aria-hidden="true">${L(label)}</span></span></button>`).join('')}</div>${state.selected.length ? selectedView() : `<div class="dropzone" data-testid="dropzone"><div class="drop-art">${dropArt}</div><div class="drop-copy"><h3>${L(kind === 'folder' ? 'main.source_folder' : kind === 'zip' ? 'drop.zip_title' : 'drop.title')}</h3><p class="muted">${L(kind === 'zip' ? 'drop.zip_hint' : kind === 'folder' ? 'main.folder_hint' : 'drop.hint')}</p><p class="formats">${kind === 'zip' ? 'ZIP' : 'TXT · MD · DOCX · PDF · JSON · CSV · YAML · PO · XLIFF · XLSX · HTML · SRT · VTT'}</p>${button('pick',t(kind === 'folder' ? 'desktop.choose_folder' : 'drop.browse'),'pick-files',{icon:kind === 'folder' ? 'folder_open' : 'upload',class:'primary',disabled:busy})}</div></div>`}${state.selected.length ? `<hr class="divider"><div class="picker-line">${field('output-folder',L('desktop.output'),input('output-folder',displayPath(view.outputDir),{readOnly:true,placeholder:t('desktop.output_hint')}))}${button('choose-output',t('desktop.choose_folder'),'choose-output',{icon:'folder_open',disabled:busy})}</div><div class="run-actions"><span class="hint" data-testid="selection-count">${L('desktop.selected')}: ${state.selected.length}</span>${button('translate',t('main.translate_btn'),'translate-start',{icon:'swap',class:'primary',disabled:busy})}</div>` : ''}${view.error ? `<div class="notice error" role="alert" data-testid="translation-error">${icon('alert')}${escape(view.error)}</div>` : ''}</section>${state.job ? jobView(state.job) : ''}`;
 }
 function jobView(job) {
   const running = ['running','cancelling'].includes(job.status);
@@ -156,21 +197,17 @@ function jobView(job) {
   const states = {pending:'state.waiting',running:'state.running',saved:'batch.saved',failed:'batch.failed',skipped:'batch.skipped',cancelled:'batch.unfinished'};
   const glyphs = {pending:'dot',running:'spinner',saved:'check',failed:'alert',skipped:'file',cancelled:'stop'};
   const chunksTotal=count(job.chunksTotal),chunksDone=Math.min(chunksTotal,count(job.chunksDone));
-  const chunkProgress=count(job.total)<=1&&chunksTotal>0;
-  const progressTotal=chunkProgress?chunksTotal:Math.max(1,count(job.total));
-  const progressDone=chunkProgress?chunksDone:count(job.done);
-  const progressLabel=t(chunkProgress?'run.chunks':'run.files',{done:progressDone,total:progressTotal});
   const fileRows = files.map((file,index) => {
     const total=count(file.chunks_total),done=Math.min(total,count(file.chunks_done));
     return `<div class="job-file" data-testid="job-file-${index}" data-status="${attr(file.status)}">${icon(glyphs[file.status] || 'file')}<span class="job-file-title" title="${attr(displayPath(file.relative || file.input))}">${escape(file.relative || file.name)}</span><span class="job-file-state">${L(states[file.status] || 'state.waiting')}${total ? `<span class="file-chunks" data-testid="job-file-chunks-${index}">${L('run.chunks',{done,total})}</span>` : ''}</span>${file.error ? `<div class="job-error">${escape(file.error)}</div>` : ''}</div>`;
   }).join('');
-  return `<section class="card card-enter" data-testid="job-card" data-job-status="${attr(job.status)}" data-used-demo="${job.usedDemo===true}" aria-live="polite">
+  return `<section class="card" data-testid="job-card" data-job-status="${attr(job.status)}" data-used-demo="${job.usedDemo===true}" aria-live="polite">
     <div class="${running ? 'progress-heading' : 'result-heading'} ${error ? 'error' : ''}">
       ${icon(running ? 'spinner' : error ? 'alert' : job.status === 'stopped' ? 'stop' : 'check')}
       <div class="progress-title"><h2 data-testid="job-title">${escape(label)}</h2><span class="progress-meta" data-testid="job-progress-label">${L('run.files',{done:count(job.done),total:count(job.total)})}${job.current ? ` · ${escape(job.current)}` : ''}</span>${chunksTotal ? `<span class="progress-meta chunk-progress" data-testid="job-chunk-label">${L('run.chunks',{done:chunksDone,total:chunksTotal})}</span>` : ''}</div>
       ${running ? button('cancel',t(job.status === 'cancelling' ? 'run.cancelling' : 'run.cancel'),'job-cancel',{class:'small',icon:'stop',disabled:job.status === 'cancelling' || view.busy}) : ''}
     </div>
-    ${running ? `<progress data-testid="job-progress" data-unit="${chunkProgress?'chunks':'files'}" max="${progressTotal}" value="${progressDone}" aria-label="${attr(progressLabel)}"></progress>` : `<div class="counts" data-testid="job-counts"><span class="saved">${L('done.n_saved',{n:saved})}</span>${failed ? `<span class="failed">${L('done.n_failed',{n:failed})}</span>` : ''}${skipped ? `<span>${L('done.n_skipped',{n:skipped})}</span>` : ''}${unfinished ? `<span>${L('done.n_unfinished',{n:unfinished})}</span>` : ''}</div>`}
+    ${!running ? `<div class="counts" data-testid="job-counts"><span class="saved">${L('done.n_saved',{n:saved})}</span>${failed ? `<span class="failed">${L('done.n_failed',{n:failed})}</span>` : ''}${skipped ? `<span>${L('done.n_skipped',{n:skipped})}</span>` : ''}${unfinished ? `<span>${L('done.n_unfinished',{n:unfinished})}</span>` : ''}</div>` : ''}
     ${job.usedDemo===true ? `<p class="notice" data-testid="job-demo-warning">${L('desktop.demo')}</p>` : ''}
     ${job.message ? `<p class="notice ${error ? 'error' : ''}" data-testid="job-message">${escape(job.message)}</p>` : ''}
     <div class="job-files" data-testid="job-files">${fileRows}</div>
@@ -279,6 +316,9 @@ function appearanceView() {
 }
 function render() {
   rememberProviderInputs();
+  const route=view.page==='settings'?`settings:${view.pane}`:view.page;
+  const previousSource=view.page==='translate'?content.querySelector('[data-testid="source-types"]'):null;
+  const sourceFocus=previousSource?.contains(document.activeElement)?document.activeElement:null;
   const retainedLayout=view.page==='settings'&&content.querySelector('.settings-layout');
   if(retainedLayout){
     // Keep rail controls alive so their selection marker interpolates across panes.
@@ -294,10 +334,14 @@ function render() {
     }
     retainedLayout.querySelector('.settings-pane').replaceWith(nextLayout.querySelector('.settings-pane'));
   }else content.innerHTML=view.page==='settings'?settingsView():translateView();
+  retainSourceTypes(previousSource,content.querySelector('[data-testid="source-types"]'));
+  if(sourceFocus?.isConnected&&!sourceFocus.disabled)sourceFocus.focus({preventScroll:true});
   restoreProviderInputs();
   renderChrome();
+  paintProgress();
+  if(route!==motion.route)content.querySelectorAll('.card').forEach(card=>card.classList.add('card-enter'));
   placeIndicators();
-  motion.enter(content,view.page==='settings'?`settings:${view.pane}`:view.page);
+  motion.enter(content,route);
   document.querySelector('#output-folder')?.setAttribute('title',displayPath(view.outputDir));
   content.setAttribute('aria-busy',String(view.busy));
   updates.watchPane(view.page==='settings'&&view.pane==='updates');
@@ -381,6 +425,7 @@ function receiveJob(job) {
   const wasActive=activeJob();
   if(state.job && !wasActive && ['running','cancelling'].includes(job.status))return;
   state.job = job;
+  paintProgress();
   if (view.page === 'translate') {
     const card = content.querySelector('[data-testid="job-card"]');
     if (card) card.outerHTML = jobView(job); else content.insertAdjacentHTML('beforeend',jobView(job));
@@ -403,6 +448,24 @@ async function loadJob(result) {
   view.page = 'translate';view.error=null;view.preview=null;
   render();pollJob();
 }
+async function switchSourceType(id) {
+  if(!['file','folder','zip'].includes(id)||activeJob()||(view.busy&&!view.sourceSwitching))return;
+  view.pendingSourceType=id;
+  state.settings={...state.settings,source_type:id};
+  state.selected=[];state.job=null;view.preview=null;view.error=null;
+  if(view.sourceSwitching){render();return;}
+  // Serialize persistence while accepting the latest click during an in-flight save.
+  view.sourceSwitching=true;beginOperation();render();
+  try{
+    await backend.clearSelection();
+    while(view.pendingSourceType!==null){
+      const next=view.pendingSourceType;view.pendingSourceType=null;
+      const updated=await backend.settings({source_type:next});
+      state.settings={...state.settings,...(updated?.settings||updated||{}),source_type:view.pendingSourceType??next};
+    }
+  }catch(error){view.sourceSwitching=false;view.pendingSourceType=null;render();await refresh();throw error;}
+  finally{view.sourceSwitching=false;view.pendingSourceType=null;finishOperation();}
+}
 async function runAction(action,node) {
   if(['navigate','settings-pane','manage-providers','manage-purpose','source-type','translate','retry'].includes(action))clearToast();
   if(['navigate','settings-pane','manage-providers','manage-purpose'].includes(action))document.querySelector('.app-shell').scrollTop=0;
@@ -422,7 +485,7 @@ async function runAction(action,node) {
       try{await saveSettings(patch);}catch(error){state.settings={...state.settings,...previous};renderChrome();syncAppearanceControls();throw error;}
       renderChrome();syncAppearanceControls();return;
     }
-    case 'source-type':if(activeJob())return;await backend.clearSelection();state.selected=[];state.job=null;view.preview=null;view.error=null;await saveSettings({source_type:id});render();return;
+    case 'source-type':return switchSourceType(id);
     case 'swap':await saveSettings({source_choice:state.settings.target_lang,target_lang:state.settings.source_choice});render();return;
     case 'pick':state.selected=await backend.pick(effectiveSourceType() === 'file' ? 'files' : effectiveSourceType());state.job=null;view.preview=null;view.error=null;render();return;
     case 'clear-selection':await backend.clearSelection();state.selected=[];state.job=null;view.preview=null;view.error=null;render();return;
@@ -461,18 +524,18 @@ async function runAction(action,node) {
     case 'import-legacy':{const result=await backend.importLegacy();if(result&&!result.cancelled){await refresh();view.glossaryDraft=null;view.purposeDraft=null;view.orderDraft=null;toast(result.message || t('desktop.import'));render();}return;}
   }
 }
-const immediateActions=new Set(['navigate','settings-pane','manage-providers','manage-purpose','updates-check','updates-download','updates-cancel','updates-later','updates-official']);
+const immediateActions=new Set(['navigate','settings-pane','manage-providers','manage-purpose','source-type','updates-check','updates-download','updates-cancel','updates-later','updates-official']);
 let operationControls=new Map(),operationFocus=null,operationPane=null;
 function beginOperation(lock=true) {
   operationFocus=document.activeElement;operationControls=new Map();
   operationPane=content.querySelector('.settings-pane')||content.firstElementChild;
-  view.busy=true;content.setAttribute('aria-busy','true');
+  view.busy=true;content.setAttribute('aria-busy','true');paintProgress();
   // A theme change paints at once and keeps every control live; its save only holds the busy flag.
   const controls=lock?[...document.querySelectorAll('.theme-switcher button'),...content.querySelectorAll('button,input,select,textarea')]:[];
-  for(const node of controls){if(!immediateActions.has(node.dataset.action)){operationControls.set(node,node.disabled);node.disabled=true;}}
+  for(const node of controls){if(!immediateActions.has(node.dataset.action)||(node.dataset.action==='source-type'&&!view.sourceSwitching)){operationControls.set(node,node.disabled);node.disabled=true;}}
 }
 function finishOperation(preserveContent=false) {
-  view.busy=false;content.setAttribute('aria-busy','false');
+  view.busy=false;content.setAttribute('aria-busy','false');paintProgress();
   if(preserveContent&&operationPane?.isConnected&&content.contains(operationPane)){
     for(const [node,disabled] of operationControls)if(node.isConnected)node.disabled=disabled;
     renderChrome();syncAppearanceControls();patchProviderRows();reportUnsaved();
@@ -536,9 +599,11 @@ document.addEventListener('input',event=>{
   if(event.target.id.startsWith('order-model-'))captureOrder();
   reportUnsaved();
 });
-window.addEventListener('resize',placeIndicators,{passive:true});
+window.addEventListener('resize',scheduleIndicators,{passive:true});
+document.fonts.addEventListener('loadingdone',scheduleIndicators);
+motion.reduced.addEventListener('change',scheduleIndicators);
 // Native drag/drop paths are validated and registered by Rust before this event.
-window.addEventListener('beforeunload',() => {clearTimeout(view.pollTimer);clearTimeout(view.toastTimer);updates.dispose();motion.dispose();view.holoField?.();for(const unlisten of view.unlisten)unlisten();});
+window.addEventListener('beforeunload',() => {clearTimeout(view.pollTimer);clearTimeout(view.toastTimer);if(indicatorFrame!==null)cancelAnimationFrame(indicatorFrame);segmentObserver.disconnect();window.removeEventListener('resize',scheduleIndicators);document.fonts.removeEventListener('loadingdone',scheduleIndicators);motion.reduced.removeEventListener('change',scheduleIndicators);updates.dispose();motion.dispose();view.holoField?.();for(const unlisten of view.unlisten)unlisten();});
 async function initialize() {
   const words=['VERSORA','TRANSLATE','翻譯','TRADUIRE','ÜBERSETZEN','翻訳','TRADUCIR','번역'];
   document.querySelector('#watermark').innerHTML=['a','b'].map((layer,n)=>`<div class="watermark-layer ${layer}">${Array.from({length:30},(_,index)=>`<div>${escape((words.slice((index+n)%words.length).concat(words.slice(0,(index+n)%words.length)).join(' · ')+' · ').repeat(12))}</div>`).join('')}</div>`).join('');
@@ -553,5 +618,6 @@ async function initialize() {
     view.unlisten.push(await backend.listenJob(receiveJob),await backend.listenSelection(async()=>{try{await refresh();render();}catch(error){toast(String(error),'error');}}));
     if(activeJob())pollJob();
   }catch(error){content.innerHTML='';const box=document.querySelector('#connection-error');box.textContent=String(error?.message || error);box.hidden=false;content.setAttribute('aria-busy','false');}
+  finally{view.initializing=false;paintProgress();}
 }
 initialize();

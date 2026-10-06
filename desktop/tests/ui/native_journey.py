@@ -226,10 +226,10 @@ async def run(args):
         await page.get_by_test_id("translate-start").click()
         await page.get_by_test_id("job-card").wait_for()
         if args.expect_chunks:
-            await page.wait_for_function("() => {const progress=document.querySelector('[data-testid=job-progress]');return progress?.dataset.unit==='chunks'&&progress.value>0&&progress.value<progress.max;}", timeout=20000)
+            await page.wait_for_function("() => {const progress=document.querySelector('[data-testid=titlebar-progress]');return progress?.dataset.unit==='chunks'&&Number(progress.getAttribute('aria-valuenow'))>0&&Number(progress.getAttribute('aria-valuenow'))<Number(progress.getAttribute('aria-valuemax'));}", timeout=20000)
             assert await page.get_by_test_id("job-chunk-label").inner_text()
             assert await page.get_by_test_id("job-file-chunks-0").inner_text()
-            evidence["chunkProgress"] = await page.get_by_test_id("job-progress").evaluate("node => ({value:node.value,max:node.max,unit:node.dataset.unit})")
+            evidence["chunkProgress"] = await page.get_by_test_id("titlebar-progress").evaluate("node => ({value:Number(node.getAttribute('aria-valuenow')),max:Number(node.getAttribute('aria-valuemax')),unit:node.dataset.unit})")
             await page.screenshot(path=str(target / "native-chunk-progress.png"))
             evidence["checks"].append("Actual intermediate Rust chunk progress advances the single-file native progress bar")
         await page.wait_for_function("() => ['done','stopped','error'].includes(document.querySelector('[data-testid=job-card]')?.dataset.jobStatus)", timeout=120000)

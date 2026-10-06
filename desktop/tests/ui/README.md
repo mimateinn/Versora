@@ -39,6 +39,23 @@ require separate authorized tests. Batch failure/retry and cancellation use
 the same real Rust commands; test them with a multi-file fixture and a slow
 test transport while leaving the actual model/provider claims separate.
 
+`progress_state.test.mjs` checks the titlebar strip's actual state selector with
+Node's built-in test runner. It covers startup, busy responses, single-file
+chunks, batch files, completion/error/stop, cancellation and updater byte counts.
+Run `node --test desktop/tests/ui/progress_state.test.mjs` from the repository root.
+
+`launch_progress_segments.ps1` launches a digest-pinned checkout executable with
+a new private Demo/WebView profile and an ordinary Open With JSON input.
+`native_progress_segments.py --launch-proof <proof> --evidence <new-output-folder>`
+then checks native progress and cancellation, the permanent 2px titlebar slot on
+all six settings panes, actual 800x640/1060x800 HWND resizing, retained source
+buttons, interrupted transitions, latest-click persistence, stable widths and
+4px vertically centered icon/label spacing. It checks the app's Reduce Motion
+preference and a WebView CSS reduced-motion request without changing Windows
+display settings. Add `--baseline` only with the pinned original build to record
+the old behavior. Full-window PNGs use the existing guarded PrintWindow helper;
+transition samples are actual computed positions. All evidence remains ignored.
+
 Manual owner journey: open Versora from its desktop shortcut, choose an existing
 file in the Windows chooser, configure a translator in Settings, translate,
 then save the result with Save As or open the output folder. The app stays in

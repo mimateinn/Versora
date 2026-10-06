@@ -37,6 +37,8 @@ jobs:
           PY
       - name: Parse UI modules
         run: for f in desktop/ui/*.js; do cp "$f" "$RUNNER_TEMP/$(basename "$f" .js).mjs" && node --check "$RUNNER_TEMP/$(basename "$f" .js).mjs" || exit 1; done
+      - name: Titlebar progress lifecycle
+        run: node --test desktop/tests/ui/progress_state.test.mjs
 
   windows:
     name: Windows tests, release build and update handoff
