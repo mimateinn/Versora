@@ -87,7 +87,7 @@ async def run(args):
             require(comparable_path(state['selected'][0]['path'])==comparable_path(source), 'Registered input differs')
             original = hashlib.sha256(source.read_bytes()).hexdigest()
             result['native'] = True
-            native.restore();native.place(1060,800)
+            native.restore();native.place(1060,800,focus=False)
             result['nativeWindow'] = native.snapshot()
             await navigate(page,'settings')
             await page.get_by_test_id('settings-pane-appearance').click()
@@ -120,9 +120,9 @@ async def run(args):
                 for pane in ('purposes','keys','order','glossary','appearance','updates'):
                     await page.get_by_test_id(f'settings-pane-{pane}').click()
                     await fixed_geometry(page,result,True,f'running-settings-{pane}')
-                native.place(800,640)
+                native.place(800,640,focus=False)
                 await fixed_geometry(page,result,True,'native-minimum-800x640')
-                native.place(1060,800)
+                native.place(1060,800,focus=False)
                 await fixed_geometry(page,result,True,'native-resize-1060x800')
                 await navigate(page,'translate')
             await page.wait_for_function("() => document.querySelector('[data-testid=job-card]')?.dataset.jobStatus==='done'",timeout=90000)

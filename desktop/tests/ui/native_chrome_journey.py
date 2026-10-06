@@ -285,7 +285,7 @@ class OwnedWindow:
         self.verify_binary()
         self.user.ShowWindow(self.hwnd, 9)
 
-    def place(self, logical_width=900, logical_height=640):
+    def place(self, logical_width=900, logical_height=640, focus=True):
         self.guard()
         self.verify_binary()
         require(not self.user.IsIconic(self.hwnd) and not self.user.IsZoomed(self.hwnd),
@@ -303,7 +303,8 @@ class OwnedWindow:
         y = work.top + (work.bottom - work.top - height) // 2
         require(self.user.SetWindowPos(self.hwnd, None, x, y, width, height, 0x0014),
                 "Owned native client resize failed.")
-        self.foreground()
+        if focus:
+            self.foreground()
 
     def screen_point(self, css_x, css_y, viewport):
         self.guard()

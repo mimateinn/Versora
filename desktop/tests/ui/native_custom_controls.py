@@ -57,7 +57,7 @@ async def run(args):
             page.set_default_timeout(10000);page.on('pageerror',lambda error:result['errors'].append(str(error)))
             state=await page.evaluate("window.__TAURI__.core.invoke('get_state')")
             require(state['testMode'] and state['version']=='0.3.1' and comparable_path(state['dataDir'])==comparable_path(proof['dataDir']),'Wrong native version/profile')
-            native.restore();native.place(1060,800)
+            native.restore();native.place(1060,800,focus=False)
             await pane(page,'appearance');await choose(page,'interface-language','en');await idle(page)
             await navigate(page,'translate');await idle(page)
             if await page.get_by_test_id('clear-selection').count():await page.get_by_test_id('clear-selection').click();await idle(page)
@@ -95,8 +95,10 @@ async def run(args):
             result['keyboard']={'typeahead':'PASS','arrowsHomeEndEnterEscape':'PASS','disabledOptionSkipped':'PASS'}
 
             # Create genuine private projects, then reload the actual app state.
-            await page.evaluate("""async () => {
-              for(let n=0;n<140;n++)await window.__TAURI__.core.invoke('create_project',{name:'Native UI option '+String(n).padStart(3,'0')});
+            project_ids=await page.evaluate("""async () => {
+              const ids=[];
+              for(let n=0;n<140;n++)ids.push(await window.__TAURI__.core.invoke('create_project',{name:'Native UI option '+String(n).padStart(3,'0')}));
+              return ids;
             }""")
             await page.reload();await page.get_by_test_id('translate-card').wait_for();await idle(page)
             await pane(page,'glossary');await page.get_by_test_id('glossary-project-trigger').click()
@@ -104,9 +106,9 @@ async def run(args):
             await page.locator('.custom-picker-filter').fill('no-such-option-9876')
             require(await page.locator('.custom-picker-empty').is_visible(),'No-result state missing')
             require(await page.locator('.custom-picker-filter').get_attribute('aria-activedescendant') is None,'No-result state has stale active option')
-            await page.locator('.custom-picker-filter').fill('Native UI option 139');await page.locator('.custom-picker-filter').press('Enter');await idle(page)
+            await page.locator('.custom-picker-filter').fill(project_ids[-1]);await page.locator('.custom-picker-filter').press('Enter');await idle(page)
             state=await page.evaluate("window.__TAURI__.core.invoke('get_state')")
-            require(state['settings']['project']=='Native UI option 139','Filtered selection not saved by Rust')
+            require(state['settings']['project']==project_ids[-1],'Filtered selection not saved by Rust')
             await page.get_by_test_id('glossary-project-trigger').click();await page.locator('.custom-picker-filter').press('Tab')
             require(await page.get_by_test_id('new-project').evaluate('node => node === document.activeElement'),'Tab did not continue to next page control')
             await page.get_by_test_id('glossary-project-trigger').click();await page.get_by_test_id('new-project').click()
@@ -120,7 +122,7 @@ async def run(args):
 
             result['layouts']=[]
             for width,height in ((1060,800),(800,640)):
-                native.place(width,height)
+                native.place(width,height,focus=False)
                 for mode,tone in (('standard','light'),('standard','dark'),('hologram','light'),('hologram','dark')):
                     await pane(page,'appearance')
                     await page.get_by_test_id('appearance-theme-'+mode).click();await idle(page)
@@ -171,7 +173,7 @@ async def run(args):
         result['status']='FAIL';result['failure']=str(error);raise
     finally:
         (output/'ui-check.json').write_text(json.dumps(result,indent=2)+'\n',encoding='utf-8')
-        native.close()
+        native.release_handle()
     print(json.dumps({'status':result['status'],'sourceSha':result['sourceSha'],'layouts':len(result['layouts']),'exitCode':result['exitCode']}))
 
 
