@@ -420,11 +420,15 @@ def capture_full_window(native, destination):
     """Reuse the existing owned PrintWindow helper inside this stronger live pin."""
     native.guard()
     native.verify_binary()
-    command = ["powershell.exe", "-NoProfile", "-NonInteractive", "-File",
+    command = ["pwsh.exe", "-NoProfile", "-NonInteractive", "-File",
                str(TEST_ROOT / "capture_native_window.ps1"), "-ProcessId", str(native.pid),
                "-OutputPath", str(destination), "-ExpectedExecutable", str(native.executable),
                "-ExpectedExecutableSHA256", native.digest, "-Mode", "window"]
-    output = subprocess.run(command, capture_output=True, timeout=30)
+    output = subprocess.run(command, capture_output=True, timeout=30, creationflags=subprocess.CREATE_NO_WINDOW)
+    if output.returncode:
+        Path(str(destination)+'.failure.json').write_text(json.dumps({
+            'returncode':output.returncode,'stdout':output.stdout.decode('utf-8','replace'),
+            'stderr':output.stderr.decode('utf-8','replace')},indent=2),encoding='utf-8')
     require(output.returncode == 0, "Actual owned full-HWND PrintWindow capture failed.")
     native.guard()
     proof = json.loads(Path(str(destination) + ".json").read_text(encoding="utf-8-sig"))
