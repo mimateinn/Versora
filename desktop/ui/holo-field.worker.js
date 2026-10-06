@@ -1,5 +1,9 @@
-/* Ported verbatim from Litora (app/holo-field.worker.js) so Opal is the same
-   material across the series; only the watermark words differ.
+/* Ported from Litora (app/holo-field.worker.js) so Opal is the same material
+   across the series. Two differences: the watermark words, and bilinear
+   ('low') instead of 'high' smoothing when the coarse field and ink grids are
+   upscaled. On a software-rasterised canvas 'high' cost about 90 ms a frame at
+   1.5x scale and held the field near 10 fps; bilinear renders the same picture
+   (at most 7/255 per channel apart) at about a third of the cost.
 
    Hologram fluid field. Runs in a worker on a transferred OffscreenCanvas, so
    no per-frame work lands on the UI thread.
@@ -558,7 +562,7 @@ function paintGlyphs(now) {
     gctx.fillRect(0, 0, glyphs.width, glyphs.height);
   } else {
     gctx.imageSmoothingEnabled = true;
-    gctx.imageSmoothingQuality = 'high';
+    gctx.imageSmoothingQuality = 'low';
     gctx.drawImage(ink, 0, 0, cols, rows, 0, 0, cols * CELL * DPR, rows * CELL * DPR);
   }
   gctx.globalCompositeOperation = 'source-over';
@@ -576,7 +580,7 @@ function compose(now, withGlyphs) {
     vctx.fillRect(0, 0, view.width, view.height);
   } else {
     vctx.imageSmoothingEnabled = true;
-    vctx.imageSmoothingQuality = 'high';
+    vctx.imageSmoothingQuality = 'low';
     vctx.drawImage(field, 0, 0, cols, rows, 0, 0, cols * CELL * DPR, rows * CELL * DPR);
   }
   if (withGlyphs && paintGlyphs(now)) vctx.drawImage(glyphs, 0, 0);
