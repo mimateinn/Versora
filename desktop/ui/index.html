@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="icons.css">
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="updates.css">
+  <link rel="stylesheet" href="controls.css">
 </head>
 <body>
   <div class="watermark" aria-hidden="true"><div class="watermark-field" id="watermark"></div></div>
@@ -18,9 +19,9 @@
       <span class="route-name" id="route-name" data-testid="route-name">Translate</span>
       <div class="seg theme-switcher" role="group" data-testid="theme-switcher" data-tauri-drag-region="false" aria-label="Theme"></div>
       <div class="window-controls" data-testid="window-controls" data-tauri-drag-region="false">
-        <button type="button" class="caption-button" data-window-action="minimize" data-testid="window-minimize" aria-label="Minimize" title="Minimize" disabled></button>
-        <button type="button" class="caption-button" data-window-action="maximize" data-testid="window-maximize" aria-label="Maximize" title="Maximize" disabled></button>
-        <button type="button" class="caption-button caption-close" data-window-action="close" data-testid="window-close" aria-label="Close" title="Close" disabled></button>
+        <button type="button" class="caption-button" data-window-action="minimize" data-testid="window-minimize" aria-label="Minimize" data-tip="Minimize" disabled></button>
+        <button type="button" class="caption-button" data-window-action="maximize" data-testid="window-maximize" aria-label="Maximize" data-tip="Maximize" disabled></button>
+        <button type="button" class="caption-button caption-close" data-window-action="close" data-testid="window-close" aria-label="Close" data-tip="Close" disabled></button>
       </div>
   <div class="window-resize-handles" aria-hidden="true" data-tauri-drag-region="false">
     <div class="window-resize north" data-resize-direction="North" data-testid="window-resize-north"></div>

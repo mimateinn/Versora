@@ -136,3 +136,25 @@ interpolate for 180ms on retained rail controls. The reserved footer wraps natur
 without entering the content scroller. The explicit Reduce Motion preference keeps a 160ms route-only fade;
 the OS reduced-motion request disables it. Runtime evidence and screenshots
 belong in the ignored evidence directory, not the source package.
+
+## Shared custom lists and tooltips
+
+`controls.js` keeps the original hidden select as the form/value carrier while a
+labelled combobox opens a shared fixed listbox. It follows current Litora
+`pickerField/openPicker`, `.ctx` and `.litora-tip` geometry/motion. Options remain
+plain text. Lists over eight options have a localized filter; small lists use
+600 ms typeahead. Arrows/Home/End/Page keys skip disabled options; Enter commits,
+Escape cancels and restores focus, Tab continues the page focus order, and an
+outside pointer dismisses without stealing focus. Scroll/resize/page scaling
+repositions the popup. Hints use 380 ms delay, 140 ms fade and aria-describedby;
+Escape, blur, scroll and selection dismiss them. Both motion preferences apply.
+
+`native_custom_controls.py` runs against the genuine private Demo launch proof
+from `launch_progress_segments.ps1`: repeated opening, real Rust settings saves,
+140 genuine private project directories, filter/no-result/disabled states,
+keyboard focus, Standard/Opal light/dark, actual 800x640 and 1060x800 native
+windows, full-HWND PNGs, tooltip clipping and owned WebView page-scale stress.
+Page scaling uses CDP in that instance, not a changed OS display scale or device
+viewport. `custom_control_helpers.py` operates the visible custom control; its
+native-select fallback is only for the pinned original before-fix binary.
+No paid provider call, owner profile or fake backend/job state is involved.

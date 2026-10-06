@@ -48,7 +48,7 @@ export class WindowChrome {
     for(const button of this.controls.querySelectorAll('[data-window-action]')){
       const action=button.dataset.windowAction;
       button.innerHTML=glyphs[action==='maximize'&&maximized?'restore':action];
-      button.setAttribute('aria-label',names[action]);button.title=names[action];
+      button.setAttribute('aria-label',names[action]);button.dataset.tip =names[action];
       button.disabled=!this.ready||this.pending;
     }
     if(this.state){

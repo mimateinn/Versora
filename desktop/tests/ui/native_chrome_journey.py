@@ -18,6 +18,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+from custom_control_helpers import choose
 import re
 import subprocess
 import time
@@ -581,7 +582,7 @@ async def maximize_accessibility(page, maximized, normal_icon):
     button = page.get_by_test_id("window-maximize")
     await page.wait_for_function("""label => {
       const b=document.querySelector('[data-testid=window-maximize]');
-      return b?.getAttribute('aria-label')===label && b.title===label;
+      return b?.getAttribute('aria-label')===label && b.dataset.tip===label;
     }""", arg=label)
     require(await button.locator("svg").count() == 1, "Maximize/Restore must have one visible SVG glyph.")
     icon = await button.locator("svg").inner_html()
@@ -1049,7 +1050,7 @@ async def run(args):
             receipt["initialInteractiveHits"] = await verify_interactive_hits(page)
             await navigate(page, "settings")
             await page.get_by_test_id("settings-pane-appearance").click()
-            await page.get_by_test_id("interface-language").select_option("en")
+            await choose(page,"interface-language","en")
             await page.wait_for_function("() => document.documentElement.lang === 'en'")
             await wait_idle(page)
             receipt["phase"] = "minimize/maximize/restore"
@@ -1152,7 +1153,7 @@ async def run(args):
             receipt["phase"] = "800px light/dark"
             native.place(800, 640)
             await page.wait_for_function("() => innerWidth === 800")
-            await page.get_by_test_id("interface-language").select_option("en")
+            await choose(page,"interface-language","en")
             await page.wait_for_function("() => document.documentElement.lang === 'en'")
             shell_reference = await shell_geometry(page)
             validate_shell(shell_reference)
@@ -1203,7 +1204,7 @@ async def run(args):
             for locale in LOCALES:
                 native.guard()
                 await page.get_by_test_id("settings-pane-appearance").click()
-                await page.get_by_test_id("interface-language").select_option(locale)
+                await choose(page,"interface-language",locale)
                 await page.wait_for_function("locale => document.documentElement.lang===locale", arg=locale)
                 await wait_idle(page)
                 await page.evaluate("async () => await document.fonts.ready")
@@ -1224,7 +1225,7 @@ async def run(args):
                                   "providerRows": len(rows), "paidTestClicks": 0}), flush=True)
             receipt["checks"].append({"name": "all 12 native locale action slots/footer/gutters", "layouts": locale_layouts})
             await page.get_by_test_id("settings-pane-appearance").click()
-            await page.get_by_test_id("interface-language").select_option("en")
+            await choose(page,"interface-language","en")
             await page.wait_for_function("() => document.documentElement.lang==='en'")
             await wait_idle(page)
             await page.get_by_test_id("settings-pane-order").click()

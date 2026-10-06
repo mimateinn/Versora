@@ -5,11 +5,6 @@
     "bytes": 314
   },
   {
-    "path": "desktop\\assets\\fonts\\libron\\libron.css",
-    "sha256": "8BD044F9C73EB2933CD4CCC08226C1F6529F6C7C4E36842879B1266DC2E2FF88",
-    "bytes": 640
-  },
-  {
     "path": "desktop\\assets\\fonts\\libron\\LICENSE",
     "sha256": "CB452A7A6E43D36823B393E6FA2CB1B60FCCB4533BB30DC96D7262DF5DBB477E",
     "bytes": 4552
@@ -30,6 +25,16 @@
     "bytes": 2544
   },
   {
+    "path": "desktop\\assets\\fonts\\libron\\VERSION",
+    "sha256": "A30A043314FA89294FA2C1C989A01FBB5329E5C085A5C5A8D27317656DE24AE0",
+    "bytes": 4
+  },
+  {
+    "path": "desktop\\assets\\fonts\\libron\\libron.css",
+    "sha256": "8BD044F9C73EB2933CD4CCC08226C1F6529F6C7C4E36842879B1266DC2E2FF88",
+    "bytes": 640
+  },
+  {
     "path": "desktop\\assets\\fonts\\libron\\ttf\\Libron-Bold.ttf",
     "sha256": "0258C7DEB5326BBCDE76076A457249D41912EA7B7C4A817A2B617E4A95B24A99",
     "bytes": 214612
@@ -48,11 +53,6 @@
     "path": "desktop\\assets\\fonts\\libron\\ttf\\Libron-Regular.ttf",
     "sha256": "18995BA828982E7A70E92C6A107E182B8358B363AACAC887409B8758042C490B",
     "bytes": 211620
-  },
-  {
-    "path": "desktop\\assets\\fonts\\libron\\VERSION",
-    "sha256": "A30A043314FA89294FA2C1C989A01FBB5329E5C085A5C5A8D27317656DE24AE0",
-    "bytes": 4
   },
   {
     "path": "desktop\\assets\\fonts\\libron\\woff2\\Libron-Bold.woff2",
@@ -76,13 +76,18 @@
   },
   {
     "path": "desktop\\ui\\app.js",
-    "sha256": "2F46A3B998F965CB3FD91DFCD855C08D34673BF5479527A5EBEFC568ED5679D6",
-    "bytes": 64564
+    "sha256": "59B68B45472037730811E3D75E79DFE19398B7B26E9E4F40D479A1BAB8CEAD40",
+    "bytes": 64757
   },
   {
     "path": "desktop\\ui\\assets\\fonts\\libron\\COPYRIGHT",
     "sha256": "F266CFEA9E68F3A159788DA9ECDA72E3FA14D76816C0FCA30442496B6253E12E",
     "bytes": 314
+  },
+  {
+    "path": "desktop\\ui\\assets\\fonts\\libron\\LICENSE",
+    "sha256": "CB452A7A6E43D36823B393E6FA2CB1B60FCCB4533BB30DC96D7262DF5DBB477E",
+    "bytes": 4552
   },
   {
     "path": "desktop\\ui\\assets\\fonts\\libron\\Libron-Bold.woff2",
@@ -103,11 +108,6 @@
     "path": "desktop\\ui\\assets\\fonts\\libron\\Libron-Regular.woff2",
     "sha256": "B25EDA95D6B81C4977217314A088F446448A07126738511E8930A8D3372A5253",
     "bytes": 80848
-  },
-  {
-    "path": "desktop\\ui\\assets\\fonts\\libron\\LICENSE",
-    "sha256": "CB452A7A6E43D36823B393E6FA2CB1B60FCCB4533BB30DC96D7262DF5DBB477E",
-    "bytes": 4552
   },
   {
     "path": "desktop\\ui\\assets\\fonts\\libron\\SOURCE.json",
@@ -133,6 +133,16 @@
     "path": "desktop\\ui\\backend.js",
     "sha256": "7E7746CC857460F7FBC68A5547C8B08AB089B614AAC3CF2E7F449074FBA75793",
     "bytes": 5689
+  },
+  {
+    "path": "desktop\\ui\\controls.css",
+    "sha256": "2938BADF8025F375DC47F9582018DA40652829BA47E0855798C9604FD0B02AC1",
+    "bytes": 3253
+  },
+  {
+    "path": "desktop\\ui\\controls.js",
+    "sha256": "46DB69882F1E15DC01647E6C27CEE987572DFD89BAD687D35284D59036451407",
+    "bytes": 19325
   },
   {
     "path": "desktop\\ui\\fonts.css",
@@ -166,8 +176,8 @@
   },
   {
     "path": "desktop\\ui\\index.html",
-    "sha256": "420C1F1C8AA01ADFA5BAA13680DB8346CBF52231A4A5E0316ECF010183CD8273",
-    "bytes": 4459
+    "sha256": "09F8C0B3F184D41DAC3FB16D2E75B7C12917C5A9691528E38C6A2C1F686F659A",
+    "bytes": 4514
   },
   {
     "path": "desktop\\ui\\locales\\de.json",
@@ -261,12 +271,12 @@
   },
   {
     "path": "desktop\\ui\\updates.js",
-    "sha256": "AD3985E8730AAEAF0DE842B08023D42D522485D40E90BBFE55364221B81BCEB2",
-    "bytes": 13221
+    "sha256": "81E2300375EBFEF4273DCA3FECF30B69D364F60F3F35844580FC5B7FA74B1663",
+    "bytes": 13227
   },
   {
     "path": "desktop\\ui\\window-chrome.js",
-    "sha256": "D05C8355E2974375A611CBFF49B1040BF0311B10F5FEAB2E2D4924CECDE6AC5F",
-    "bytes": 3792
+    "sha256": "7443E393DE7C1232C0B10E9A69BF1AAA2CC6C4E139ADB5BF36809529089EFF24",
+    "bytes": 3799
   }
 ]

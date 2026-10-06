@@ -15,6 +15,7 @@ import json
 import statistics
 import time
 from pathlib import Path
+from custom_control_helpers import choose
 
 from playwright.async_api import async_playwright
 
@@ -88,12 +89,12 @@ async def run(args):
         evidence["checks"].append("All 12 interface languages plus system-language choice")
         locale_root = Path(__file__).resolve().parents[2] / "ui" / "locales"
         for code in [value for value in language_options if value != "system"]:
-            await page.get_by_test_id("interface-language").select_option(code)
+            await choose(page,"interface-language",code)
             await page.wait_for_function("code => document.documentElement.lang === code", arg=code)
             catalog = json.loads((locale_root / f"{code}.json").read_text(encoding="utf-8"))
             assert await page.get_by_test_id("settings-content-appearance").locator("h1").inner_text() == catalog["card.appearance"]
         evidence["checks"].append("Every interface locale loaded and appearance heading matches its preserved catalog")
-        await page.get_by_test_id("interface-language").select_option("en")
+        await choose(page,"interface-language","en")
         await page.wait_for_function("() => document.documentElement.lang === 'en'")
         await page.get_by_test_id("appearance-theme-standard").click()
         await page.get_by_test_id("appearance-tone-light").click()
@@ -107,14 +108,14 @@ async def run(args):
         assert await page.get_by_test_id("updates-download").is_disabled()
         assert await page.get_by_test_id("updates-install").is_disabled()
         assert await page.get_by_test_id("updates-capability-reason").inner_text()
-        await page.get_by_test_id("updates-policy").select_option("periodic")
+        await choose(page,"updates-policy","periodic")
         await page.get_by_test_id("updates-intervalHours").wait_for()
         await page.get_by_test_id("updates-intervalHours").fill("168")
         await page.get_by_test_id("updates-intervalHours").press("Tab")
         await page.wait_for_function("() => document.querySelector('[data-testid=main-content]')?.getAttribute('aria-busy') === 'false'")
         preferences = await page.evaluate("window.__TAURI__.core.invoke('updates_get_preferences')")
         assert preferences["intervalHours"] == 168 and preferences["policy"] == "periodic"
-        await page.get_by_test_id("updates-policy").select_option("manual")
+        await choose(page,"updates-policy","manual")
         await page.wait_for_function("() => document.querySelector('[data-testid=updates-policy]')?.value === 'manual'")
         evidence["checks"].append("Updater policies persist; missing publisher trust blocks download/install with a visible reason")
 
@@ -124,13 +125,13 @@ async def run(args):
         original_model = await page.get_by_test_id(f"order-model-{first_provider}").input_value()
         original_limit = await page.get_by_test_id("global-limit").input_value()
         await page.get_by_test_id(f"order-model-{first_provider}").fill("native-regression-model")
-        await page.get_by_test_id("global-limit").select_option("3" if original_limit != "3" else "2")
+        await choose(page,"global-limit","3" if original_limit != "3" else "2")
         await page.wait_for_function("id => document.querySelector(`[data-testid=order-model-${id}]`)?.value === 'native-regression-model'", arg=first_provider)
         await page.get_by_test_id("theme-choice-standard").click()
         await page.wait_for_function("() => document.documentElement.dataset.theme === 'dark'")
         assert await page.get_by_test_id(f"order-model-{first_provider}").input_value() == "native-regression-model"
         await page.get_by_test_id(f"order-model-{first_provider}").fill(original_model)
-        await page.get_by_test_id("global-limit").select_option(original_limit)
+        await choose(page,"global-limit",original_limit)
         await page.get_by_test_id("save-order").click()
         await page.wait_for_function("() => document.querySelector('[data-testid=save-order]')?.disabled === false")
         evidence["checks"].append("Order draft survives concurrency/theme saves and explicit order save")
@@ -156,7 +157,7 @@ async def run(args):
         assert native_terms == [{"term": "Versora", "translation": "Versora"}]
         evidence["checks"].append("Glossary project creation, editor save and actual Rust persistence")
         await page.get_by_test_id("settings-pane-purposes").click()
-        await page.get_by_test_id("purpose-from").select_option("technical")
+        await choose(page,"purpose-from","technical")
         await page.get_by_test_id("copy-purpose").click()
         assert await page.get_by_test_id("purpose-instructions").input_value()
         await page.get_by_test_id("purpose-instructions").fill("Translate accurately. Keep the source structure and glossary terms.")
@@ -208,7 +209,7 @@ async def run(args):
 
         # The native backend registered actual Open With inputs at process startup.
         # A manual chooser is the only alternate entry; no test override fabricates selection.
-        await page.get_by_test_id("translator").select_option("demo")
+        await choose(page,"translator","demo")
         await page.get_by_test_id("demo-warning").wait_for()
         if args.manual_dialogs:
             if await page.get_by_test_id("clear-selection").count():
@@ -268,7 +269,7 @@ async def run(args):
         await page.get_by_test_id("translated-text-preview").wait_for()
         assert await page.get_by_test_id("translated-text-preview").inner_text()
         evidence["checks"].append("Owned source/translated preview through scoped Rust command")
-        path_nodes = await page.locator('.file-path,.output-path').evaluate_all("nodes => nodes.map(node=>({text:node.textContent,title:node.title,ellipsis:getComputedStyle(node).textOverflow}))")
+        path_nodes = await page.locator('.file-path,.output-path').evaluate_all("nodes => nodes.map(node=>({text:node.textContent,title:node.dataset.tip,ellipsis:getComputedStyle(node).textOverflow}))")
         assert path_nodes and all(not item['text'].startswith('\\\\?\\') and item['title']==item['text'] and item['ellipsis']=='ellipsis' for item in path_nodes)
         evidence["checks"].append("Windows extended paths show familiar drive/UNC forms with ellipsis and complete tooltips")
         for kind in ["folder", "zip", "file"]:

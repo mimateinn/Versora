@@ -37,6 +37,8 @@ Versora now opens in its own Windows desktop window. The translation engine, fil
 
 The native window uses a single 48 px header with Minimize, Maximize/Restore and Close controls. Drag a blank part of the header to move the window; double-click it to maximize or restore. Closing warns about unsaved edits, requests cancellation of an active job and waits for pending writes before exit.
 
+In-app dropdowns use the shared custom listbox, with filtering for long lists, typeahead for short lists, keyboard navigation and viewport-bounded scrolling. Hover and keyboard-focus hints use the same custom tooltip style as Litora, without duplicate system title tooltips. Native Windows file/security dialogs retain their platform behavior.
+
 ### Install and start
 
 1. Use Windows 10 or 11, 64-bit, with the Microsoft Edge WebView2 Evergreen Runtime already installed. The installer checks this prerequisite; it does not download a runtime.

@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 import json
 from pathlib import Path
+from custom_control_helpers import choose
 from playwright.async_api import async_playwright
 from native_journey import comparable_path
 
@@ -34,7 +35,7 @@ async def run(args):
             raise RuntimeError('Explicit Demo and the expected isolated profile are required.')
         await navigate(page, "settings")
         await page.get_by_test_id('settings-pane-appearance').click()
-        await page.get_by_test_id('interface-language').select_option('en')
+        await choose(page,'interface-language','en')
         await page.wait_for_function("() => document.documentElement.lang==='en'")
         await page.get_by_test_id("appearance-theme-standard").click()
         await page.get_by_test_id(f'appearance-tone-{args.theme}').click()
@@ -51,7 +52,7 @@ async def run(args):
             assert await page.get_by_test_id('toast').is_hidden()
             assert state['selected']
             original={item['path']:hashlib.sha256(Path(item['path']).read_bytes()).hexdigest() for item in state['selected']}
-            await page.get_by_test_id('translator').select_option('demo')
+            await choose(page,'translator','demo')
             await page.get_by_test_id('translate-start').click()
             await page.wait_for_function("() => document.querySelector('[data-testid=job-card]')?.dataset.jobStatus==='done'",timeout=30000)
             assert await page.get_by_test_id('job-title').inner_text()=='Demo completed'

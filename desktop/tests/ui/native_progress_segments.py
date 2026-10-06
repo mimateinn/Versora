@@ -9,6 +9,7 @@ import asyncio
 import hashlib
 import json
 from pathlib import Path
+from custom_control_helpers import choose
 
 from playwright.async_api import async_playwright, Error
 from native_chrome_journey import OwnedWindow, capture_full_window, owned_test_path, require
@@ -90,10 +91,10 @@ async def run(args):
             result['nativeWindow'] = native.snapshot()
             await navigate(page,'settings')
             await page.get_by_test_id('settings-pane-appearance').click()
-            await page.get_by_test_id('interface-language').select_option('zh-Hant')
+            await choose(page,'interface-language','zh-Hant')
             await idle(page)
             await navigate(page,'translate')
-            await page.get_by_test_id('translator').select_option('demo')
+            await choose(page,'translator','demo')
             await idle(page)
             await page.evaluate('document.fonts.ready')
             await asyncio.sleep(.8)

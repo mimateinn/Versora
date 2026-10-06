@@ -63,7 +63,7 @@ export class UpdatesPane {
     if(!pill){pill=document.createElement('div');pill.id='update-pill';pill.className='update-pill';pill.dataset.testid='update-pill';pill.setAttribute('role','group');}
     const dock=document.querySelector('.page-dock');
     if(dock&&pill.parentElement!==dock)dock.prepend(pill);else if(!dock&&pill.parentElement!==document.body)document.body.append(pill);
-    const markup=`<button type="button" class="update-pill-main" data-action="updates-install" data-testid="update-pill-install" ${this.installing?'disabled':''}>${icon(this.installing?'spinner':'download')}<span>${this.installing?label('restarting'):label('pill',{v:s.candidateVersion})}</span></button><button type="button" class="update-pill-later" data-action="updates-dismiss" data-testid="update-pill-later" title="${label('pill_later')}" aria-label="${label('pill_later')}" ${this.installing?'disabled':''}>${icon('close')}</button>`;
+    const markup=`<button type="button" class="update-pill-main" data-action="updates-install" data-testid="update-pill-install" ${this.installing?'disabled':''}>${icon(this.installing?'spinner':'download')}<span>${this.installing?label('restarting'):label('pill',{v:s.candidateVersion})}</span></button><button type="button" class="update-pill-later" data-action="updates-dismiss" data-testid="update-pill-later" data-tip="${label('pill_later')}" aria-label="${label('pill_later')}" ${this.installing?'disabled':''}>${icon('close')}</button>`;
     if(pill.innerHTML!==markup)pill.innerHTML=markup;
     pill.setAttribute('aria-label',t('updates.pill',{v:s.candidateVersion}));
   }
@@ -74,7 +74,7 @@ export class UpdatesPane {
     this.announced=true;
     let box=document.querySelector('#update-toast');
     if(!box){box=document.createElement('div');box.id='update-toast';box.className='toast update-toast';box.dataset.testid='update-toast';box.setAttribute('role','status');box.setAttribute('aria-live','polite');document.body.append(box);}
-    box.innerHTML=`<span>${label('updated_to',{v:done.to})}</span><button type="button" class="link" data-action="updates-whatsnew" data-testid="update-toast-whatsnew">${label('whats_new')}</button><button type="button" class="update-toast-close" data-action="updates-toast-close" data-testid="update-toast-close" title="${label('close')}" aria-label="${label('close')}">${icon('close')}</button>`;
+    box.innerHTML=`<span>${label('updated_to',{v:done.to})}</span><button type="button" class="link" data-action="updates-whatsnew" data-testid="update-toast-whatsnew">${label('whats_new')}</button><button type="button" class="update-toast-close" data-action="updates-toast-close" data-testid="update-toast-close" data-tip="${label('close')}" aria-label="${label('close')}">${icon('close')}</button>`;
     box.hidden=false;clearTimeout(this.toastTimer);this.toastTimer=setTimeout(()=>this.hideToast(),15000);
   }
   hideToast() {clearTimeout(this.toastTimer);const box=document.querySelector('#update-toast');if(box)box.hidden=true;}

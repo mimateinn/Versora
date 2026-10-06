@@ -3,6 +3,7 @@ import argparse
 import asyncio
 import json
 from pathlib import Path
+from custom_control_helpers import choose
 from playwright.async_api import async_playwright
 from native_journey import comparable_path
 
@@ -80,7 +81,7 @@ async def run(args):
             await page.evaluate('() => document.querySelector("#native-font-probes").remove()')
             await navigate(page, "settings")
             await page.get_by_test_id('settings-pane-appearance').click()
-            await page.get_by_test_id('interface-language').select_option('en')
+            await choose(page,'interface-language','en')
             await page.wait_for_function("() => document.documentElement.lang==='en'")
             result['renderedFonts']['brand-bold']=await fonts('.brand b')
             result['renderedFonts']['appearance-heading']=await fonts('[data-testid="settings-content-appearance"] h1')
@@ -128,7 +129,7 @@ async def run(args):
                 await page.wait_for_function('theme=>document.documentElement.dataset.theme===theme',arg=theme)
                 for locale in locales:
                     await page.get_by_test_id('settings-pane-appearance').click()
-                    await page.get_by_test_id('interface-language').select_option(locale)
+                    await choose(page,'interface-language',locale)
                     await page.wait_for_function('locale=>document.documentElement.lang===locale',arg=locale)
                     await page.evaluate('async () => await document.fonts.ready')
                     heading=await fonts('[data-testid="settings-content-appearance"] h1')
@@ -153,7 +154,7 @@ async def run(args):
                         await page.screenshot(path=str(directory/f'native-libron-{theme}-{locale}-client.png'))
                     print(json.dumps({'nativeFontProgress':f'{theme}/{locale}','layouts':len(result['layouts'])}),flush=True)
             await page.get_by_test_id('settings-pane-appearance').click()
-            await page.get_by_test_id('interface-language').select_option('en')
+            await choose(page,'interface-language','en')
             await page.get_by_test_id("appearance-theme-standard").click()
             await page.get_by_test_id('appearance-tone-light').click()
             await navigate(page, "translate")

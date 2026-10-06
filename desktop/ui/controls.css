@@ -1,0 +1,21 @@
+/* Litora's .ctx and .litora-tip geometry, adapted to Versora's existing tokens. */
+.custom-select{width:100%;min-width:0;display:inline-flex;align-items:center;justify-content:space-between;gap:8px;text-align:left;padding-right:12px}
+.custom-select:active:not(:disabled){transform:none}
+.custom-select-value{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.custom-select-caret{display:inline-flex;flex:none;color:var(--muted)}.custom-select-caret svg{width:11px;height:11px}
+.limits-line>.custom-select{width:96px;flex:none}
+.custom-picker{position:fixed;z-index:180;display:flex;flex-direction:column;gap:4px;padding:6px;max-width:calc(100vw - 16px);background:var(--card);border:1px solid var(--line);border-radius:var(--radius-card);box-shadow:var(--shadow);animation:custom-menu 180ms var(--ease) both;isolation:isolate}
+.custom-picker-filter{width:100%;flex:none;min-width:0;font-size:12px}
+.custom-picker-list{max-height:244px;overflow:auto;min-height:0;outline:none;scroll-behavior:auto;overscroll-behavior:contain;scrollbar-gutter:stable}
+.custom-option{display:flex;width:100%;align-items:center;gap:8px;padding:7px 10px;border-radius:6px;font-size:12px;font-family:var(--f-ui);font-weight:var(--body-weight);cursor:pointer;outline:none;min-height:31px;background:transparent;color:var(--text);line-height:1.45}
+.custom-option-label{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.custom-option-tick{flex:none;width:12px;color:var(--accent);font-size:12px}
+.custom-option[data-active=true]{background:var(--sunken);box-shadow:inset 0 0 0 1px var(--accent-soft)}
+.custom-option[aria-disabled=true]{opacity:.45;cursor:default}.custom-picker-empty{padding:7px 10px;color:var(--muted);font-size:12px}
+.custom-picker-list:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;border-radius:6px}
+@keyframes custom-menu{from{opacity:0;transform:translateY(-4px) scale(.97)}to{opacity:1;transform:none}}
+.custom-tip{position:fixed;z-index:200;max-width:min(280px,calc(100vw - 16px));max-height:calc(100vh - 16px);overflow:auto;padding:6px 10px;border-radius:8px;background:var(--card);color:var(--text);border:1px solid var(--line);font-size:12px;line-height:1.45;letter-spacing:0;box-shadow:var(--shadow);white-space:pre-line;overflow-wrap:anywhere;visibility:hidden;opacity:0;transform:translateY(4px);transition:opacity 140ms var(--ease),transform 140ms var(--ease),var(--theme-colors);isolation:isolate}
+.custom-tip.is-on{visibility:visible;opacity:1;transform:none}
+:root[data-theme=hologram] :is(.custom-picker,.custom-tip){background:var(--card-solid);border-color:var(--holo-edge);box-shadow:inset 0 1px 0 var(--holo-edge-light),var(--shadow)}
+:root[data-reduced-motion=true] :is(.custom-picker,.custom-tip){animation:none!important;transition:none!important;transform:none!important}
+@media(prefers-reduced-motion:reduce){.custom-picker,.custom-tip{animation:none!important;transition:none!important;transform:none!important}}
+@media(forced-colors:active){.custom-picker,.custom-tip{background:Canvas;color:CanvasText;border-color:CanvasText}.custom-option[data-active=true]{forced-color-adjust:none;background:Highlight;color:HighlightText}.custom-option-tick{color:inherit}}

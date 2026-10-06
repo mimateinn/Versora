@@ -6,9 +6,11 @@ import {WindowChrome} from './window-chrome.js';
 import {UIMotion} from './motion.js';
 import {bindHoloField} from './holo-field.js';
 import {progressState} from './progress-state.js';
+import {CustomControls} from './controls.js';
 
 const content = document.querySelector('#content');
 const motion = new UIMotion();
+const customControls = new CustomControls();
 const initialCliProbes = new Set();
 const state = {settings:{},providers:[],purposes:[],projects:[],glossary:[],selected:[],job:null,version:'',dataDir:'',testMode:false};
 const view = {page:'translate',pane:'purposes',editingProvider:null,outputDir:null,busy:false,initializing:true,sourceSwitching:false,pendingSourceType:null,error:null,glossaryDraft:null,orderDraft:null,purposeDraft:null,purposeFrom:'general',pollTimer:null,polling:false,unlisten:[],toastTimer:null,preview:null};
@@ -27,7 +29,7 @@ const formatSize = value => {
   const n = Number(value) || 0;
   return n < 1024 ? `${n} B` : n < 1048576 ? `${(n/1024).toFixed(1)} KB` : `${(n/1048576).toFixed(1)} MB`;
 };
-const button = (action,label,testid,options={}) => `<button type="button" data-action="${attr(action)}" data-testid="${attr(testid)}" ${options.id ? `data-id="${attr(options.id)}"` : ''} class="${options.class || ''}" ${options.disabled ? 'disabled' : ''} ${options.title ? `title="${attr(options.title)}" aria-label="${attr(options.title)}"` : ''}>${options.icon ? icon(options.icon) : ''}${label ? escape(label) : ''}</button>`;
+const button = (action,label,testid,options={}) => `<button type="button" data-action="${attr(action)}" data-testid="${attr(testid)}" ${options.id ? `data-id="${attr(options.id)}"` : ''} class="${options.class || ''}" ${options.disabled ? 'disabled' : ''} ${options.title ? `data-tip="${attr(options.title)}" aria-label="${attr(options.title)}"` : ''}>${options.icon ? icon(options.icon) : ''}${label ? escape(label) : ''}</button>`;
 const field = (name,label,body) => `<div class="field"><label for="${attr(name)}">${label}</label>${body}</div>`;
 const input = (name,value='',options={}) => `<input id="${attr(name)}" data-testid="${attr(name)}" ${options.setting ? `data-setting="${attr(options.setting)}"` : ''} name="${attr(name)}" type="${options.type || 'text'}" value="${attr(value)}" ${options.readOnly ? 'readonly' : ''} ${options.disabled ? 'disabled' : ''} ${options.placeholder ? `placeholder="${attr(options.placeholder)}"` : ''} ${options.maxLength ? `maxlength="${options.maxLength}"` : ''} ${options.autoComplete ? `autocomplete="${options.autoComplete}"` : ''}>`;
 const select = (name,value,options,extra={}) => `<select id="${attr(name)}" name="${attr(name)}" data-testid="${attr(name)}" ${extra.setting ? `data-setting="${attr(extra.setting)}"` : ''} ${extra.disabled ? 'disabled' : ''}>${options.map(option => `<option value="${attr(option.value)}" ${String(option.value) === String(value) ? 'selected' : ''}>${escape(option.label)}</option>`).join('')}</select>`;
@@ -55,7 +57,7 @@ function purposeOptions(custom=true) {
 }
 function toast(message,tone='success') {
   const box = document.querySelector('#toast');
-  clearTimeout(view.toastTimer); box.textContent = String(message); box.title = String(message); box.dataset.tone = tone; box.hidden = false;
+  clearTimeout(view.toastTimer); box.textContent = String(message); box.dataset.tip = String(message); box.dataset.tone = tone; box.hidden = false;
   view.toastTimer = setTimeout(() => {box.hidden = true;},6000);
 }
 async function confirmRemoval(name) {
@@ -83,7 +85,7 @@ function paintThemeChoices(group,titled=false) {
     const id = node.dataset.id;
     node.setAttribute('aria-pressed',String(id === mode));
     node.dataset.tone = tone;
-    if (titled) {const title = id === mode ? modeTitle(id) : t(`theme.name.${id}`);node.title = title;node.setAttribute('aria-label',title);}
+    if (titled) {const title = id === mode ? modeTitle(id) : t(`theme.name.${id}`);node.dataset.tip = title;node.setAttribute('aria-label',title);}
     node.querySelector('.theme-name').textContent = t(`theme.name.${id}`);
     node.disabled = busy;
   }
@@ -166,7 +168,7 @@ function renderChrome() {
   paintThemeChoices(content.querySelector('#appearance-theme'));
   paintToneChoices(content.querySelector('#appearance-tone'));
   document.querySelector('#route-name').textContent = t(view.page === 'settings' ? 'nav.settings' : 'nav.translate');
-  document.querySelectorAll('.nav-button').forEach(node => {node.title = t(`nav.${node.dataset.page}`);node.classList.toggle('active',node.dataset.page === view.page);node.setAttribute('aria-current',node.dataset.page === view.page ? 'page' : 'false');});
+  document.querySelectorAll('.nav-button').forEach(node => {node.dataset.tip = t(`nav.${node.dataset.page}`);node.classList.toggle('active',node.dataset.page === view.page);node.setAttribute('aria-current',node.dataset.page === view.page ? 'page' : 'false');});
   document.querySelector('#version').textContent = state.version ? `v${state.version.replace(/^v/,'')}` : '';
 }
 const dropArt = `<svg viewBox="0 0 168 96" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 86h140" stroke-opacity=".5"/><rect x="40" y="14" width="50" height="66" rx="4" fill="var(--art-fill)"/><path d="M50 30h30M50 40h30M50 50h22M50 60h26" stroke-opacity=".6"/><rect x="80" y="22" width="50" height="62" rx="4" fill="var(--art-fill)" stroke="var(--accent)" stroke-dasharray="4 4"/><path d="M90 38h28M90 48h24M90 58h28M64 6c10-4 22-2 30 6M90 6l4 6-7 1" stroke="var(--accent)"/></svg>`;
@@ -176,7 +178,7 @@ function quickbar() {
 }
 function selectedView() {
   const busy = controlsBusy();
-  return `<div class="selected-files" data-testid="selected-files">${state.selected.map((file,index) => `<div class="file-row" data-testid="selected-file-${index}">${icon(file.kind === 'folder' ? 'folder' : file.kind === 'zip' ? 'zip' : 'file')}<div class="file-detail"><div class="file-name">${escape(file.name)}</div><div class="file-path" title="${attr(displayPath(file.path))}">${escape(displayPath(file.path))}</div></div><span class="file-size">${formatSize(file.size)}</span></div>`).join('')}</div><div class="run-actions"><span class="hint">${L('desktop.originals')}</span><div class="actions">${state.selected.length === 1 && state.selected[0].kind !== 'folder' ? button('source-preview',t('result.show_preview'),'source-preview',{icon:'file',class:'small',disabled:busy}) : ''}${button('clear-selection',t('main.clear'),'clear-selection',{icon:'close',class:'small',disabled:busy})}${button('pick',t('drop.browse'),'pick-more',{icon:'plus',class:'small',disabled:busy})}</div></div>${view.preview && !state.job ? previewView() : ''}`;
+  return `<div class="selected-files" data-testid="selected-files">${state.selected.map((file,index) => `<div class="file-row" data-testid="selected-file-${index}">${icon(file.kind === 'folder' ? 'folder' : file.kind === 'zip' ? 'zip' : 'file')}<div class="file-detail"><div class="file-name">${escape(file.name)}</div><div class="file-path" data-tip="${attr(displayPath(file.path))}">${escape(displayPath(file.path))}</div></div><span class="file-size">${formatSize(file.size)}</span></div>`).join('')}</div><div class="run-actions"><span class="hint">${L('desktop.originals')}</span><div class="actions">${state.selected.length === 1 && state.selected[0].kind !== 'folder' ? button('source-preview',t('result.show_preview'),'source-preview',{icon:'file',class:'small',disabled:busy}) : ''}${button('clear-selection',t('main.clear'),'clear-selection',{icon:'close',class:'small',disabled:busy})}${button('pick',t('drop.browse'),'pick-more',{icon:'plus',class:'small',disabled:busy})}</div></div>${view.preview && !state.job ? previewView() : ''}`;
 }
 function previewView() {
   const preview=view.preview;
@@ -199,7 +201,7 @@ function jobView(job) {
   const chunksTotal=count(job.chunksTotal),chunksDone=Math.min(chunksTotal,count(job.chunksDone));
   const fileRows = files.map((file,index) => {
     const total=count(file.chunks_total),done=Math.min(total,count(file.chunks_done));
-    return `<div class="job-file" data-testid="job-file-${index}" data-status="${attr(file.status)}">${icon(glyphs[file.status] || 'file')}<span class="job-file-title" title="${attr(displayPath(file.relative || file.input))}">${escape(file.relative || file.name)}</span><span class="job-file-state">${L(states[file.status] || 'state.waiting')}${total ? `<span class="file-chunks" data-testid="job-file-chunks-${index}">${L('run.chunks',{done,total})}</span>` : ''}</span>${file.error ? `<div class="job-error">${escape(file.error)}</div>` : ''}</div>`;
+    return `<div class="job-file" data-testid="job-file-${index}" data-status="${attr(file.status)}">${icon(glyphs[file.status] || 'file')}<span class="job-file-title" data-tip="${attr(displayPath(file.relative || file.input))}">${escape(file.relative || file.name)}</span><span class="job-file-state">${L(states[file.status] || 'state.waiting')}${total ? `<span class="file-chunks" data-testid="job-file-chunks-${index}">${L('run.chunks',{done,total})}</span>` : ''}</span>${file.error ? `<div class="job-error">${escape(file.error)}</div>` : ''}</div>`;
   }).join('');
   return `<section class="card" data-testid="job-card" data-job-status="${attr(job.status)}" data-used-demo="${job.usedDemo===true}" aria-live="polite">
     <div class="${running ? 'progress-heading' : 'result-heading'} ${error ? 'error' : ''}">
@@ -211,14 +213,14 @@ function jobView(job) {
     ${job.usedDemo===true ? `<p class="notice" data-testid="job-demo-warning">${L('desktop.demo')}</p>` : ''}
     ${job.message ? `<p class="notice ${error ? 'error' : ''}" data-testid="job-message">${escape(job.message)}</p>` : ''}
     <div class="job-files" data-testid="job-files">${fileRows}</div>
-    ${!running && job.outputDir && saved ? `<div class="output-path" data-testid="output-path" title="${attr(displayPath(job.outputDir))}">${escape(displayPath(job.outputDir))}</div>${button('copy-output-path',t('result.copy_path'),'copy-output-path',{icon:'file',class:'link',disabled:view.busy})}` : ''}
+    ${!running && job.outputDir && saved ? `<div class="output-path" data-testid="output-path" data-tip="${attr(displayPath(job.outputDir))}">${escape(displayPath(job.outputDir))}</div>${button('copy-output-path',t('result.copy_path'),'copy-output-path',{icon:'file',class:'link',disabled:view.busy})}` : ''}
     ${!running && saved ? `${button('result-preview',t('result.show_preview'),'result-preview',{icon:'file',class:'link',disabled:view.busy})}${view.preview ? previewView() : ''}` : ''}
     ${!running ? `<div class="actions spread">${failed + unfinished ? button('retry',t('batch.retry_remaining',{n:failed+unfinished}),'job-retry',{icon:'retry',disabled:view.busy}) : '<span></span>'}<div class="actions">${saved && job.outputDir ? button('open-output',t('batch.open_folder'),'open-output',{icon:'folder_open',disabled:view.busy}) : ''}${saved ? button(files.length > 1 || effectiveSourceType() !== 'file' ? 'export-zip' : 'export-file',t(files.length > 1 || effectiveSourceType() !== 'file' ? 'batch.download_all' : 'desktop.save_as'),'export-result',{icon:'download',class:'primary',disabled:view.busy}) : ''}</div></div>` : ''}
   </section>`;
 }
 function clearToast() {
   clearTimeout(view.toastTimer);
-  const box=document.querySelector('#toast');box.textContent='';box.title='';box.hidden=true;
+  const box=document.querySelector('#toast');box.textContent='';box.dataset.tip ='';box.hidden=true;
 }
 const panes = [['purposes','card.purposes','bubble'],['keys','card.translators','key'],['order','card.order','swap'],['glossary','card.glossary','book'],['appearance','card.appearance','monitor'],['updates','updates.title','download']];
 function sameRows(left,right,fields) {
@@ -301,7 +303,7 @@ function providersView() {
 }
 function orderView() {
   const providers = providersInOrder(),busy = controlsBusy();
-  return `<div class="card pane-card" data-testid="order-card"><p class="note">${L('order.hint')}</p><div><div class="order-header"><span>${L('order.col_name')}</span><span>${L('order.model')}</span><span class="order-effort">${L('order.effort')}</span><span>${L('order.col_on')}</span><span></span><span></span></div>${providers.map((provider,index) => `<div class="order-row" data-testid="order-row-${attr(provider.id)}"><div class="order-name"><span class="ordinal">${index+1}</span><span class="status-dot ${provider.transportVerified===true ? 'ready' : ''}" aria-hidden="true"></span><span title="${attr(provider.name)}">${escape(provider.name)}</span></div>${input(`order-model-${provider.id}`,provider.model || '',{placeholder:t('order.model_default'),maxLength:64,disabled:busy})}<div class="order-effort">${select(`order-effort-${provider.id}`,provider.effort || '',[{value:'',label:t('order.effort_default')},...['low','medium','high'].map(value => ({value,label:t(`order.${value}`)}))],{disabled:busy})}</div><label class="toggle" title="${attr(t('order.on'))}"><input type="checkbox" data-testid="order-enabled-${attr(provider.id)}" data-order="enabled" data-id="${attr(provider.id)}" aria-label="${attr(`${t('order.on')}: ${provider.name}`)}" ${provider.enabled !== false ? 'checked' : ''} ${busy ? 'disabled' : ''}><span class="toggle-track"></span></label>${button('move-up',null,`order-up-${provider.id}`,{id:provider.id,icon:'upload',class:'icon-button',title:t('order.up'),disabled:busy || index === 0})}${button('move-down',null,`order-down-${provider.id}`,{id:provider.id,icon:'download',class:'icon-button',title:t('order.down'),disabled:busy || index === providers.length-1})}</div>`).join('')}</div><hr class="divider"><div class="limits-line"><label for="global-limit">${L('order.files')}</label>${select('global-limit',state.settings.concurrency || 3,Array.from({length:16},(_,i) => ({value:i+1,label:String(i+1)})),{setting:'concurrency',disabled:busy})}</div><details class="advanced" data-testid="order-advanced"><summary data-testid="order-advanced-toggle">${L('order.advanced')}</summary><div class="advanced-content stack"><div class="limits-line"><label for="provider-limit">${L('order.per')}</label>${select('provider-limit',state.settings.per_provider || 1,Array.from({length:8},(_,i) => ({value:i+1,label:String(i+1)})),{setting:'per_provider',disabled:busy})}</div><p class="hint">${L('order.limits_hint')}</p></div></details><div class="actions">${button('save-order',t('desktop.save_settings'),'save-order',{class:'primary',disabled:busy})}</div></div>`;
+  return `<div class="card pane-card" data-testid="order-card"><p class="note">${L('order.hint')}</p><div><div class="order-header"><span>${L('order.col_name')}</span><span>${L('order.model')}</span><span class="order-effort">${L('order.effort')}</span><span>${L('order.col_on')}</span><span></span><span></span></div>${providers.map((provider,index) => `<div class="order-row" data-testid="order-row-${attr(provider.id)}"><div class="order-name"><span class="ordinal">${index+1}</span><span class="status-dot ${provider.transportVerified===true ? 'ready' : ''}" aria-hidden="true"></span><span data-tip="${attr(provider.name)}">${escape(provider.name)}</span></div>${input(`order-model-${provider.id}`,provider.model || '',{placeholder:t('order.model_default'),maxLength:64,disabled:busy})}<div class="order-effort">${select(`order-effort-${provider.id}`,provider.effort || '',[{value:'',label:t('order.effort_default')},...['low','medium','high'].map(value => ({value,label:t(`order.${value}`)}))],{disabled:busy})}</div><label class="toggle" data-tip="${attr(t('order.on'))}"><input type="checkbox" data-testid="order-enabled-${attr(provider.id)}" data-order="enabled" data-id="${attr(provider.id)}" aria-label="${attr(`${t('order.on')}: ${provider.name}`)}" ${provider.enabled !== false ? 'checked' : ''} ${busy ? 'disabled' : ''}><span class="toggle-track"></span></label>${button('move-up',null,`order-up-${provider.id}`,{id:provider.id,icon:'upload',class:'icon-button',title:t('order.up'),disabled:busy || index === 0})}${button('move-down',null,`order-down-${provider.id}`,{id:provider.id,icon:'download',class:'icon-button',title:t('order.down'),disabled:busy || index === providers.length-1})}</div>`).join('')}</div><hr class="divider"><div class="limits-line"><label for="global-limit">${L('order.files')}</label>${select('global-limit',state.settings.concurrency || 3,Array.from({length:16},(_,i) => ({value:i+1,label:String(i+1)})),{setting:'concurrency',disabled:busy})}</div><details class="advanced" data-testid="order-advanced"><summary data-testid="order-advanced-toggle">${L('order.advanced')}</summary><div class="advanced-content stack"><div class="limits-line"><label for="provider-limit">${L('order.per')}</label>${select('provider-limit',state.settings.per_provider || 1,Array.from({length:8},(_,i) => ({value:i+1,label:String(i+1)})),{setting:'per_provider',disabled:busy})}</div><p class="hint">${L('order.limits_hint')}</p></div></details><div class="actions">${button('save-order',t('desktop.save_settings'),'save-order',{class:'primary',disabled:busy})}</div></div>`;
 }
 function glossaryView() {
   const project = state.settings.project || 'default',busy = controlsBusy();
@@ -312,7 +314,7 @@ function glossaryView() {
 }
 function appearanceView() {
   const s = state.settings,busy=controlsBusy();
-  return `<div class="card pane-card" data-testid="appearance-card"><div class="field"><span class="field-label" id="appearance-theme-label">${L('card.theme')}</span><div class="theme-row" role="group" id="appearance-theme" data-testid="appearance-theme" aria-labelledby="appearance-theme-label">${modes.map(id => themeChoice(id,`appearance-theme-${id}`,'set-mode','<span class="theme-dot" aria-hidden="true"></span>')).join('')}</div></div><div class="field"><span class="field-label" id="appearance-tone-label">${L('theme.tone')}</span><div class="segments tone-choices" role="group" id="appearance-tone" data-testid="appearance-tone" aria-labelledby="appearance-tone-label">${['light','dark'].map(id => `<button type="button" data-action="set-tone" data-id="${id}" data-testid="appearance-tone-${id}" aria-pressed="false">${icon(id === 'light' ? 'sun' : 'moon')}<span class="tone-name"></span></button>`).join('')}</div></div>${field('interface-language',L('sidebar.language'),select('interface-language',s.ui_lang_follow !== false ? 'system' : s.ui_lang || systemLanguage(),[{value:'system',label:t('lang.follow_system',{name:nativeLanguageNames[systemLanguage()]})},...languages.map(value => ({value,label:nativeLanguageNames[value]}))],{disabled:busy}))}<p class="note">${L('card.lang_count')} · ${L('desktop.os_language')}</p><label class="limits-line"><input type="checkbox" id="reduce-motion" data-testid="reduce-motion" data-setting="reduced_motion" ${s.reduced_motion ? 'checked' : ''} ${busy ? 'disabled' : ''}>${L('desktop.motion')}</label><hr class="divider"><p class="eyebrow">${L('desktop.data')}</p><p class="output-path" data-testid="data-directory" title="${attr(displayPath(state.dataDir))}">${escape(displayPath(state.dataDir))}</p><div class="actions spread">${button('import-legacy',t('desktop.import'),'import-legacy',{icon:'folder_open',disabled:busy})}${button('open-data',t('batch.open_folder'),'open-data',{icon:'folder',disabled:busy})}</div></div>`;
+  return `<div class="card pane-card" data-testid="appearance-card"><div class="field"><span class="field-label" id="appearance-theme-label">${L('card.theme')}</span><div class="theme-row" role="group" id="appearance-theme" data-testid="appearance-theme" aria-labelledby="appearance-theme-label">${modes.map(id => themeChoice(id,`appearance-theme-${id}`,'set-mode','<span class="theme-dot" aria-hidden="true"></span>')).join('')}</div></div><div class="field"><span class="field-label" id="appearance-tone-label">${L('theme.tone')}</span><div class="segments tone-choices" role="group" id="appearance-tone" data-testid="appearance-tone" aria-labelledby="appearance-tone-label">${['light','dark'].map(id => `<button type="button" data-action="set-tone" data-id="${id}" data-testid="appearance-tone-${id}" aria-pressed="false">${icon(id === 'light' ? 'sun' : 'moon')}<span class="tone-name"></span></button>`).join('')}</div></div>${field('interface-language',L('sidebar.language'),select('interface-language',s.ui_lang_follow !== false ? 'system' : s.ui_lang || systemLanguage(),[{value:'system',label:t('lang.follow_system',{name:nativeLanguageNames[systemLanguage()]})},...languages.map(value => ({value,label:nativeLanguageNames[value]}))],{disabled:busy}))}<p class="note">${L('card.lang_count')} · ${L('desktop.os_language')}</p><label class="limits-line"><input type="checkbox" id="reduce-motion" data-testid="reduce-motion" data-setting="reduced_motion" ${s.reduced_motion ? 'checked' : ''} ${busy ? 'disabled' : ''}>${L('desktop.motion')}</label><hr class="divider"><p class="eyebrow">${L('desktop.data')}</p><p class="output-path" data-testid="data-directory" data-tip="${attr(displayPath(state.dataDir))}">${escape(displayPath(state.dataDir))}</p><div class="actions spread">${button('import-legacy',t('desktop.import'),'import-legacy',{icon:'folder_open',disabled:busy})}${button('open-data',t('batch.open_folder'),'open-data',{icon:'folder',disabled:busy})}</div></div>`;
 }
 function render() {
   rememberProviderInputs();
@@ -342,8 +344,9 @@ function render() {
   if(route!==motion.route)content.querySelectorAll('.card').forEach(card=>card.classList.add('card-enter'));
   placeIndicators();
   motion.enter(content,route);
-  document.querySelector('#output-folder')?.setAttribute('title',displayPath(view.outputDir));
+  document.querySelector('#output-folder')?.setAttribute('data-tip',displayPath(view.outputDir));
   content.setAttribute('aria-busy',String(view.busy));
+  customControls.sync();
   updates.watchPane(view.page==='settings'&&view.pane==='updates');
   reportUnsaved();
   if(view.page==='settings'&&view.pane==='keys')void recheckInitialCliProviders();
@@ -603,7 +606,7 @@ window.addEventListener('resize',scheduleIndicators,{passive:true});
 document.fonts.addEventListener('loadingdone',scheduleIndicators);
 motion.reduced.addEventListener('change',scheduleIndicators);
 // Native drag/drop paths are validated and registered by Rust before this event.
-window.addEventListener('beforeunload',() => {clearTimeout(view.pollTimer);clearTimeout(view.toastTimer);if(indicatorFrame!==null)cancelAnimationFrame(indicatorFrame);segmentObserver.disconnect();window.removeEventListener('resize',scheduleIndicators);document.fonts.removeEventListener('loadingdone',scheduleIndicators);motion.reduced.removeEventListener('change',scheduleIndicators);updates.dispose();motion.dispose();view.holoField?.();for(const unlisten of view.unlisten)unlisten();});
+window.addEventListener('beforeunload',() => {customControls.dispose();clearTimeout(view.pollTimer);clearTimeout(view.toastTimer);if(indicatorFrame!==null)cancelAnimationFrame(indicatorFrame);segmentObserver.disconnect();window.removeEventListener('resize',scheduleIndicators);document.fonts.removeEventListener('loadingdone',scheduleIndicators);motion.reduced.removeEventListener('change',scheduleIndicators);updates.dispose();motion.dispose();view.holoField?.();for(const unlisten of view.unlisten)unlisten();});
 async function initialize() {
   const words=['VERSORA','TRANSLATE','翻譯','TRADUIRE','ÜBERSETZEN','翻訳','TRADUCIR','번역'];
   document.querySelector('#watermark').innerHTML=['a','b'].map((layer,n)=>`<div class="watermark-layer ${layer}">${Array.from({length:30},(_,index)=>`<div>${escape((words.slice((index+n)%words.length).concat(words.slice(0,(index+n)%words.length)).join(' · ')+' · ').repeat(12))}</div>`).join('')}</div>`).join('');
