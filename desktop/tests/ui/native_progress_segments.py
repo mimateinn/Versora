@@ -43,7 +43,7 @@ SEGMENT_TRACE = """async () => {
 
 
 async def idle(page):
-    await page.wait_for_function("document.querySelector('#content').getAttribute('aria-busy')==='false'")
+    await page.wait_for_function("() => document.querySelector('#content').getAttribute('aria-busy')==='false'")
 
 
 async def fixed_geometry(page, result, fixed, where):
@@ -75,6 +75,7 @@ async def run(args):
             require(len(pages)==1, 'Exactly one actual Tauri context is required')
             page = pages[0]
             page.on('pageerror', lambda error:result['errors'].append(str(error)))
+            await navigate(page,'translate')
             await page.get_by_test_id('translate-card').wait_for()
             await idle(page)
             state = await page.evaluate("window.__TAURI__.core.invoke('get_state')")
@@ -123,17 +124,17 @@ async def run(args):
                 native.place(1060,800)
                 await fixed_geometry(page,result,True,'native-resize-1060x800')
                 await navigate(page,'translate')
-            await page.wait_for_function("document.querySelector('[data-testid=job-card]')?.dataset.jobStatus==='done'",timeout=90000)
+            await page.wait_for_function("() => document.querySelector('[data-testid=job-card]')?.dataset.jobStatus==='done'",timeout=90000)
             require(await page.get_by_test_id('job-card').get_attribute('data-used-demo')=='true', 'Demo provenance required')
             require(hashlib.sha256(source.read_bytes()).hexdigest()==original, 'Original input changed')
             done = await fixed_geometry(page,result,fixed,'translation-done')
             if fixed:require(done['state']=='idle', 'Completed work must release the strip')
             # Repeat the actual registered input, cancel after at least one real chunk.
             await page.get_by_test_id('translate-start').click()
-            await page.wait_for_function("document.querySelector('[data-testid=job-card]')?.dataset.jobStatus==='running'")
+            await page.wait_for_function("() => document.querySelector('[data-testid=job-card]')?.dataset.jobStatus==='running'")
             await page.wait_for_function("id => {const n=document.querySelector(`[data-testid=${id}]`);return n?.dataset.unit==='chunks'&&(Number(n.getAttribute('aria-valuenow'))||n.value)>0;}",arg=progress_selector)
             await page.get_by_test_id('job-cancel').click()
-            await page.wait_for_function("document.querySelector('[data-testid=job-card]')?.dataset.jobStatus==='stopped'")
+            await page.wait_for_function("() => document.querySelector('[data-testid=job-card]')?.dataset.jobStatus==='stopped'")
             await idle(page)
             cancelled = await fixed_geometry(page,result,fixed,'translation-cancelled')
             if fixed:
